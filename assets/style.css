@@ -146,3 +146,46 @@ body {
   color: var(--accent);
   text-decoration: none;
 }
+
+/* Инструмент «Дашборд по портам назначения» */
+
+.dashboard-block {
+  margin-bottom: 32px;
+}
+
+.dashboard-block table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dashboard-block th,
+.dashboard-block td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.dashboard-row--port-total td {
+  font-weight: 600;
+  background: var(--bg);
+}
+
+.dashboard-row--grand-total td {
+  font-weight: 700;
+  background: var(--warn-bg);
+}
+
+.port-bar {
+  height: 6px;
+  width: 100%;
+  max-width: 240px;
+  background: var(--border);
+  border-radius: 3px;
+  margin-top: 4px;
+}
+
+.port-bar__fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
