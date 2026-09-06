@@ -1,7 +1,7 @@
 window.STATE =
 {
   "slug": "port-dashboard",
-  "dir": "2026-09-06-port-dashboard--wip",
+  "dir": "2026-09-06-port-dashboard",
   "title": "Дашборд по портам назначения",
   "mode": "semi",
   "depth": "normal",
@@ -11,8 +11,8 @@ window.STATE =
   "memoryFile": "CLAUDE.md",
   "skillDir": "/Users/nasekomus/.claude/skills/autopilot",
   "startedAt": "2026-09-06T18:08:29+03:00",
-  "updatedAt": "2026-09-06T18:08:29+03:00",
-  "finishedAt": null,
+  "updatedAt": "2026-09-06T19:20:00+03:00",
+  "finishedAt": "2026-09-06T19:20:00+03:00",
   "stages": [
     {
       "id": "preflight",
@@ -45,29 +45,40 @@ window.STATE =
     },
     {
       "id": "build",
-      "status": "active",
-      "startedAt": "2026-09-06T18:35:00+03:00"
+      "status": "done",
+      "startedAt": "2026-09-06T18:35:00+03:00",
+      "finishedAt": "2026-09-06T19:05:00+03:00"
     },
     {
       "id": "review",
-      "status": "pending"
+      "status": "done",
+      "startedAt": "2026-09-06T19:00:00+03:00",
+      "finishedAt": "2026-09-06T19:05:00+03:00"
     },
     {
       "id": "final",
-      "status": "pending"
+      "status": "done",
+      "startedAt": "2026-09-06T19:05:00+03:00",
+      "finishedAt": "2026-09-06T19:20:00+03:00"
     }
   ],
   "requirements": {
     "total": 12,
-    "done": 0,
+    "done": 12,
     "inTicket": 0,
-    "inSpec": 12,
+    "inSpec": 0,
     "placeholder": 0,
     "deferred": 0,
     "dropped": 0
   },
   "tickets": [],
-  "singlePass": null,
+  "singlePass": {
+    "files": ["dashboard/core.js", "dashboard/core.test.js", "dashboard/app.js", "dashboard/index.html", "tools.js", "index.html", "assets/style.css"],
+    "tests": "npm test → 30 passed, 0 failed (было 19)",
+    "commit": "7c3b842",
+    "startedAt": "2026-09-06T18:35:00+03:00",
+    "finishedAt": "2026-09-06T19:05:00+03:00"
+  },
   "tests": null,
   "debt": {
     "placeholders": [],
@@ -81,5 +92,8 @@ window.STATE =
     "manifestSpec": null,
     "craft": null
   },
-  "blind": null
+  "blind": {
+    "drift": [],
+    "note": "все требования брифа (основной текст + оба пункта «Дополнения») подтверждены живым запуском на реальном файле пользователя: разбивка по портам/типам/весу, показ на странице, скачивание в Excel с тем же составом данных, несколько файлов со сводом по каждому плюс общий свод, понятная ошибка на несовместимом файле. Расхождений с манифестом не найдено."
+  }
 }
