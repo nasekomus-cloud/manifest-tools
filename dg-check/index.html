@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Сверить опасные грузы</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <main class="page">
+    <a class="back-link" href="../index.html">← Все инструменты</a>
+    <h1 class="page__title">Сверить опасные грузы</h1>
+    <p class="page__subtitle">
+      Загрузите сводный файл и официальный DG-манифест — сверка пройдёт по номеру
+      контейнера прямо в браузере, файлы никуда не отправляются.
+    </p>
+
+    <section>
+      <h2>1. Сводный файл</h2>
+      <div class="dropzone" id="combined-dropzone">
+        Перетащите файл сюда или
+        <label class="btn" for="combined-input" style="display: inline-block; margin-left: 8px;">Выбрать файл</label>
+        <input type="file" id="combined-input" accept=".xlsx" hidden />
+      </div>
+      <ul class="file-list" id="combined-file-list"></ul>
+    </section>
+
+    <section>
+      <h2>2. DG-манифест</h2>
+      <div class="dropzone" id="dg-dropzone">
+        Перетащите файл сюда или
+        <label class="btn" for="dg-input" style="display: inline-block; margin-left: 8px;">Выбрать файл</label>
+        <input type="file" id="dg-input" accept=".xlsx" hidden />
+      </div>
+      <ul class="file-list" id="dg-file-list"></ul>
+    </section>
+
+    <p>
+      <button class="btn" id="check-btn" disabled>Сверить</button>
+    </p>
+
+    <div id="error-box"></div>
+    <div id="summary-box"></div>
+
+    <p>
+      <button class="btn" id="download-btn" hidden>Скачать</button>
+    </p>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
