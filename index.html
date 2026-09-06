@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Инструменты для судовых манифестов</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <main class="page">
+    <h1 class="page__title">Инструменты для судовых манифестов</h1>
+    <p class="page__subtitle">
+      Выберите нужный инструмент — вся обработка идёт прямо в браузере, файлы никуда не отправляются.
+    </p>
+    <div class="tool-grid" id="tool-grid"></div>
+  </main>
+
+  <script src="tools.js"></script>
+  <script>
+    (function renderTools() {
+      var grid = document.getElementById('tool-grid');
+      var tools = window.TOOLS || [];
+
+      if (!tools.length) {
+        var empty = document.createElement('p');
+        empty.className = 'tool-empty';
+        empty.textContent = 'Инструменты пока не добавлены.';
+        grid.appendChild(empty);
+        return;
+      }
+
+      tools.forEach(function (tool) {
+        var card = document.createElement('a');
+        card.className = 'tool-card';
+        card.href = tool.href;
+
+        var title = document.createElement('h2');
+        title.className = 'tool-card__title';
+        title.textContent = tool.title;
+
+        var description = document.createElement('p');
+        description.className = 'tool-card__description';
+        description.textContent = tool.description;
+
+        card.appendChild(title);
+        card.appendChild(description);
+        grid.appendChild(card);
+      });
+    })();
+  </script>
+</body>
+</html>

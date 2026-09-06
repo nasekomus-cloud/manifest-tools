@@ -1,0 +1,148 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --text: #1c1f26;
+  --text-muted: #565c66;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --border: #dfe3e8;
+  --warn-bg: #fff6cc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+}
+
+.page__title {
+  font-size: 32px;
+  margin: 0 0 8px;
+}
+
+.page__subtitle {
+  color: var(--text-muted);
+  margin: 0 0 32px;
+  font-size: 20px;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.tool-card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.tool-card:hover,
+.tool-card:focus-visible {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.tool-card__title {
+  font-size: 24px;
+  margin: 0 0 12px;
+  color: var(--accent);
+}
+
+.tool-card__description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 18px;
+}
+
+.tool-empty {
+  color: var(--text-muted);
+  font-size: 18px;
+}
+
+/* Общие элементы инструментов (используются страницами merge/ и dg-check/) */
+
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--surface);
+}
+
+.dropzone.dropzone--active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn {
+  font-size: 18px;
+  padding: 14px 28px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn:disabled {
+  background: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.file-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+}
+
+.file-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 8px;
+}
+
+.error-message {
+  background: var(--warn-bg);
+  border-radius: 10px;
+  padding: 16px;
+  margin: 16px 0;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 24px;
+  color: var(--accent);
+  text-decoration: none;
+}

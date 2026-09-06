@@ -1,0 +1,13 @@
+{
+  "name": "manifest-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Статический сайт-инструменты для судовых грузовых манифестов",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "exceljs": "^4.4.0"
+  }
+}
