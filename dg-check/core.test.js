@@ -96,6 +96,36 @@ test('crossCheckDangerousGoods: расхождение — строка цели
   }
 });
 
+test('crossCheckDangerousGoods: заливка не утекает на другую строку, делящую тот же объект стиля', () => {
+  // Реальные файлы из Excel часто хранят один и тот же объект стиля сразу
+  // у сотен ячеек с одинаковым оформлением (проверено на файлах пользователя:
+  // 8 уникальных стилей на 2185 ячеек) — ExcelJS отдаёт им общую ссылку.
+  // Раньше `cell.fill = ...` мутировал этот общий объект, и вся строка,
+  // делящая стиль с расходящейся, тоже красилась жёлтым.
+  const combinedWb = buildCombinedWorkbook([
+    { container: 'CONT_BAD', dangerous: 'старое значение' }, // расходится — красится
+    { container: 'CONT_OK', dangerous: '' }, // не расходится — красить нельзя
+  ]);
+  const sheet = combinedWb.getWorksheet(SHEET_NAME);
+  const rowBad = sheet.getRow(DATA_START_ROW);
+  const rowOk = sheet.getRow(DATA_START_ROW + 1);
+  for (let c = FIRST_COLUMN; c <= LAST_COLUMN; c++) {
+    rowOk.getCell(c).style = rowBad.getCell(c).style; // намеренно один и тот же объект
+  }
+
+  const dgWb = buildDgWorkbook([{ container: 'CONT_BAD', un: '3077', cls: '8' }]);
+
+  const result = crossCheckDangerousGoods(combinedWb, dgWb);
+  assert.equal(result.ok, true);
+  assert.equal(result.summary.mismatchCount, 1);
+
+  const resultSheet = result.resultWorkbook.getWorksheet(SHEET_NAME);
+  const okRow = resultSheet.getRow(DATA_START_ROW + 1);
+  for (let c = FIRST_COLUMN; c <= LAST_COLUMN; c++) {
+    assert.equal(okRow.getCell(c).fill, undefined, `колонка ${c} не должна быть закрашена`);
+  }
+});
+
 test('crossCheckDangerousGoods: контейнер с 3+ позициями объединяется через " / " в порядке DG-манифеста', () => {
   const combinedWb = buildCombinedWorkbook([{ container: 'CONT003', dangerous: '' }]);
   const dgWb = buildDgWorkbook([

@@ -104,6 +104,17 @@ function findDgColumns(sheet) {
   return { ok: false, error: 'В DG-манифесте не удалось найти строку заголовков' };
 }
 
+// ExcelJS отдаёт одну и ту же ссылку на объект стиля многим ячейкам сразу,
+// если в исходном файле у них совпадал индекс стиля (обычная ситуация для
+// файлов из Excel — сотни ячеек с одинаковым оформлением реально делят один
+// объект). Присвоение `cell.fill = ...` меняет этот общий объект на месте —
+// и заливка «утекает» на все остальные ячейки, которые случайно делили тот
+// же стиль, даже в других, не расходящихся строках. Поэтому перед покраской
+// стиль клонируется в новый независимый объект.
+function cloneStyle(style) {
+  return style ? JSON.parse(JSON.stringify(style)) : {};
+}
+
 function normalizeContainer(text) {
   return text.trim().toUpperCase();
 }
@@ -206,11 +217,10 @@ export function crossCheckDangerousGoods(combinedWb, dgWb) {
     if (!sameDangerousGoods(oldValue, newValue)) {
       mismatchCount += 1;
       for (let c = FIRST_COLUMN; c <= newCol; c++) {
-        row.getCell(c).fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: YELLOW_ARGB },
-        };
+        const cell = row.getCell(c);
+        const style = cloneStyle(cell.style);
+        style.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: YELLOW_ARGB } };
+        cell.style = style;
       }
     }
   }
