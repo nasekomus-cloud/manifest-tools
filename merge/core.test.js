@@ -98,6 +98,7 @@ test('mergeManifests: склеивает файлы по порядку, сох�
     totalRows: 3,
     uniqueContainers: null,
     uniqueBillsOfLading: null,
+    duplicateContainers: null,
   });
 });
 
@@ -181,6 +182,41 @@ test('mergeManifests: считает уникальные контейнеры �
   assert.equal(summary.totalRows, 4);
   assert.equal(summary.uniqueContainers, 2); // CICU1828260, SAXU2026718
   assert.equal(summary.uniqueBillsOfLading, 2); // BL001, BL002
+  // CICU1828260/cicu1828260 — один и тот же контейнер (без учёта регистра),
+  // встретился на строках результата 6 и 7
+  assert.deepEqual(summary.duplicateContainers, [{ container: 'CICU1828260', rows: [6, 7] }]);
+});
+
+test('mergeManifests: несколько неуникальных контейнеров в отчёте отсортированы по первой строке появления', () => {
+  const headers = [...SAMPLE_HEADERS];
+  const containerIdx = 1;
+  headers[containerIdx] = '№ контейнера';
+
+  function rowWith(container) {
+    const row = emptyRowData();
+    row[containerIdx] = container;
+    return row;
+  }
+
+  // AAAA1111111 повторится на строках 6 и 8, BBBB2222222 — на 7 и 9
+  const wbA = buildManifestWorkbook({
+    headers,
+    dataRows: [rowWith('AAAA1111111'), rowWith('BBBB2222222')],
+  });
+  const wbB = buildManifestWorkbook({
+    headers,
+    dataRows: [rowWith('AAAA1111111'), rowWith('BBBB2222222'), rowWith('CCCC3333333')],
+  });
+
+  const { summary } = mergeManifests([
+    { fileName: 'a.xlsx', workbook: wbA },
+    { fileName: 'b.xlsx', workbook: wbB },
+  ]);
+
+  assert.deepEqual(summary.duplicateContainers, [
+    { container: 'AAAA1111111', rows: [6, 8] },
+    { container: 'BBBB2222222', rows: [7, 9] },
+  ]);
 });
 
 test('mergeManifests: если в шапке нет колонок «контейнер»/«коносамент», статистика — null', () => {
@@ -190,6 +226,7 @@ test('mergeManifests: если в шапке нет колонок «конте�
 
   assert.equal(summary.uniqueContainers, null);
   assert.equal(summary.uniqueBillsOfLading, null);
+  assert.equal(summary.duplicateContainers, null);
 });
 
 test('mergeManifests: отказывает при несовпадающей структуре, называя файл и ячейку', () => {

@@ -114,7 +114,7 @@ function copyHeaderMerges(sourceSheet, targetSheet) {
  *        renumber — пересчитать колонку "№п/п" (найденную по заголовку, не
  *        обязательно A) от 1 до N по всему своду; по умолчанию false —
  *        нумерация остаётся как в исходниках.
- * @returns {{resultWorkbook: import('exceljs').Workbook, summary: {files: Array<{fileName: string, rows: number}>, totalRows: number, uniqueContainers: number|null, uniqueBillsOfLading: number|null}}}
+ * @returns {{resultWorkbook: import('exceljs').Workbook, summary: {files: Array<{fileName: string, rows: number}>, totalRows: number, uniqueContainers: number|null, uniqueBillsOfLading: number|null, duplicateContainers: Array<{container: string, rows: number[]}>|null}}}
  * @throws {Error} если структура файлов не совпадает (см. validateStructure) —
  *         сообщение уже содержит имя файла и адрес несовпавшей ячейки.
  */
@@ -150,7 +150,7 @@ export function mergeManifests(workbooks, { renumber = false } = {}) {
     findColumnByKeyword(headerRow, FIRST_COPY_COLUMN, LAST_COLUMN, 'п/п') || FALLBACK_NUMBER_COLUMN;
 
   const files = [];
-  const uniqueContainers = new Set();
+  const containerRows = new Map(); // нормализованный контейнер -> номера строк результата, где встретился
   const uniqueBillsOfLading = new Set();
   let targetRow = DATA_START_ROW;
   let runningNumber = 1;
@@ -175,7 +175,11 @@ export function mergeManifests(workbooks, { renumber = false } = {}) {
       const resultRow = resultSheet.getRow(targetRow);
       if (containerCol) {
         const text = cellText(resultRow.getCell(containerCol));
-        if (text) uniqueContainers.add(normalizeValue(text));
+        if (text) {
+          const key = normalizeValue(text);
+          if (!containerRows.has(key)) containerRows.set(key, []);
+          containerRows.get(key).push(targetRow);
+        }
       }
       if (billCol) {
         const text = cellText(resultRow.getCell(billCol));
@@ -191,13 +195,25 @@ export function mergeManifests(workbooks, { renumber = false } = {}) {
 
   const totalRows = files.reduce((sum, file) => sum + file.rows, 0);
 
+  // Контейнер, встретившийся больше одного раза в своде, — вероятная ошибка
+  // (задвоенная строка, опечатка при переносе) или как минимум то, что стоит
+  // проверить глазами; строки — те же номера, что видны при открытии
+  // результата в Excel (с учётом шапки), чтобы можно было сразу перейти к месту.
+  const duplicateContainers = containerCol
+    ? Array.from(containerRows.entries())
+        .filter(([, rows]) => rows.length > 1)
+        .map(([container, rows]) => ({ container, rows }))
+        .sort((a, b) => a.rows[0] - b.rows[0])
+    : null;
+
   return {
     resultWorkbook,
     summary: {
       files,
       totalRows,
-      uniqueContainers: containerCol ? uniqueContainers.size : null,
+      uniqueContainers: containerCol ? containerRows.size : null,
       uniqueBillsOfLading: billCol ? uniqueBillsOfLading.size : null,
+      duplicateContainers,
     },
   };
 }

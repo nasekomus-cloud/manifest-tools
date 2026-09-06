@@ -3,7 +3,7 @@
 // скачиванием блоба — вся DOM-логика живёт здесь. Считать книги и склеивать
 // их — дело core.js (mergeManifests), сюда импортируется как обычный модуль.
 
-import { mergeManifests } from './core.js?v=202609061630';
+import { mergeManifests } from './core.js?v=202609061730';
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
@@ -14,6 +14,7 @@ const mergeBtn = document.getElementById('merge-btn');
 const errorBox = document.getElementById('error-box');
 const summaryBox = document.getElementById('summary-box');
 const summaryTable = document.getElementById('summary-table');
+const duplicatesBox = document.getElementById('duplicates-box');
 const downloadBtn = document.getElementById('download-btn');
 
 /** @type {Array<{id: number, file: File}>} */
@@ -92,6 +93,7 @@ function clearError() {
 function hideSummary() {
   summaryBox.hidden = true;
   summaryTable.innerHTML = '';
+  duplicatesBox.innerHTML = '';
   resultWorkbook = null;
 }
 
@@ -147,6 +149,8 @@ function renderSummary(summary) {
   addStatRow(summaryTable, 'Уникальных контейнеров', summary.uniqueContainers);
   addStatRow(summaryTable, 'Уникальных коносаментов', summary.uniqueBillsOfLading);
 
+  renderDuplicateContainers(summary.duplicateContainers);
+
   summaryBox.hidden = false;
 }
 
@@ -159,6 +163,43 @@ function addStatRow(table, label, value) {
   row.appendChild(labelCell);
   row.appendChild(valueCell);
   table.appendChild(row);
+}
+
+function renderDuplicateContainers(duplicateContainers) {
+  duplicatesBox.innerHTML = '';
+  if (duplicateContainers === null) return; // колонка «№ контейнера» не найдена — нечего показывать
+
+  const heading = document.createElement('h3');
+  heading.textContent = 'Неуникальные контейнеры';
+  duplicatesBox.appendChild(heading);
+
+  if (duplicateContainers.length === 0) {
+    const p = document.createElement('p');
+    p.textContent = 'Повторов не найдено — все номера контейнеров уникальны.';
+    duplicatesBox.appendChild(p);
+    return;
+  }
+
+  const table = document.createElement('table');
+  const headerRow = document.createElement('tr');
+  ['Контейнер', 'Строки'].forEach((text) => {
+    const th = document.createElement('th');
+    th.textContent = text;
+    headerRow.appendChild(th);
+  });
+  table.appendChild(headerRow);
+
+  duplicateContainers.forEach(({ container, rows }) => {
+    const row = document.createElement('tr');
+    const nameCell = document.createElement('td');
+    nameCell.textContent = container;
+    const rowsCell = document.createElement('td');
+    rowsCell.textContent = rows.join(', ');
+    row.appendChild(nameCell);
+    row.appendChild(rowsCell);
+    table.appendChild(row);
+  });
+  duplicatesBox.appendChild(table);
 }
 
 async function handleMergeClick() {
