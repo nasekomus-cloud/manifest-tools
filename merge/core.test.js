@@ -88,13 +88,16 @@ test('mergeManifests: склеивает файлы по порядку, сох�
     fgColor: { argb: 'FFFFFF00' },
   });
 
-  // сводка: файл → строк, и итог
+  // сводка: файл → строк, и итог; в этом тесте заголовки — плейсхолдеры без
+  // «контейнер»/«коносамент», поэтому статистика по ним — null
   assert.deepEqual(summary, {
     files: [
       { fileName: 'a.xlsx', rows: 2 },
       { fileName: 'b.xlsx', rows: 1 },
     ],
     totalRows: 3,
+    uniqueContainers: null,
+    uniqueBillsOfLading: null,
   });
 });
 
@@ -117,6 +120,48 @@ test('mergeManifests: renumber true пересчитывает колонку A 
   assert.equal(resultSheet.getRow(6).getCell(1).value, 1);
   assert.equal(resultSheet.getRow(7).getCell(1).value, 2);
   assert.equal(resultSheet.getRow(8).getCell(1).value, 3);
+});
+
+test('mergeManifests: считает уникальные контейнеры и коносаменты по всем файлам, без учёта повторов и регистра', () => {
+  const headers = [...SAMPLE_HEADERS];
+  const containerIdx = 1; // колонка D
+  const billIdx = 12; // колонка O
+  headers[containerIdx] = '№ контейнера';
+  headers[billIdx] = '№ коносамент';
+
+  function rowWith(container, bill) {
+    const row = emptyRowData();
+    row[containerIdx] = container;
+    row[billIdx] = bill;
+    return row;
+  }
+
+  const wbA = buildManifestWorkbook({
+    headers,
+    dataRows: [rowWith('CICU1828260', 'BL001'), rowWith('cicu1828260', 'BL002')], // повтор контейнера в другом регистре
+  });
+  const wbB = buildManifestWorkbook({
+    headers,
+    dataRows: [rowWith('SAXU2026718', 'BL002'), rowWith('', '')], // пустая строка не считается
+  });
+
+  const { summary } = mergeManifests([
+    { fileName: 'a.xlsx', workbook: wbA },
+    { fileName: 'b.xlsx', workbook: wbB },
+  ]);
+
+  assert.equal(summary.totalRows, 4);
+  assert.equal(summary.uniqueContainers, 2); // CICU1828260, SAXU2026718
+  assert.equal(summary.uniqueBillsOfLading, 2); // BL001, BL002
+});
+
+test('mergeManifests: если в шапке нет колонок «контейнер»/«коносамент», статистика — null', () => {
+  const wbA = buildManifestWorkbook({ dataRows: [emptyRowData()] });
+
+  const { summary } = mergeManifests([{ fileName: 'a.xlsx', workbook: wbA }]);
+
+  assert.equal(summary.uniqueContainers, null);
+  assert.equal(summary.uniqueBillsOfLading, null);
 });
 
 test('mergeManifests: отказывает при несовпадающей структуре, называя файл и ячейку', () => {

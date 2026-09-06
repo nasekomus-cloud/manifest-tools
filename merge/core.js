@@ -10,12 +10,37 @@ import {
   SHEET_NAME,
   COLUMN_HEADER_ROW,
   DATA_START_ROW,
+  FIRST_COLUMN,
   LAST_COLUMN,
   validateStructure,
 } from '../lib/manifest-format.js?v=202609061336';
 
 const FIRST_COPY_COLUMN = 1; // A — включает колонку "№п/п", не участвующую в проверке структуры
 const NUMBER_COLUMN = 1; // A — колонка "№п/п" (История 8 спецификации)
+
+function cellText(cell) {
+  if (!cell) return '';
+  try {
+    const value = cell.text;
+    if (value === undefined || value === null) return '';
+    return String(value).trim();
+  } catch {
+    return '';
+  }
+}
+
+// Позиция колонок "№ контейнера"/"№ коносамента" в формате манифеста не
+// зафиксирована (как и в dg-check/core.js) — ищем по тексту заголовка.
+// Раз validateStructure уже подтвердила одинаковую шапку C5:Y5 у всех
+// склеиваемых файлов, найденный по шапке первого файла индекс верен для
+// всех остальных без повторного поиска.
+function findColumnByKeyword(row, colStart, colEnd, keyword) {
+  const needle = keyword.toLowerCase();
+  for (let col = colStart; col <= colEnd; col++) {
+    if (cellText(row.getCell(col)).toLowerCase().includes(needle)) return col;
+  }
+  return null;
+}
 
 function cloneStyle(style) {
   return style ? JSON.parse(JSON.stringify(style)) : style;
@@ -58,6 +83,10 @@ function copyColumnWidths(sourceSheet, targetSheet) {
   }
 }
 
+function normalizeValue(text) {
+  return text.trim().toUpperCase();
+}
+
 function copyHeaderMerges(sourceSheet, targetSheet) {
   const merges = (sourceSheet.model && sourceSheet.model.merges) || [];
   merges.forEach((range) => {
@@ -84,7 +113,7 @@ function copyHeaderMerges(sourceSheet, targetSheet) {
  * @param {{renumber?: boolean}} [options]
  *        renumber — пересчитать колонку A (№п/п) от 1 до N по всему своду;
  *        по умолчанию false — нумерация остаётся как в исходниках.
- * @returns {{resultWorkbook: import('exceljs').Workbook, summary: {files: Array<{fileName: string, rows: number}>, totalRows: number}}}
+ * @returns {{resultWorkbook: import('exceljs').Workbook, summary: {files: Array<{fileName: string, rows: number}>, totalRows: number, uniqueContainers: number|null, uniqueBillsOfLading: number|null}}}
  * @throws {Error} если структура файлов не совпадает (см. validateStructure) —
  *         сообщение уже содержит имя файла и адрес несовпавшей ячейки.
  */
@@ -110,7 +139,13 @@ export function mergeManifests(workbooks, { renumber = false } = {}) {
   copyColumnWidths(firstSheet, resultSheet);
   copyHeaderMerges(firstSheet, resultSheet);
 
+  const headerRow = resultSheet.getRow(COLUMN_HEADER_ROW);
+  const containerCol = findColumnByKeyword(headerRow, FIRST_COLUMN, LAST_COLUMN, 'контейнер');
+  const billCol = findColumnByKeyword(headerRow, FIRST_COLUMN, LAST_COLUMN, 'коносамент');
+
   const files = [];
+  const uniqueContainers = new Set();
+  const uniqueBillsOfLading = new Set();
   let targetRow = DATA_START_ROW;
   let runningNumber = 1;
 
@@ -131,6 +166,16 @@ export function mergeManifests(workbooks, { renumber = false } = {}) {
         runningNumber++;
       }
 
+      const resultRow = resultSheet.getRow(targetRow);
+      if (containerCol) {
+        const text = cellText(resultRow.getCell(containerCol));
+        if (text) uniqueContainers.add(normalizeValue(text));
+      }
+      if (billCol) {
+        const text = cellText(resultRow.getCell(billCol));
+        if (text) uniqueBillsOfLading.add(normalizeValue(text));
+      }
+
       targetRow++;
       rows++;
     }
@@ -142,6 +187,11 @@ export function mergeManifests(workbooks, { renumber = false } = {}) {
 
   return {
     resultWorkbook,
-    summary: { files, totalRows },
+    summary: {
+      files,
+      totalRows,
+      uniqueContainers: containerCol ? uniqueContainers.size : null,
+      uniqueBillsOfLading: billCol ? uniqueBillsOfLading.size : null,
+    },
   };
 }

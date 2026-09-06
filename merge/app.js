@@ -3,7 +3,7 @@
 // скачиванием блоба — вся DOM-логика живёт здесь. Считать книги и склеивать
 // их — дело core.js (mergeManifests), сюда импортируется как обычный модуль.
 
-import { mergeManifests } from './core.js?v=202609061336';
+import { mergeManifests } from './core.js?v=202609061530';
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
@@ -144,7 +144,21 @@ function renderSummary(summary) {
   totalRow.appendChild(totalValue);
   summaryTable.appendChild(totalRow);
 
+  addStatRow(summaryTable, 'Уникальных контейнеров', summary.uniqueContainers);
+  addStatRow(summaryTable, 'Уникальных коносаментов', summary.uniqueBillsOfLading);
+
   summaryBox.hidden = false;
+}
+
+function addStatRow(table, label, value) {
+  const row = document.createElement('tr');
+  const labelCell = document.createElement('td');
+  labelCell.textContent = label;
+  const valueCell = document.createElement('td');
+  valueCell.textContent = value === null ? 'колонка не найдена' : String(value);
+  row.appendChild(labelCell);
+  row.appendChild(valueCell);
+  table.appendChild(row);
 }
 
 async function handleMergeClick() {
