@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Разделить коносаменты</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <main class="page">
+    <a class="back-link" href="../index.html">← Все инструменты</a>
+    <h1 class="page__title">Разделить коносаменты</h1>
+    <p class="page__subtitle">
+      Загрузите один PDF с несколькими коносаментами — каждый коносамент (титульный лист
+      и приложения) станет отдельным файлом, названным его номером. На выходе — zip-архив.
+    </p>
+
+    <div id="dropzone" class="dropzone">
+      Перетащите файл сюда или
+      <button type="button" id="pick-file-btn" class="btn">Выбрать файл</button>
+      <input type="file" id="file-input" accept=".pdf" hidden />
+    </div>
+
+    <ul id="file-list" class="file-list"></ul>
+
+    <p>
+      <button type="button" id="split-btn" class="btn" disabled>Разделить</button>
+    </p>
+
+    <div id="error-box" class="error-message" hidden></div>
+    <div id="warnings-box" class="error-message" hidden></div>
+
+    <div id="summary-box" hidden></div>
+
+    <p>
+      <button type="button" id="download-btn" class="btn" hidden>Скачать архив (.zip)</button>
+    </p>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script type="module" src="app.js?v=202609062010"></script>
+</body>
+</html>
