@@ -101,7 +101,7 @@ test('mergeManifests: склеивает файлы по порядку, сох�
   });
 });
 
-test('mergeManifests: renumber true пересчитывает колонку A от 1 до N по всему своду', () => {
+test('mergeManifests: renumber true пересчитывает колонку A от 1 до N, если в шапке нет заголовка «№п/п» (запасной вариант)', () => {
   const rowsA = [emptyRowData(), emptyRowData()];
   const rowsB = [emptyRowData()];
 
@@ -120,6 +120,34 @@ test('mergeManifests: renumber true пересчитывает колонку A 
   assert.equal(resultSheet.getRow(6).getCell(1).value, 1);
   assert.equal(resultSheet.getRow(7).getCell(1).value, 2);
   assert.equal(resultSheet.getRow(8).getCell(1).value, 3);
+});
+
+test('mergeManifests: renumber true пишет в колонку с заголовком «№п/п» (в реальных файлах это C, а не A)', () => {
+  const headers = [...SAMPLE_HEADERS];
+  headers[0] = '№п/п'; // колонка C — как в реальном шаблоне манифеста
+
+  const rowsA = [emptyRowData(), emptyRowData()];
+  const rowsB = [emptyRowData()];
+
+  const wbA = buildManifestWorkbook({ headers, dataRows: rowsA });
+  const wbB = buildManifestWorkbook({ headers, dataRows: rowsB });
+
+  const { resultWorkbook } = mergeManifests(
+    [
+      { fileName: 'a.xlsx', workbook: wbA },
+      { fileName: 'b.xlsx', workbook: wbB },
+    ],
+    { renumber: true }
+  );
+
+  const resultSheet = resultWorkbook.getWorksheet('Manifest');
+  assert.equal(resultSheet.getRow(6).getCell(3).value, 1); // C
+  assert.equal(resultSheet.getRow(7).getCell(3).value, 2);
+  assert.equal(resultSheet.getRow(8).getCell(3).value, 3);
+  // колонка A не расходуется под нумерацию, раз заголовок нашёлся в C —
+  // её собственное (скопированное как есть) значение из источника не
+  // затёрто сквозным счётчиком (иначе тут было бы 1,2,3, а не 1,2,1)
+  assert.equal(resultSheet.getRow(8).getCell(1).value, 1);
 });
 
 test('mergeManifests: считает уникальные контейнеры и коносаменты по всем файлам, без учёта повторов и регистра', () => {

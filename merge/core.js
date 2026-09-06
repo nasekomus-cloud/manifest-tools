@@ -15,8 +15,8 @@ import {
   validateStructure,
 } from '../lib/manifest-format.js?v=202609061336';
 
-const FIRST_COPY_COLUMN = 1; // A — включает колонку "№п/п", не участвующую в проверке структуры
-const NUMBER_COLUMN = 1; // A — колонка "№п/п" (История 8 спецификации)
+const FIRST_COPY_COLUMN = 1; // A — на случай, если колонка "№п/п" стоит перед проверяемым диапазоном C:Y
+const FALLBACK_NUMBER_COLUMN = 1; // A — если заголовок "№п/п" не нашёлся в шапке вообще
 
 function cellText(cell) {
   if (!cell) return '';
@@ -111,8 +111,9 @@ function copyHeaderMerges(sourceSheet, targetSheet) {
  * @param {Array<{fileName: string, workbook: import('exceljs').Workbook}>} workbooks
  *        Файлы в желаемом порядке склейки.
  * @param {{renumber?: boolean}} [options]
- *        renumber — пересчитать колонку A (№п/п) от 1 до N по всему своду;
- *        по умолчанию false — нумерация остаётся как в исходниках.
+ *        renumber — пересчитать колонку "№п/п" (найденную по заголовку, не
+ *        обязательно A) от 1 до N по всему своду; по умолчанию false —
+ *        нумерация остаётся как в исходниках.
  * @returns {{resultWorkbook: import('exceljs').Workbook, summary: {files: Array<{fileName: string, rows: number}>, totalRows: number, uniqueContainers: number|null, uniqueBillsOfLading: number|null}}}
  * @throws {Error} если структура файлов не совпадает (см. validateStructure) —
  *         сообщение уже содержит имя файла и адрес несовпавшей ячейки.
@@ -142,6 +143,11 @@ export function mergeManifests(workbooks, { renumber = false } = {}) {
   const headerRow = resultSheet.getRow(COLUMN_HEADER_ROW);
   const containerCol = findColumnByKeyword(headerRow, FIRST_COLUMN, LAST_COLUMN, 'контейнер');
   const billCol = findColumnByKeyword(headerRow, FIRST_COLUMN, LAST_COLUMN, 'коносамент');
+  // "№п/п" в реальных манифестах стоит в колонке C, не A (A/B пустые) — искать
+  // по заголовку, а не полагаться на букву столбца (тот же баг, что и с
+  // контейнером/коносаментом выше).
+  const numberCol =
+    findColumnByKeyword(headerRow, FIRST_COPY_COLUMN, LAST_COLUMN, 'п/п') || FALLBACK_NUMBER_COLUMN;
 
   const files = [];
   const uniqueContainers = new Set();
@@ -162,7 +168,7 @@ export function mergeManifests(workbooks, { renumber = false } = {}) {
       copyRow(sheet, resultSheet, sourceRow, targetRow);
 
       if (renumber) {
-        resultSheet.getRow(targetRow).getCell(NUMBER_COLUMN).value = runningNumber;
+        resultSheet.getRow(targetRow).getCell(numberCol).value = runningNumber;
         runningNumber++;
       }
 

@@ -3,7 +3,7 @@
 // скачиванием блоба — вся DOM-логика живёт здесь. Считать книги и склеивать
 // их — дело core.js (mergeManifests), сюда импортируется как обычный модуль.
 
-import { mergeManifests } from './core.js?v=202609061530';
+import { mergeManifests } from './core.js?v=202609061630';
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
