@@ -1,13 +1,15 @@
 :root {
   color-scheme: light;
-  --bg: #f5f6f8;
+  --bg: #f2f0ea;
   --surface: #ffffff;
-  --text: #1c1f26;
-  --text-muted: #565c66;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --border: #dfe3e8;
-  --warn-bg: #fff6cc;
+  --text: #201e19;
+  --text-muted: #6f6a5e;
+  --accent: #a8460f;
+  --accent-hover: #832f07;
+  --accent-tint: #f2e2d4;
+  --border: #ddd7c8;
+  --warn-bg: #f7ead0;
+  --warn-border: #e2b96b;
 }
 
 * {
@@ -29,8 +31,22 @@ body {
   padding: 40px 24px 64px;
 }
 
+.page__kicker {
+  font-family: "SF Mono", "Courier New", monospace;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  display: inline-block;
+  padding-bottom: 8px;
+  margin-bottom: 20px;
+}
+
 .page__title {
-  font-size: 32px;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0 0 8px;
 }
 
@@ -43,36 +59,62 @@ body {
 .tool-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
+  gap: 16px;
+  counter-reset: tool;
 }
 
 .tool-card {
+  counter-increment: tool;
+  position: relative;
   display: block;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 28px;
+  border-radius: 4px;
+  padding: 28px 28px 28px 68px;
   text-decoration: none;
   color: inherit;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition: border-color 0.1s ease, background 0.1s ease;
+}
+
+.tool-card::before {
+  content: counter(tool, decimal-leading-zero);
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "SF Mono", "Courier New", monospace;
+  font-size: 14px;
+  color: var(--accent);
+  background: var(--accent-tint);
+  border-right: 1px solid var(--border);
 }
 
 .tool-card:hover,
 .tool-card:focus-visible {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+
+.tool-card:hover::before,
+.tool-card:focus-visible::before {
+  color: #fff;
+  background: var(--accent);
 }
 
 .tool-card__title {
-  font-size: 24px;
-  margin: 0 0 12px;
-  color: var(--accent);
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: var(--text);
 }
 
 .tool-card__description {
   margin: 0;
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .tool-empty {
@@ -84,7 +126,7 @@ body {
 
 .dropzone {
   border: 2px dashed var(--border);
-  border-radius: 16px;
+  border-radius: 4px;
   padding: 40px;
   text-align: center;
   color: var(--text-muted);
@@ -94,12 +136,14 @@ body {
 .dropzone.dropzone--active {
   border-color: var(--accent);
   color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .btn {
   font-size: 18px;
+  font-weight: 600;
   padding: 14px 28px;
-  border-radius: 12px;
+  border-radius: 6px;
   border: none;
   background: var(--accent);
   color: #fff;
@@ -128,14 +172,15 @@ body {
   justify-content: space-between;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 4px;
   padding: 10px 16px;
   margin-bottom: 8px;
 }
 
 .error-message {
   background: var(--warn-bg);
-  border-radius: 10px;
+  border-left: 4px solid var(--warn-border);
+  border-radius: 2px;
   padding: 16px;
   margin: 16px 0;
 }
@@ -145,6 +190,11 @@ body {
   margin-bottom: 24px;
   color: var(--accent);
   text-decoration: none;
+  font-weight: 600;
+}
+
+.back-link:hover {
+  color: var(--accent-hover);
 }
 
 /* Инструмент «Дашборд по портам назначения» */
@@ -211,7 +261,7 @@ body {
   font-size: 18px;
   padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 4px;
   color: var(--text);
   font-family: inherit;
 }
