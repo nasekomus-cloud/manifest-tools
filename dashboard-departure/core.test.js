@@ -7,7 +7,7 @@ import { SHEET_NAME, COLUMN_HEADER_ROW, DATA_START_ROW, FIRST_COLUMN } from '../
 // Вся общая логика (дедупликация контейнеров, пропуск СУММ-строки, поиск
 // колонок, нормализация, сортировка, ошибки) протестирована один раз в
 // lib/port-breakdown.test.js — buildPortDashboard здесь лишь вызывает её
-// с фиксированной колонкой «Порт назначения». Эти тесты проверяют только,
+// с фиксированной колонкой «Порт отправления». Эти тесты проверяют только,
 // что обёртка передаёт правильный столбец, а не переизобретают общий алгоритм.
 const HEADERS = [
   '№п/п', // C
@@ -44,17 +44,17 @@ function buildWorkbook(rows) {
   return workbook;
 }
 
-test('buildPortDashboard: группирует по «Порт назначения», не по «Порт отправления»', () => {
+test('buildPortDashboard: группирует по «Порт отправления», не по «Порт назначения»', () => {
   const wb = buildWorkbook([
     { departurePort: 'CNTAO', destinationPort: 'KALININGRAD', type: '40HC', cargo: 10 },
-    { departurePort: 'EGEDK', destinationPort: 'KALININGRAD', type: '40HC', cargo: 20 },
+    { departurePort: 'CNTAO', destinationPort: 'St.Petersburg', type: '40HC', cargo: 20 },
   ]);
 
   const result = buildPortDashboard([{ fileName: 'a.xlsx', workbook: wb }]);
   assert.equal(result.ok, true);
   assert.deepEqual(
     result.combined.ports.map((p) => p.port),
-    ['KALININGRAD'],
+    ['CNTAO'],
   );
   assert.equal(result.combined.ports[0].totals.count, 2);
   assert.equal(result.combined.ports[0].totals.cargoWeight, 30);
