@@ -11,7 +11,7 @@ import {
   FIRST_COLUMN,
   LAST_COLUMN,
   validateStructure,
-} from '../lib/manifest-format.js?v=202609061822';
+} from '../lib/manifest-format.js?v=202609061857';
 
 const UNSPECIFIED = '(не указан)';
 
@@ -47,7 +47,15 @@ function findColumnByKeyword(row, colStart, colEnd, keyword) {
 // латинской "c" вместо кириллической (проверено побайтово на примере
 // пользователя) — «вес» в них не встречается ни разу. «груза»/«тары»/«общий»
 // не задеты опечаткой и однозначно указывают на нужную колонку.
+//
+// Колонка «№ контейнера» нужна не для отображения, а как признак «это
+// настоящая строка с контейнером»: в реальных файлах после последней строки
+// данных встречается строка с формулами СУММ() по весу (без номера
+// контейнера, без порта, без типа) — лист в Excel заканчивается видимым
+// «Итого». Без проверки на номер контейнера такая строка проходит фильтр
+// «есть хоть один вес» и удваивает итоговый вес всего файла.
 const COLUMN_SPECS = [
+  { key: 'container', keyword: 'контейнера', label: '«№ контейнера»' },
   { key: 'port', keyword: 'назначения', label: '«Порт назначения»' },
   { key: 'type', keyword: 'футность', label: '«Футность»' },
   { key: 'cargoWeight', keyword: 'груза', label: '«Вес груза»' },
@@ -86,15 +94,34 @@ function normalizeType(text) {
   return trimmed || UNSPECIFIED;
 }
 
-function emptyTotals() {
-  return { count: 0, cargoWeight: 0, tareWeight: 0, totalWeight: 0 };
+function normalizeContainer(text) {
+  return text.trim().toUpperCase();
 }
 
-function addTotals(target, cargoWeight, tareWeight, totalWeight) {
-  target.count += 1;
-  target.cargoWeight += cargoWeight;
-  target.tareWeight += tareWeight;
-  target.totalWeight += totalWeight;
+function emptyGroup() {
+  return { containers: new Set(), cargoWeight: 0, tareWeight: 0, totalWeight: 0 };
+}
+
+// «Кол-во» — число РАЗНЫХ контейнеров, а не число строк: один физический
+// контейнер с несколькими видами груза в реальных манифестах занимает
+// несколько строк с одним и тем же номером контейнера (проверено на реальном
+// файле пользователя — три строки на один контейнер с разным весом каждая).
+// Вес при этом складывается по каждой строке — это разные части одного и
+// того же груза, а не дублирование.
+function addToGroup(group, container, cargoWeight, tareWeight, totalWeight) {
+  group.containers.add(container);
+  group.cargoWeight += cargoWeight;
+  group.tareWeight += tareWeight;
+  group.totalWeight += totalWeight;
+}
+
+function finalizeGroup(group) {
+  return {
+    count: group.containers.size,
+    cargoWeight: group.cargoWeight,
+    tareWeight: group.tareWeight,
+    totalWeight: group.totalWeight,
+  };
 }
 
 // Строит разбивку по портам назначения (и внутри каждого — по типам
@@ -102,34 +129,34 @@ function addTotals(target, cargoWeight, tareWeight, totalWeight) {
 // алфавиту — список не «прыгает» местами между одинаковыми по весу группами.
 function buildBreakdown(rows) {
   const portMap = new Map();
-  const grandTotal = emptyTotals();
+  const grandGroup = emptyGroup();
 
   for (const row of rows) {
     if (!portMap.has(row.port)) {
-      portMap.set(row.port, { totals: emptyTotals(), types: new Map() });
+      portMap.set(row.port, { group: emptyGroup(), types: new Map() });
     }
     const portEntry = portMap.get(row.port);
     if (!portEntry.types.has(row.type)) {
-      portEntry.types.set(row.type, emptyTotals());
+      portEntry.types.set(row.type, emptyGroup());
     }
-    const typeEntry = portEntry.types.get(row.type);
+    const typeGroup = portEntry.types.get(row.type);
 
-    addTotals(portEntry.totals, row.cargoWeight, row.tareWeight, row.totalWeight);
-    addTotals(typeEntry, row.cargoWeight, row.tareWeight, row.totalWeight);
-    addTotals(grandTotal, row.cargoWeight, row.tareWeight, row.totalWeight);
+    addToGroup(portEntry.group, row.container, row.cargoWeight, row.tareWeight, row.totalWeight);
+    addToGroup(typeGroup, row.container, row.cargoWeight, row.tareWeight, row.totalWeight);
+    addToGroup(grandGroup, row.container, row.cargoWeight, row.tareWeight, row.totalWeight);
   }
 
   const ports = Array.from(portMap.entries())
     .sort(([a], [b]) => a.localeCompare(b, 'ru'))
     .map(([port, entry]) => ({
       port,
-      totals: entry.totals,
+      totals: finalizeGroup(entry.group),
       types: Array.from(entry.types.entries())
         .sort(([a], [b]) => a.localeCompare(b, 'ru'))
-        .map(([type, totals]) => ({ type, ...totals })),
+        .map(([type, group]) => ({ type, ...finalizeGroup(group) })),
     }));
 
-  return { ports, grandTotal };
+  return { ports, grandTotal: finalizeGroup(grandGroup) };
 }
 
 function extractRows(workbook, fileName) {
@@ -143,25 +170,36 @@ function extractRows(workbook, fileName) {
     return { ok: false, error: `Файл «${fileName}»: ${found.error}` };
   }
 
-  const { port: portCol, type: typeCol, cargoWeight: cargoCol, tareWeight: tareCol, totalWeight: totalCol } =
-    found.columns;
+  const {
+    container: containerCol,
+    port: portCol,
+    type: typeCol,
+    cargoWeight: cargoCol,
+    tareWeight: tareCol,
+    totalWeight: totalCol,
+  } = found.columns;
 
   const rows = [];
   const lastRow = sheet.rowCount;
   for (let r = DATA_START_ROW; r <= lastRow; r++) {
     const row = sheet.getRow(r);
+    const containerText = cellText(row.getCell(containerCol));
+
+    // Строка без номера контейнера — не строка с грузом: это либо пустая
+    // строка-разделитель, либо (встречается в реальных файлах) итоговая
+    // строка с формулами СУММ() по весу внизу листа. У обеих нет номера
+    // контейнера, а вес может быть — включать такую строку в подсчёт
+    // означало бы посчитать общий итог файла ещё раз как «ещё один вес».
+    if (!containerText) continue;
+
     const portText = cellText(row.getCell(portCol));
     const typeText = cellText(row.getCell(typeCol));
     const cargoWeight = cellNumber(row.getCell(cargoCol));
     const tareWeight = cellNumber(row.getCell(tareCol));
     const totalWeight = cellNumber(row.getCell(totalCol));
 
-    // Строка, пустая целиком (не только порт/тип), пропускается — иначе
-    // хвост пустых строк в конце листа превращается в фиктивную группу
-    // "(не указан)" с нулевым весом.
-    if (!portText && !typeText && !cargoWeight && !tareWeight && !totalWeight) continue;
-
     rows.push({
+      container: normalizeContainer(containerText),
       port: normalizePort(portText),
       type: normalizeType(typeText),
       cargoWeight,
