@@ -7,9 +7,28 @@
 
 | Команда | Что делает |
 |---------|------------|
-| `<установка>` | Установить зависимости |
-| `<запуск>` | Запустить локально |
-| `<тесты>` | Прогнать тесты |
+| `npm install` | Установить зависимости (только для тестов — пакет `exceljs`, сайт в проде без npm) |
+| `python3 -m http.server` (из корня) → `localhost:8000` | Запустить локально; альтернатива — открыть `index.html` напрямую двойным кликом |
+| `npm test` | Прогнать тесты (`node --test`, 11 тестов в `lib/`, `merge/`, `dg-check/`) |
+
+## Структура
+
+- `index.html`, `tools.js` — главная страница; `tools.js` — обычный скрипт (`window.TOOLS`, без import/export), список карточек `{title, description, href}`, единственное место для добавления нового инструмента.
+- `assets/style.css` — общие стили главной страницы и повторно используемых элементов инструментов (`.dropzone`, `.btn`, `.file-list`, `.error-message`, `.back-link`).
+- `lib/manifest-format.js` (+`manifest-format.test.js`) — формат манифеста, экспортирует `validateStructure(workbooks)` и константы `SHEET_NAME`, `HEADER_FIRST_ROW`, `COLUMN_HEADER_ROW`, `DATA_START_ROW`, `FIRST_COLUMN`, `LAST_COLUMN`.
+- `merge/index.html`, `merge/app.js`, `merge/core.js` (+`core.test.js`) — инструмент склейки: `core.js` экспортирует `mergeManifests(workbooks, {renumber}) -> {resultWorkbook, summary}`, `app.js` — DOM (выбор файлов, drag-and-drop порядка, скачивание).
+- `dg-check/index.html`, `dg-check/app.js`, `dg-check/core.js` (+`core.test.js`) — сверка опасных грузов: `core.js` экспортирует `crossCheckDangerousGoods(combinedWb, dgWb) -> {ok, resultWorkbook, summary} | {ok:false, error}`.
+- `core.js` в обоих инструментах не импортирует ExcelJS сам — принимает готовые `ExcelJS.Workbook` снаружи (в браузере от глобального `ExcelJS`, в тестах от `import('exceljs')) — этим и открыт путь тестировать их в Node.
+
+## Подводные камни
+
+- Формат манифеста зашит в `lib/manifest-format.js` как константы (лист `"Manifest"`, шапка рейса — строки 3–5, заголовки колонок — строка 5, данные с 6-й, диапазон колонок C:Y) — если реальный шаблон манифеста изменится, править только там, `merge/core.js` и `dg-check/core.js` переиспользуют эти константы, а не дублируют числа.
+- В `dg-check/core.js` колонки и сводного файла, и DG-манифеста ищутся по тексту заголовка (ключевые слова «контейнер», «опасн», `un`, «класс»), а не по фиксированной букве столбца — раскладка DG-манифеста официально не фиксирована; при смене формулировок заголовков поиск сломается раньше, чем смена номера колонки.
+- `index.html`/`tools.js` — обычные скрипты без `import/export`, специально ради открытия двойным кликом (`file://`); `merge/app.js` и `dg-check/app.js` — `<script type="module">` и используют `import` из `core.js`/`lib/manifest-format.js`, поэтому эти две страницы требуют http(s) (локальный сервер или GitHub Pages), а не `file://`.
+- ExcelJS в браузере — CDN-тег с зафиксированной версией `4.4.0` (в `merge/index.html` и `dg-check/index.html`), в тестах — npm-пакет `exceljs` из `devDependencies`; расхождение версий между ними — источник несовпадений, которые не поймает `npm test`.
+- `mergeManifests` копирует колонки `A:Y` целиком (не `C:Y`) — колонка `A` («№п/п») нужна для сквозной нумерации (`renumber`), но не участвует в проверке структуры `validateStructure` (та сверяет только `C5:Y5`).
+- `crossCheckDangerousGoods` мутирует и возвращает тот же объект `combinedWb` (не копию), дописывая столбец `LAST_COLUMN+1` (Z) и заливая жёлтым (`FFFFFF00`) весь диапазон `C:Z` строки при расхождении.
+- Сайт статический (ES-модули, никакой сборки) и задуман для публикации на GitHub Pages; `git remote -v` в этом репозитории пуст — публикации ещё не было, адреса сайта пока нет.
 
 ## Как здесь работает Autopilot
 
