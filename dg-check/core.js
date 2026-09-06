@@ -21,15 +21,23 @@ const YELLOW_ARGB = 'FFFFFF00';
 
 function cellText(cell) {
   if (!cell) return '';
-  const value = cell.text;
-  if (value === undefined || value === null) return '';
-  return String(value).trim();
+  // Объединённая ячейка с пустым мастером бросает исключение при чтении .text
+  // (ExcelJS MergeValue.toString зовёт value.toString() на null) — это
+  // случается в реальных файлах с шапками из объединённых ячеек.
+  try {
+    const value = cell.text;
+    if (value === undefined || value === null) return '';
+    return String(value).trim();
+  } catch {
+    return '';
+  }
 }
 
-function findColumnByKeyword(row, colStart, colEnd, keyword) {
-  const needle = keyword.toLowerCase();
+function findColumnByKeyword(row, colStart, colEnd, keywords) {
+  const needles = (Array.isArray(keywords) ? keywords : [keywords]).map((k) => k.toLowerCase());
   for (let col = colStart; col <= colEnd; col++) {
-    if (cellText(row.getCell(col)).toLowerCase().includes(needle)) {
+    const text = cellText(row.getCell(col)).toLowerCase();
+    if (needles.some((needle) => text.includes(needle))) {
       return col;
     }
   }
@@ -54,9 +62,12 @@ function findCombinedColumns(sheet) {
 }
 
 const DG_SPECS = [
-  { key: 'container', keyword: 'контейнер', label: '«Номер контейнера»' },
-  { key: 'un', keyword: 'un', label: '«UN»' },
-  { key: 'class', keyword: 'класс', label: '«Класс»' },
+  // DG-манифест — официальный международный документ, заголовки обычно
+  // на английском (например, «CNTR No.», «UN No.», «CLS(Sub)»), но встречаются
+  // и русские варианты — проверяем оба.
+  { key: 'container', keyword: ['контейнер', 'cntr', 'container'], label: '«Номер контейнера»' },
+  { key: 'un', keyword: ['un'], label: '«UN»' },
+  { key: 'class', keyword: ['класс', 'cls', 'class'], label: '«Класс»' },
 ];
 
 function findDgColumns(sheet) {

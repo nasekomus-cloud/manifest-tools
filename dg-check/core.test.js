@@ -133,6 +133,50 @@ test('crossCheckDangerousGoods: отсутствующий заголовок в
   assert.match(result.error, /Класс/);
 });
 
+test('crossCheckDangerousGoods: находит колонки DG-манифеста по английским заголовкам («CNTR No.», «UN No.», «CLS(Sub)»)', () => {
+  const combinedWb = buildCombinedWorkbook([{ container: 'CONT001', dangerous: '' }]);
+
+  const dgWorkbook = new ExcelJS.Workbook();
+  const dgSheet = dgWorkbook.addWorksheet('DG');
+  const headerRow = dgSheet.getRow(7); // реальные DG-манифесты часто начинают шапку не с первой строки
+  headerRow.getCell(1).value = 'SEQ';
+  headerRow.getCell(5).value = 'CNTR No.';
+  headerRow.getCell(10).value = 'UN No.';
+  headerRow.getCell(13).value = 'CLS(Sub)';
+  dgSheet.getRow(8).getCell(5).value = 'CONT001';
+  dgSheet.getRow(8).getCell(10).value = '3267';
+  dgSheet.getRow(8).getCell(13).value = '9';
+
+  const result = crossCheckDangerousGoods(combinedWb, dgWorkbook);
+  assert.equal(result.ok, true);
+  const sheet = result.resultWorkbook.getWorksheet(SHEET_NAME);
+  const newCol = LAST_COLUMN + 1;
+  assert.equal(sheet.getRow(DATA_START_ROW).getCell(newCol).text, 'IMO 9 UN 3267');
+});
+
+test('crossCheckDangerousGoods: не падает на объединённой ячейке с пустым мастером в шапке', () => {
+  const combinedWb = buildCombinedWorkbook([{ container: 'CONT001', dangerous: '' }]);
+
+  const dgWorkbook = new ExcelJS.Workbook();
+  const dgSheet = dgWorkbook.addWorksheet('DG');
+  // Объединяем пустые ячейки A1:D1 (как заголовок-«шапка» реального DG-манифеста
+  // с пустой первой ячейкой) — раньше чтение .text такой ячейки бросало исключение.
+  dgSheet.mergeCells('A1:D1');
+  const headerRow = dgSheet.getRow(2);
+  headerRow.getCell(1).value = 'Номер контейнера';
+  headerRow.getCell(2).value = 'UN номер';
+  headerRow.getCell(3).value = 'Класс опасности';
+  dgSheet.getRow(3).getCell(1).value = 'CONT001';
+  dgSheet.getRow(3).getCell(2).value = '3267';
+  dgSheet.getRow(3).getCell(3).value = '9';
+
+  const result = crossCheckDangerousGoods(combinedWb, dgWorkbook);
+  assert.equal(result.ok, true);
+  const sheet = result.resultWorkbook.getWorksheet(SHEET_NAME);
+  const newCol = LAST_COLUMN + 1;
+  assert.equal(sheet.getRow(DATA_START_ROW).getCell(newCol).text, 'IMO 9 UN 3267');
+});
+
 test('crossCheckDangerousGoods: контейнер есть в DG-манифесте, но не найден в сводном файле', () => {
   const combinedWb = buildCombinedWorkbook([{ container: 'CONT001', dangerous: '' }]);
   const dgWb = buildDgWorkbook([
