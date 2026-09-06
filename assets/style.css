@@ -190,6 +190,55 @@ body {
   border-radius: 3px;
 }
 
+/* Инструмент «Итоговый PDF-отчёт по манифесту» */
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.field input {
+  font-size: 18px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: inherit;
+}
+
+.field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+#results-box table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+
+#results-box th,
+#results-box td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+#results-box tr.grand-total-row td {
+  font-weight: 700;
+  background: var(--warn-bg);
+}
+
 /* Инструмент «Разделить коносаменты» */
 
 #summary-box table {

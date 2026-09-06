@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Итоговый PDF-отчёт по манифесту</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <main class="page">
+    <a class="back-link" href="../index.html">← Все инструменты</a>
+    <h1 class="page__title">Итоговый PDF-отчёт по манифесту</h1>
+    <p class="page__subtitle">
+      Загрузите один или несколько файлов манифеста одного рейса — получите готовый к
+      скачиванию PDF со сводной таблицей «GRAND TOTAL» по типам контейнеров. Позывной,
+      дату прибытия и терминал выгрузки в манифесте не найти — впишите их вручную.
+    </p>
+
+    <div id="dropzone" class="dropzone">
+      Перетащите файлы сюда или
+      <button type="button" id="pick-files-btn" class="btn">Выбрать файлы</button>
+      <input type="file" id="file-input" accept=".xlsx" multiple hidden />
+    </div>
+
+    <ul id="file-list" class="file-list"></ul>
+
+    <div class="field-grid">
+      <label class="field">
+        <span>Позывной судна</span>
+        <input type="text" id="call-sign-input" placeholder="V7B3432" />
+      </label>
+      <label class="field">
+        <span>Дата прибытия</span>
+        <input type="text" id="arrival-date-input" placeholder="08.09.2026" />
+      </label>
+      <label class="field">
+        <span>Терминал выгрузки</span>
+        <input type="text" id="terminal-input" placeholder="CTSP, St.Petersburg" />
+      </label>
+    </div>
+
+    <p>
+      <button type="button" id="build-btn" class="btn" disabled>Построить отчёт</button>
+    </p>
+
+    <div id="error-box" class="error-message" hidden></div>
+
+    <div id="results-box" hidden></div>
+
+    <p>
+      <button type="button" id="download-btn" class="btn" hidden>Скачать PDF</button>
+    </p>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+  <script type="module" src="app.js?v=202609062230"></script>
+</body>
+</html>

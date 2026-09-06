@@ -1,6 +1,6 @@
 // Состояние страницы, работа с <input type=file>/drag-and-drop и скачивание
 // результата. Вся логика сверки — в core.js; здесь только DOM (см. interfaces.md).
-import { crossCheckDangerousGoods } from './core.js?v=202609061336';
+import { crossCheckDangerousGoods } from './core.js?v=202609062100';
 
 const combinedInput = document.getElementById('combined-input');
 const dgInput = document.getElementById('dg-input');
