@@ -14,7 +14,7 @@ import {
   DATA_START_ROW,
   FIRST_COLUMN,
   LAST_COLUMN,
-} from '../lib/manifest-format.js';
+} from '../lib/manifest-format.js?v=202609061336';
 
 const NEW_COLUMN_HEADER = 'Опасные грузы (сверка с DG-манифестом)';
 const YELLOW_ARGB = 'FFFFFF00';

@@ -12,7 +12,7 @@ import {
   DATA_START_ROW,
   LAST_COLUMN,
   validateStructure,
-} from '../lib/manifest-format.js';
+} from '../lib/manifest-format.js?v=202609061336';
 
 const FIRST_COPY_COLUMN = 1; // A — включает колонку "№п/п", не участвующую в проверке структуры
 const NUMBER_COLUMN = 1; // A — колонка "№п/п" (История 8 спецификации)
