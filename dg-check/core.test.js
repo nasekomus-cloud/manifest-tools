@@ -177,6 +177,26 @@ test('crossCheckDangerousGoods: не падает на объединённой 
   assert.equal(sheet.getRow(DATA_START_ROW).getCell(newCol).text, 'IMO 9 UN 3267');
 });
 
+test('crossCheckDangerousGoods: разные текстовые форматы одних и тех же данных — не расхождение', () => {
+  // Реальная колонка «Опасные грузы» пишется не нашим инструментом и использует
+  // свой формат: разделитель ";\r" вместо " / ", и несколько UN-номеров одного
+  // класса записаны через запятую в одной фразе, а не по одному DG-строкой.
+  const combinedWb = buildCombinedWorkbook([
+    { container: 'CONT001', dangerous: 'IMO 9 UN 3077,3082;\r' },
+    { container: 'CONT002', dangerous: 'IMO 9 UN 3082;\rIMO 3 UN 1263;\r' },
+  ]);
+  const dgWb = buildDgWorkbook([
+    { container: 'CONT001', un: '3077', cls: '9' },
+    { container: 'CONT001', un: '3082', cls: '9' },
+    { container: 'CONT002', un: '1263', cls: '3' },
+    { container: 'CONT002', un: '3082', cls: '9' },
+  ]);
+
+  const result = crossCheckDangerousGoods(combinedWb, dgWb);
+  assert.equal(result.ok, true);
+  assert.equal(result.summary.mismatchCount, 0);
+});
+
 test('crossCheckDangerousGoods: контейнер есть в DG-манифесте, но не найден в сводном файле', () => {
   const combinedWb = buildCombinedWorkbook([{ container: 'CONT001', dangerous: '' }]);
   const dgWb = buildDgWorkbook([

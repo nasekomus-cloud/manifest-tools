@@ -108,6 +108,37 @@ function normalizeContainer(text) {
   return text.trim().toUpperCase();
 }
 
+// Существующая колонка «Опасные грузы» пишется людьми/другими скриптами и
+// не придерживается одного текстового формата: разделители между записями —
+// то «;\r», то « / »; несколько UN-номеров одного класса на один контейнер
+// иногда объединяют через запятую в одной записи («IMO 9 UN 3077,3082»)
+// вместо повтора «IMO 9 UN ...» на каждый номер. Сравнивать тексты дословно
+// нельзя — это даёт расхождение почти на каждой строке при полностью
+// одинаковых данных. Поэтому обе стороны разбираются в набор пар «класс|UN»
+// и сравниваются как множества, без учёта порядка, разделителей и группировки.
+function parseDangerousGoodsEntries(text) {
+  if (!text) return [];
+  const entries = [];
+  const re = /IMO\s*([\d.]+)\s*UN\s*(\d+(?:\s*,\s*\d+)*)/gi;
+  let match;
+  while ((match = re.exec(text))) {
+    const cls = match[1].trim();
+    const numbers = match[2].split(',').map((n) => n.trim()).filter(Boolean);
+    for (const un of numbers) entries.push(`${cls}|${un}`);
+  }
+  return entries;
+}
+
+function sameDangerousGoods(oldText, newText) {
+  const a = new Set(parseDangerousGoodsEntries(oldText));
+  const b = new Set(parseDangerousGoodsEntries(newText));
+  if (a.size !== b.size) return false;
+  for (const entry of a) {
+    if (!b.has(entry)) return false;
+  }
+  return true;
+}
+
 /**
  * Сверяет данные об опасных грузах сводного файла с официальным DG-манифестом
  * по номеру контейнера и дописывает в сводный файл столбец с итогом сверки.
@@ -172,7 +203,7 @@ export function crossCheckDangerousGoods(combinedWb, dgWb) {
     const oldValue = cellText(row.getCell(combinedCols.dangerousCol));
     row.getCell(newCol).value = newValue || null;
 
-    if (oldValue !== newValue) {
+    if (!sameDangerousGoods(oldValue, newValue)) {
       mismatchCount += 1;
       for (let c = FIRST_COLUMN; c <= newCol; c++) {
         row.getCell(c).fill = {
