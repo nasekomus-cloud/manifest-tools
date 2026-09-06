@@ -4,7 +4,7 @@
 // pdf-lib. Подсчёт разбивки и судно/рейс — дело core.js (buildGrandTotalData),
 // сюда импортируется как обычный модуль (см. interfaces.md).
 
-import { buildGrandTotalData } from './core.js?v=202609062210';
+import { buildGrandTotalData } from './core.js?v=202609062231';
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
