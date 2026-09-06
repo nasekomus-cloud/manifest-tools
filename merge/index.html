@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Объединить манифесты</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <main class="page">
+    <a class="back-link" href="../index.html">← Все инструменты</a>
+    <h1 class="page__title">Объединить манифесты</h1>
+    <p class="page__subtitle">
+      Добавьте файлы манифестов одного рейса — они склеятся в один файл с сохранением оформления.
+    </p>
+
+    <div id="dropzone" class="dropzone">
+      Перетащите файлы сюда или
+      <button type="button" id="pick-files-btn" class="btn">Выбрать файлы</button>
+      <input type="file" id="file-input" accept=".xlsx" multiple hidden />
+    </div>
+
+    <ul id="file-list" class="file-list"></ul>
+
+    <p>
+      <label>
+        <input type="checkbox" id="renumber-checkbox" />
+        Сквозная нумерация «№п/п»
+      </label>
+    </p>
+
+    <p>
+      <button type="button" id="merge-btn" class="btn" disabled>Объединить</button>
+    </p>
+
+    <div id="error-box" class="error-message" hidden></div>
+
+    <div id="summary-box" hidden>
+      <h2>Результат</h2>
+      <table id="summary-table"></table>
+      <p><button type="button" id="download-btn" class="btn">Скачать</button></p>
+    </div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

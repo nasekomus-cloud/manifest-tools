@@ -71,3 +71,26 @@ lib/manifest-format.js
   `<script type="module">` и использовать обычный `import` из `core.js` и
   `lib/manifest-format.js`, без обходных приёмов.
 
+### 02 — Объединить манифесты
+
+- `merge/core.js` экспортирует `mergeManifests(workbooks, {renumber=false}) ->
+  {resultWorkbook, summary: {files: Array<{fileName, rows}>, totalRows}}`.
+  Бросает `Error(message)` при несовпадении структуры (переиспользует
+  `validateStructure` и её текст ошибки) или при пустом списке файлов —
+  `app.js` ловит и показывает как ошибку на странице, ничего не создаёт.
+  Копирует колонки `A:Y` целиком (не только `C:Y` из формата) — колонка A это
+  «№п/п», нужна для истории 8 (сквозная нумерация). Шапка (строки 1–5,
+  включая объединения ячеек через `worksheet.model.merges`) берётся из первого
+  файла в списке.
+
+### 03 — Сверить опасные грузы
+
+- `dg-check/core.js` экспортирует `crossCheckDangerousGoods(combinedWb, dgWb) ->
+  {ok:true, resultWorkbook, summary:{mismatchCount, notFoundInSummaryCount}} |
+  {ok:false, error}`. Новый столбец пишется в `LAST_COLUMN+1` (после `Y`, то
+  есть `Z`) сводного файла — использует те же константы из
+  `lib/manifest-format.js`, что и `merge/core.js`. В DG-манифесте лист и
+  расположение заголовков не фиксированы — заголовки колонок (контейнер/UN/
+  класс) ищутся по ключевым словам в первом листе, без привязки к номеру
+  строки/буквам столбца.
+
