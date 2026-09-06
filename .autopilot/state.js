@@ -11,8 +11,8 @@ window.STATE =
   "memoryFile": "CLAUDE.md",
   "skillDir": "/Users/nasekomus/.claude/skills/autopilot",
   "startedAt": "2026-09-06T11:39:54+03:00",
-  "updatedAt": "2026-09-06T12:33:09+03:00",
-  "finishedAt": "2026-09-06T12:33:09+03:00",
+  "updatedAt": "2026-09-06T12:37:22+03:00",
+  "finishedAt": "2026-09-06T12:37:22+03:00",
   "stages": [
     { "id": "preflight", "status": "done", "startedAt": "2026-09-06T11:39:54+03:00", "finishedAt": "2026-09-06T11:41:00+03:00" },
     { "id": "manifest",  "status": "done", "startedAt": "2026-09-06T11:41:00+03:00", "finishedAt": "2026-09-06T11:44:00+03:00" },
@@ -24,7 +24,7 @@ window.STATE =
     { "id": "final",     "status": "done", "startedAt": "2026-09-06T12:24:37+03:00", "finishedAt": "2026-09-06T12:33:09+03:00" }
   ],
   "requirements": {
-    "total": 18, "done": 17, "inTicket": 1, "inSpec": 0,
+    "total": 18, "done": 18, "inTicket": 0, "inSpec": 0,
     "placeholder": 0, "deferred": 0, "dropped": 0
   },
   "tickets": [
@@ -55,5 +55,5 @@ window.STATE =
     { "ticket": "03", "axis": "craft", "file": "dg-check/core.test.js; dg-check/app.js:119", "finding": "нет теста на отсутствие заголовка «Номер контейнера»/«Опасные грузы» в самом сводном файле (только для DG-манифеста); ошибка чтения файла в dg-check/app.js пробрасывает исходный (не русский) текст ExcelJS, а не готовое русское сообщение как в merge/app.js" }
   ],
   "reviewers": { "manifestSpec": "a0af61a895b01f002", "craft": "a482bcd4d26fe49d7" },
-  "blind": { "drift": [], "note": "все требования брифа подтверждены живым прогоном (слияние, сверка, ошибки структуры/заголовков); R18i — публикация на GitHub Pages сознательно не сделана, ждёт разрешения пользователя" }
+  "blind": { "drift": [], "note": "все требования брифа подтверждены живым прогоном (слияние, сверка, ошибки структуры/заголовков); R18i — опубликовано на GitHub Pages с разрешения пользователя: https://nasekomus-cloud.github.io/manifest-tools/" }
 }
