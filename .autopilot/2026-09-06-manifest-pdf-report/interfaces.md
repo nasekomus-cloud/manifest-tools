@@ -19,7 +19,7 @@
 | `lib/manifest-format.js` | формат шапки манифеста (строки 3–5) | + `readVoyageHeader(workbook) -> {vessel, voyage}` (оба — `string \| null`) | поиск по ключевому слову внутри строки шапки |
 | `lib/port-breakdown.js` | подсчёт весов и дедупликацию контейнеров | + `buildManifestTotals(workbooks) -> {ok, byType, grandTotal, billsOfLading} \| {ok:false, error}` | группировку по типу, поиск колонки коносамента, все уже существующие приватные помощники |
 | `grand-total/core.js` | сборку модели данных отчёта из книг | `buildGrandTotalData(workbooks) -> {ok, vessel, voyage, byType, grandTotal, billsOfLading} \| {ok:false, error}` | вызов `buildManifestTotals`/`readVoyageHeader` |
-| `grand-total/app.js` | DOM, три поля ручного ввода, сборку и скачивание PDF | — (конечная точка) | вёрстку PDF через `pdf-lib`, форматирование чисел и типов |
+| `grand-total/app.js` | DOM, три поля ручного ввода, сборку и скачивание PDF и Excel | — (конечная точка) | вёрстку PDF через `pdf-lib`, сборку книги через `ExcelJS`, форматирование чисел и типов |
 
 Формы возвращаемых значений — см. «Решения по реализации» в `spec.md`, раздел
 целиком скопирован оттуда дословно.
@@ -37,6 +37,7 @@
 - `assets/style.css` — добавлен раздел «Инструмент «Итоговый PDF-отчёт по манифесту»» (`.field-grid`, `.field`, стили `#results-box`), существующие классы не тронуты.
 - `tools.js` — новая карточка, `index.html` — версия `tools.js?v=` обновлена.
 - Кэш-бастинг: все места, импортирующие/подключающие `lib/manifest-format.js`, `lib/port-breakdown.js`, `tools.js`, обновлены на версию `202609062100` (список — в CLAUDE.md, актуализировать вместе).
+- **Дополнение по ходу (G02/G03):** линии таблицы в PDF — только под шапкой колонок и вокруг `TOTAL:` (одна перед, одна под), не под каждой строкой данных; ширины колонок PDF и Excel — по самому широкому содержимому (`computeColumnWidths`/`computeExcelColumnWidths`), не константами. Вторая кнопка «Скачать Excel» — `buildExcelWorkbook` в `grand-total/app.js`, лист «Grand Total», тот же состав строк, что в PDF. **D02**: веса в Excel — числа с `numFmt` (`#,##0.000" KGS"`), не готовый текст из `buildTableRows` (тот только для PDF/предпросмотра) — для этого заведена отдельная `buildExcelRows`, дающая сырые числа.
 
 ## Что уже есть и не переизобретаем
 

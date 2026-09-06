@@ -17,6 +17,7 @@ const buildBtn = document.getElementById('build-btn');
 const errorBox = document.getElementById('error-box');
 const resultsBox = document.getElementById('results-box');
 const downloadBtn = document.getElementById('download-btn');
+const downloadExcelBtn = document.getElementById('download-excel-btn');
 
 const TABLE_COLUMNS = [
   'TOTAL CONTAINER NUMBER',
@@ -51,6 +52,24 @@ function formatTypeCount(entry) {
   return `${entry.count}x${formatContainerType(entry.type)}`;
 }
 
+// Общие для PDF и Excel строки таблицы — один источник состава и порядка,
+// а не два места, которые могут разойтись.
+function buildTableRows(report) {
+  const dataRows = report.byType.map((entry) => [
+    formatTypeCount(entry),
+    formatWeight(entry.cargoWeight),
+    formatWeight(entry.tareWeight),
+    formatWeight(entry.totalWeight),
+  ]);
+  const totalRow = [
+    'TOTAL:',
+    formatWeight(report.grandTotal.cargoWeight),
+    formatWeight(report.grandTotal.tareWeight),
+    formatWeight(report.grandTotal.totalWeight),
+  ];
+  return { header: TABLE_COLUMNS, dataRows, totalRow };
+}
+
 function showError(message) {
   errorBox.textContent = message;
   errorBox.hidden = false;
@@ -65,6 +84,7 @@ function clearResults() {
   resultsBox.innerHTML = '';
   resultsBox.hidden = true;
   downloadBtn.hidden = true;
+  downloadExcelBtn.hidden = true;
   lastReport = null;
 }
 
@@ -127,36 +147,34 @@ async function loadWorkbook(file) {
 function renderResults(report) {
   resultsBox.innerHTML = '';
 
+  const { header, dataRows, totalRow: totalCells } = buildTableRows(report);
+
   const table = document.createElement('table');
   const headerRow = document.createElement('tr');
-  TABLE_COLUMNS.forEach((text) => {
+  header.forEach((text) => {
     const th = document.createElement('th');
     th.textContent = text;
     headerRow.appendChild(th);
   });
   table.appendChild(headerRow);
 
-  report.byType.forEach((entry) => {
+  dataRows.forEach((cells) => {
     const row = document.createElement('tr');
-    [formatTypeCount(entry), formatWeight(entry.cargoWeight), formatWeight(entry.tareWeight), formatWeight(entry.totalWeight)].forEach(
-      (text) => {
-        const td = document.createElement('td');
-        td.textContent = text;
-        row.appendChild(td);
-      },
-    );
+    cells.forEach((text) => {
+      const td = document.createElement('td');
+      td.textContent = text;
+      row.appendChild(td);
+    });
     table.appendChild(row);
   });
 
   const totalRow = document.createElement('tr');
   totalRow.className = 'grand-total-row';
-  ['TOTAL:', formatWeight(report.grandTotal.cargoWeight), formatWeight(report.grandTotal.tareWeight), formatWeight(report.grandTotal.totalWeight)].forEach(
-    (text) => {
-      const td = document.createElement('td');
-      td.textContent = text;
-      totalRow.appendChild(td);
-    },
-  );
+  totalCells.forEach((text) => {
+    const td = document.createElement('td');
+    td.textContent = text;
+    totalRow.appendChild(td);
+  });
   table.appendChild(totalRow);
 
   resultsBox.appendChild(table);
@@ -190,6 +208,7 @@ async function handleBuildClick() {
     lastReport = result;
     renderResults(result);
     downloadBtn.hidden = false;
+    downloadExcelBtn.hidden = false;
   } catch (err) {
     showError(err.message);
   } finally {
@@ -212,12 +231,27 @@ const PAGE_WIDTH = 842; // A4 альбомная, пункты
 const PAGE_HEIGHT = 595;
 const MARGIN = 40;
 const ROW_HEIGHT = 20;
-const COLUMN_WIDTHS = [200, 190, 190, 210];
 const FONT_SIZE = 10;
+const COLUMN_PADDING = 28; // отступ по бокам внутри колонки, с каждой стороны — половина
 
 function centeredX(text, font, size, columnX, columnWidth) {
   const width = font.widthOfTextAtSize(text, size);
   return columnX + (columnWidth - width) / 2;
+}
+
+// Ширина колонки — по самому широкому содержимому (заголовок или любая
+// строка данных), а не подобранными на глаз числами: как в эталоне, где
+// колонка «TOTAL TARE WEIGHT» у'же «TOTAL ALL (TARE + CARGO)» ровно настолько,
+// насколько короче их текст.
+function computeColumnWidths(font, bold, header, dataRows, totalRow) {
+  return header.map((headText, i) => {
+    let width = bold.widthOfTextAtSize(headText, FONT_SIZE);
+    dataRows.forEach((row) => {
+      width = Math.max(width, font.widthOfTextAtSize(row[i], FONT_SIZE));
+    });
+    width = Math.max(width, bold.widthOfTextAtSize(totalRow[i], FONT_SIZE));
+    return width + COLUMN_PADDING;
+  });
 }
 
 // Стандартные 14 шрифтов PDF (Helvetica и подобные) — WinAnsi-кодировка,
@@ -274,27 +308,33 @@ async function buildPdf(report, manualFields) {
   x = drawHeaderField(x, 'CALL SIGN: ', manualFields.callSign);
   drawHeaderField(x, 'TERMINAL: ', manualFields.terminal);
 
-  y -= 32;
-  page.drawText('GRAND TOTAL:', { x: MARGIN, y, size: 14, font: bold });
-  y -= 28;
+  y -= 36;
+  page.drawText('GRAND TOTAL:', { x: MARGIN, y, size: 16, font: bold });
+  y -= 30;
+
+  const { header, dataRows, totalRow } = buildTableRows(report);
+  const columnWidths = computeColumnWidths(font, bold, header, dataRows, totalRow);
 
   const tableLeft = MARGIN;
-  const tableWidth = COLUMN_WIDTHS.reduce((a, b) => a + b, 0);
+  const tableWidth = columnWidths.reduce((a, b) => a + b, 0);
   const columnX = [tableLeft];
-  for (let i = 1; i < COLUMN_WIDTHS.length; i++) columnX.push(columnX[i - 1] + COLUMN_WIDTHS[i - 1]);
+  for (let i = 1; i < columnWidths.length; i++) columnX.push(columnX[i - 1] + columnWidths[i - 1]);
 
-  function drawRow(cells, { rowFont = font, drawLineBelow = true } = {}) {
-    cells.forEach((text, i) => {
-      page.drawText(text, { x: centeredX(text, rowFont, FONT_SIZE, columnX[i], COLUMN_WIDTHS[i]), y, size: FONT_SIZE, font: rowFont });
+  function drawLine(atY) {
+    page.drawLine({
+      start: { x: tableLeft, y: atY },
+      end: { x: tableLeft + tableWidth, y: atY },
+      thickness: 0.75,
+      color: PDFLib.rgb(0.4, 0.4, 0.4),
     });
-    if (drawLineBelow) {
-      page.drawLine({
-        start: { x: tableLeft, y: y - 6 },
-        end: { x: tableLeft + tableWidth, y: y - 6 },
-        thickness: 0.75,
-        color: PDFLib.rgb(0.6, 0.6, 0.6),
-      });
-    }
+  }
+
+  // Линия — только под шапкой колонок и вокруг строки TOTAL (одна перед ней,
+  // одна под ней), как в эталоне. Между самими строками данных линий нет.
+  function drawRow(cells, { rowFont = font } = {}) {
+    cells.forEach((text, i) => {
+      page.drawText(text, { x: centeredX(text, rowFont, FONT_SIZE, columnX[i], columnWidths[i]), y, size: FONT_SIZE, font: rowFont });
+    });
     y -= ROW_HEIGHT;
   }
 
@@ -302,20 +342,22 @@ async function buildPdf(report, manualFields) {
     if (y > MARGIN + ROW_HEIGHT * 2) return;
     page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     y = PAGE_HEIGHT - MARGIN;
-    drawRow(TABLE_COLUMNS, { rowFont: bold });
+    drawRow(header, { rowFont: bold });
+    drawLine(y + ROW_HEIGHT - 6);
   }
 
-  drawRow(TABLE_COLUMNS, { rowFont: bold });
-  report.byType.forEach((entry) => {
+  drawRow(header, { rowFont: bold });
+  drawLine(y + ROW_HEIGHT - 6);
+
+  dataRows.forEach((cells) => {
     ensureSpace();
-    drawRow([formatTypeCount(entry), formatWeight(entry.cargoWeight), formatWeight(entry.tareWeight), formatWeight(entry.totalWeight)]);
+    drawRow(cells);
   });
 
   ensureSpace();
-  drawRow(
-    ['TOTAL:', formatWeight(report.grandTotal.cargoWeight), formatWeight(report.grandTotal.tareWeight), formatWeight(report.grandTotal.totalWeight)],
-    { rowFont: bold, drawLineBelow: true },
-  );
+  drawLine(y + ROW_HEIGHT - 6);
+  drawRow(totalRow, { rowFont: bold });
+  drawLine(y + ROW_HEIGHT - 6);
 
   y -= 16;
   if (report.billsOfLading !== null) {
@@ -331,21 +373,42 @@ function sanitizeFileNamePart(text) {
   return text.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-async function handleDownloadClick() {
-  if (!lastReport) return;
+function buildFileNameBase(report) {
+  const voyagePart = report.voyage ? sanitizeFileNamePart(report.voyage) : '';
+  return voyagePart ? `grand-total-${voyagePart}` : 'grand-total-report';
+}
 
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// Позывной, дата прибытия и терминал нужны обеим выгрузкам (PDF и Excel
+// показывают их в одной и той же шапке) — единая проверка на оба случая.
+function getValidatedManualFields() {
   const missing = validateManualFields();
   if (missing) {
     showError(missing);
-    return;
+    return null;
   }
   clearError();
-
-  const manualFields = {
+  return {
     callSign: callSignInput.value.trim(),
     arrivalDate: arrivalDateInput.value.trim(),
     terminal: terminalInput.value.trim(),
   };
+}
+
+async function handleDownloadClick() {
+  if (!lastReport) return;
+  const manualFields = getValidatedManualFields();
+  if (!manualFields) return;
 
   // Сборка PDF грузит шрифт с Google Fonts (сеть) — не мгновенно, как
   // остальные скачивания на сайте; без индикации повторный клик выглядел бы
@@ -364,17 +427,113 @@ async function handleDownloadClick() {
     downloadBtn.textContent = 'Скачать PDF';
   }
 
-  const blob = new Blob([bytes], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
+  downloadBlob(new Blob([bytes], { type: 'application/pdf' }), `${buildFileNameBase(lastReport)}.pdf`);
+}
 
-  const voyagePart = lastReport.voyage ? sanitizeFileNamePart(lastReport.voyage) : '';
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = voyagePart ? `grand-total-${voyagePart}.pdf` : 'grand-total-report.pdf';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+// Ширина колонки Excel-листа — в символах (единица ExcelJS), не в пунктах:
+// тот же приём, что и в PDF (computeColumnWidths) — по самому широкому
+// содержимому колонки, включая заголовок и строку TOTAL.
+function computeExcelColumnWidths(header, dataRows, totalRow) {
+  return header.map((headText, i) => {
+    let width = headText.length;
+    dataRows.forEach((row) => {
+      width = Math.max(width, row[i].length);
+    });
+    width = Math.max(width, totalRow[i].length);
+    return width + 4;
+  });
+}
+
+const WEIGHT_NUMFMT = '#,##0.000" KGS"';
+
+// В отличие от buildTableRows (общей для PDF и предпросмотра, где веса —
+// уже готовый текст «8 692 506,220 KGS»), здесь колонки веса — настоящие
+// числа: только тогда лист остаётся таблицей, с которой можно считать,
+// а не картинкой из текста с цифрами. Вид того же текста в ячейке даёт
+// numFmt (WEIGHT_NUMFMT), а не forматирование строки заранее.
+function buildExcelRows(report) {
+  const dataRows = report.byType.map((entry) => [
+    formatTypeCount(entry),
+    entry.cargoWeight,
+    entry.tareWeight,
+    entry.totalWeight,
+  ]);
+  const totalRow = ['TOTAL:', report.grandTotal.cargoWeight, report.grandTotal.tareWeight, report.grandTotal.totalWeight];
+  return { header: TABLE_COLUMNS, dataRows, totalRow };
+}
+
+async function buildExcelWorkbook(report, manualFields) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Grand Total');
+
+  const { header, dataRows, totalRow } = buildExcelRows(report);
+  // Ширины колонок — по тексту, который реально будет виден (число через
+  // тот же WEIGHT_NUMFMT, что применён к самой ячейке), а не по длине числа
+  // как такового — иначе колонка веса окажется у'же, чем нужно для « KGS».
+  const asDisplayedRows = dataRows.map((row) => [row[0], formatWeight(row[1]), formatWeight(row[2]), formatWeight(row[3])]);
+  const asDisplayedTotal = [totalRow[0], formatWeight(totalRow[1]), formatWeight(totalRow[2]), formatWeight(totalRow[3])];
+  sheet.columns = computeExcelColumnWidths(header, asDisplayedRows, asDisplayedTotal).map((width) => ({ width }));
+
+  function addHeaderField(label, value) {
+    const row = sheet.addRow([label, value]);
+    row.getCell(1).font = { bold: true };
+  }
+
+  addHeaderField('VESSEL:', report.vessel || '');
+  addHeaderField('VOYAGE:', report.voyage || '');
+  addHeaderField('ARRIVAL DATE:', manualFields.arrivalDate);
+  addHeaderField('CALL SIGN:', manualFields.callSign);
+  addHeaderField('TERMINAL:', manualFields.terminal);
+  sheet.addRow([]);
+
+  const titleRow = sheet.addRow(['GRAND TOTAL:']);
+  titleRow.getCell(1).font = { bold: true, size: 16 };
+  sheet.addRow([]);
+
+  sheet.addRow(header);
+  sheet.lastRow.eachCell((cell) => {
+    cell.font = { bold: true };
+    cell.alignment = { horizontal: 'center' };
+    cell.border = { bottom: { style: 'thin' } };
+  });
+
+  dataRows.forEach((cells) => {
+    sheet.addRow(cells);
+    sheet.lastRow.eachCell((cell, colNumber) => {
+      cell.alignment = { horizontal: 'center' };
+      if (colNumber > 1) cell.numFmt = WEIGHT_NUMFMT;
+    });
+  });
+
+  sheet.addRow(totalRow);
+  sheet.lastRow.eachCell((cell, colNumber) => {
+    cell.font = { bold: true };
+    cell.alignment = { horizontal: 'center' };
+    cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' } };
+    if (colNumber > 1) cell.numFmt = WEIGHT_NUMFMT;
+  });
+
+  if (report.billsOfLading !== null) {
+    sheet.addRow([`Feeder Bill of Lading - ${report.billsOfLading} sets`]);
+  }
+  sheet.addRow([]);
+
+  const dischargeRow = sheet.addRow([`ВЫГРУЗКА ${manualFields.arrivalDate}`]);
+  dischargeRow.getCell(1).font = { bold: true, size: 12 };
+
+  return workbook.xlsx.writeBuffer();
+}
+
+async function handleDownloadExcelClick() {
+  if (!lastReport) return;
+  const manualFields = getValidatedManualFields();
+  if (!manualFields) return;
+
+  const buffer = await buildExcelWorkbook(lastReport, manualFields);
+  downloadBlob(
+    new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `${buildFileNameBase(lastReport)}.xlsx`,
+  );
 }
 
 pickFilesBtn.addEventListener('click', () => fileInput.click());
@@ -405,5 +564,6 @@ dropzone.addEventListener('drop', (event) => {
 
 buildBtn.addEventListener('click', handleBuildClick);
 downloadBtn.addEventListener('click', handleDownloadClick);
+downloadExcelBtn.addEventListener('click', handleDownloadExcelClick);
 
 renderFileList();
