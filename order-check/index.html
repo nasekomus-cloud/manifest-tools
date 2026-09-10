@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Сверить с поручениями на погрузку</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <main class="page">
+    <a class="back-link" href="../index.html">← Все инструменты</a>
+    <h1 class="page__title">Сверить с поручениями на погрузку</h1>
+    <p class="page__subtitle">
+      Загрузите сводный файл манифеста и все поручения на погрузку — сверка
+      пройдёт по номеру контейнера прямо в браузере, файлы никуда не отправляются.
+    </p>
+
+    <section>
+      <h2>1. Сводный файл</h2>
+      <div class="dropzone" id="combined-dropzone">
+        Перетащите файл сюда или
+        <label class="btn" for="combined-input" style="display: inline-block; margin-left: 8px;">Выбрать файл</label>
+        <input type="file" id="combined-input" accept=".xlsx" hidden />
+      </div>
+      <ul class="file-list" id="combined-file-list"></ul>
+    </section>
+
+    <section>
+      <h2>2. Поручения на погрузку</h2>
+      <p class="page__subtitle">Архивом .zip (как приходит с почты), отдельными файлами — можно и то, и другое сразу.</p>
+      <div class="dropzone" id="orders-dropzone">
+        Перетащите архив или файлы сюда или
+        <label class="btn" for="orders-input" style="display: inline-block; margin-left: 8px;">Выбрать файлы</label>
+        <input type="file" id="orders-input" accept=".xlsx,.zip" multiple hidden />
+      </div>
+      <p id="orders-count"></p>
+      <ul class="file-list" id="orders-file-list"></ul>
+    </section>
+
+    <p>
+      <button type="button" class="btn" id="check-btn" disabled>Сверить</button>
+    </p>
+
+    <div id="error-box" class="error-message" hidden></div>
+    <div id="warnings-box" hidden></div>
+    <div id="summary-box" hidden></div>
+
+    <p>
+      <button type="button" class="btn" id="download-btn" hidden>Скачать</button>
+    </p>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script type="module" src="app.js?v=202609101357"></script>
+</body>
+</html>
