@@ -13,39 +13,77 @@
     <p class="page__subtitle">
       Выберите нужный инструмент — вся обработка идёт прямо в браузере, файлы никуда не отправляются.
     </p>
-    <div class="tool-grid" id="tool-grid"></div>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab tab--active" id="tab-export" role="tab" aria-selected="true" aria-controls="tool-grid-export">Экспорт</button>
+      <button type="button" class="tab" id="tab-import" role="tab" aria-selected="false" aria-controls="tool-grid-import">Импорт</button>
+    </div>
+    <div class="tool-grid" id="tool-grid-export" role="tabpanel" aria-labelledby="tab-export"></div>
+    <div class="tool-grid" id="tool-grid-import" role="tabpanel" aria-labelledby="tab-import" hidden></div>
   </main>
 
-  <script src="tools.js?v=202609101357"></script>
+  <script src="tools.js?v=202609102152"></script>
   <script>
     (function renderTools() {
-      var grid = document.getElementById('tool-grid');
+      var grids = {
+        export: document.getElementById('tool-grid-export'),
+        import: document.getElementById('tool-grid-import'),
+      };
+      var tabs = {
+        export: document.getElementById('tab-export'),
+        import: document.getElementById('tab-import'),
+      };
       var tools = window.TOOLS || [];
-
-      if (!tools.length) {
-        var empty = document.createElement('p');
-        empty.className = 'tool-empty';
-        empty.textContent = 'Инструменты пока не добавлены.';
-        grid.appendChild(empty);
-        return;
-      }
+      var byCategory = { export: [], import: [] };
 
       tools.forEach(function (tool) {
-        var card = document.createElement('a');
-        card.className = 'tool-card';
-        card.href = tool.href;
+        (byCategory[tool.category] || byCategory.import).push(tool);
+      });
 
-        var title = document.createElement('h2');
-        title.className = 'tool-card__title';
-        title.textContent = tool.title;
+      Object.keys(grids).forEach(function (category) {
+        var grid = grids[category];
+        var list = byCategory[category];
 
-        var description = document.createElement('p');
-        description.className = 'tool-card__description';
-        description.textContent = tool.description;
+        if (!list.length) {
+          var empty = document.createElement('p');
+          empty.className = 'tool-empty';
+          empty.textContent = 'Инструменты пока не добавлены.';
+          grid.appendChild(empty);
+          return;
+        }
 
-        card.appendChild(title);
-        card.appendChild(description);
-        grid.appendChild(card);
+        list.forEach(function (tool) {
+          var card = document.createElement('a');
+          card.className = 'tool-card';
+          card.href = tool.href;
+
+          var title = document.createElement('h2');
+          title.className = 'tool-card__title';
+          title.textContent = tool.title;
+
+          var description = document.createElement('p');
+          description.className = 'tool-card__description';
+          description.textContent = tool.description;
+
+          card.appendChild(title);
+          card.appendChild(description);
+          grid.appendChild(card);
+        });
+      });
+
+      function selectTab(category) {
+        Object.keys(grids).forEach(function (key) {
+          var isActive = key === category;
+          grids[key].hidden = !isActive;
+          tabs[key].classList.toggle('tab--active', isActive);
+          tabs[key].setAttribute('aria-selected', String(isActive));
+        });
+      }
+
+      tabs.export.addEventListener('click', function () {
+        selectTab('export');
+      });
+      tabs.import.addEventListener('click', function () {
+        selectTab('import');
       });
     })();
   </script>

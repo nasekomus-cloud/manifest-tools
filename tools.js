@@ -8,41 +8,48 @@ window.TOOLS = [
     description:
       'Склеить несколько файлов манифеста в один общий файл, сохранив оформление.',
     href: 'merge/index.html',
+    category: 'export',
   },
   {
     title: 'Сверить опасные грузы',
     description:
       'Сверить сводный файл с официальным DG-манифестом по номеру контейнера.',
     href: 'dg-check/index.html',
+    category: 'import',
   },
   {
     title: 'Дашборд по портам назначения',
     description:
       'Разбивка по портам назначения: сколько контейнеров каждого типа и сколько это весит.',
     href: 'dashboard/index.html',
+    category: 'import',
   },
   {
     title: 'Дашборд по портам отправления',
     description:
       'То же самое, но разбивка по портам отправления (погрузки), а не назначения.',
     href: 'dashboard-departure/index.html',
+    category: 'import',
   },
   {
     title: 'Разделить коносаменты',
     description:
       'Разбить один PDF с несколькими коносаментами на отдельные файлы по номеру, архивом zip.',
     href: 'bl-split/index.html',
+    category: 'import',
   },
   {
     title: 'Итоговый PDF-отчёт по манифесту',
     description:
       'Сводная таблица «GRAND TOTAL» по типам контейнеров в PDF. Позывной, дату прибытия и терминал — впишите вручную.',
     href: 'grand-total/index.html',
+    category: 'import',
   },
   {
     title: 'Сверить с поручениями на погрузку',
     description:
       'Сверить сводный файл с поручениями: вес груза и тары, пломбы, тип контейнера, номер поручения и класс опасного груза — несовпадения подсветятся жёлтым.',
     href: 'order-check/index.html',
+    category: 'export',
   },
 ];
