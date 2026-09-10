@@ -327,6 +327,12 @@ export function crossCheckOrders(combinedWb, orderEntries) {
 
   const newCol = LAST_COLUMN + 1;
   combinedSheet.getRow(COLUMN_HEADER_ROW).getCell(newCol).value = NEW_COLUMN_HEADER;
+  // Ширина остальных колонок (C..Y) сохраняется сама — ExcelJS хранит её в
+  // модели листа отдельно от значений ячеек, запись .value/.style её не
+  // трогает (проверено на реальном файле). Новая колонка Z в модели листа
+  // не существовала вовсе — без явной ширины она открывалась бы дефолтной,
+  // слишком узкой для текста расхождений.
+  combinedSheet.getColumn(newCol).width = 60;
 
   const matchedContainers = new Set();
   const summary = {

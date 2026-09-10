@@ -121,6 +121,25 @@ function isHighlighted(result, index) {
   return !!(fill && fill.fgColor && fill.fgColor.argb === 'FFFFFF00');
 }
 
+test('crossCheckOrders: ширина существующих колонок сохраняется, у новой колонки задаётся своя', () => {
+  const combinedWb = buildCombinedWorkbook([
+    { container: 'CONT001', futnost: '40HC', cargoWeight: 25000, tareWeight: 3800, seals: '111', orderNumber: 'ORD-1' },
+  ]);
+  const sheet = combinedWb.getWorksheet(SHEET_NAME);
+  sheet.getColumn(COL.container).width = 12.5;
+  sheet.getColumn(COL.dangerous).width = 40;
+
+  const orderEntries = [orderEntry('ord1.xlsx', 'ORD-1', [
+    { container: 'CONT001', iso: '45G1', seal: '111', cargoName: 'Груз', grossWeight: 25000, tareWeight: 3800 },
+  ])];
+
+  const result = crossCheckOrders(combinedWb, orderEntries);
+  const resultSheet = result.resultWorkbook.getWorksheet(SHEET_NAME);
+  assert.equal(resultSheet.getColumn(COL.container).width, 12.5);
+  assert.equal(resultSheet.getColumn(COL.dangerous).width, 40);
+  assert.equal(resultSheet.getColumn(LAST_COLUMN + 1).width, 60);
+});
+
 test('crossCheckOrders: всё совпадает — без расхождений и без заливки', () => {
   const combinedWb = buildCombinedWorkbook([
     { container: 'CONT001', futnost: '40HC', cargoWeight: 25000, tareWeight: 3800, seals: '111', orderNumber: 'ORD-1' },
