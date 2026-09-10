@@ -10,6 +10,7 @@
 | `npm install` | Установить зависимости (только для тестов — пакет `exceljs`, сайт в проде без npm) |
 | `python3 -m http.server` (из корня) → `localhost:8000` | Запустить локально; альтернатива — открыть `index.html` напрямую двойным кликом |
 | `npm test` | Прогнать тесты (`node --test`, 82 теста в `lib/`, `merge/`, `dg-check/`, `dashboard/`, `dashboard-departure/`, `bl-split/`, `grand-total/`, `order-check/`) |
+| `./deploy.sh` | Обновить копию сайта на собственном VPS пользователя (`root@130.49.213.189`, nginx, `/var/www/manifest-tools`, домен `manifest.nasekomuspro.ru`) — отдельно от GitHub Pages. `rsync --delete` корня репозитория, кроме `.git`/`node_modules`/`.autopilot`/`.claude`/`.agents`/тестов/`CLAUDE.md`/`package*.json`. Пароль SSH вводится вручную при запуске (ключевой доступ на этом сервере сознательно не настраивается) |
 
 ## Структура
 
