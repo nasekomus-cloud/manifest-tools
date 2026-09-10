@@ -17,18 +17,20 @@ const SUMMARY_HEADERS = [
   'Футность',       // D
   'Веc груза',      // E
   'Веc тары',       // F
-  'Пломбы',         // G
-  'Опасные грузы',  // H
-  '№ поручения',    // I
+  'Общий Веc',      // G
+  'Пломбы',         // H
+  'Опасные грузы',  // I
+  '№ поручения',    // J
 ];
 const COL = {
   container: FIRST_COLUMN,
   futnost: FIRST_COLUMN + 1,
   cargoWeight: FIRST_COLUMN + 2,
   tareWeight: FIRST_COLUMN + 3,
-  seals: FIRST_COLUMN + 4,
-  dangerous: FIRST_COLUMN + 5,
-  orderNumber: FIRST_COLUMN + 6,
+  totalWeight: FIRST_COLUMN + 4,
+  seals: FIRST_COLUMN + 5,
+  dangerous: FIRST_COLUMN + 6,
+  orderNumber: FIRST_COLUMN + 7,
 };
 
 function buildCombinedWorkbook(rows) {
@@ -48,6 +50,12 @@ function buildCombinedWorkbook(rows) {
     r.getCell(COL.futnost).value = row.futnost ?? null;
     r.getCell(COL.cargoWeight).value = row.cargoWeight ?? null;
     r.getCell(COL.tareWeight).value = row.tareWeight ?? null;
+    // По умолчанию — сумма веса груза и тары этой же строки свода, чтобы
+    // существующие фикстуры (без явного totalWeight) не превращались в
+    // расхождение общего веса задним числом. Тесты на сам общий вес задают
+    // его явно.
+    const defaultTotal = (row.cargoWeight ?? 0) + (row.tareWeight ?? 0);
+    r.getCell(COL.totalWeight).value = row.totalWeight ?? (row.cargoWeight === undefined && row.tareWeight === undefined ? null : defaultTotal);
     r.getCell(COL.seals).value = row.seals ?? null;
     r.getCell(COL.dangerous).value = row.dangerous ?? null;
     r.getCell(COL.orderNumber).value = row.orderNumber ?? null;
@@ -158,6 +166,38 @@ test('crossCheckOrders: расхождение веса тары', () => {
   const result = crossCheckOrders(combinedWb, orderEntries);
   assert.equal(result.summary.tareWeight, 1);
   assert.match(discrepancyText(result, 0), /вес тары/);
+});
+
+test('crossCheckOrders: расхождение общего веса при верных весе груза и тары по отдельности', () => {
+  // Вес груза и тары в своде сами по себе совпадают с поручением, но их
+  // сумма записана в «Общий Веc» неверно (например, перепутана с соседней
+  // строкой при сборке свода) — это самостоятельная поломка, не сводимая
+  // к уже пойманным R01/R02.
+  const combinedWb = buildCombinedWorkbook([
+    { container: 'CONT001', futnost: '40HC', cargoWeight: 25000, tareWeight: 3800, totalWeight: 19841, seals: '111', orderNumber: 'ORD-1' },
+  ]);
+  const orderEntries = [orderEntry('ord1.xlsx', 'ORD-1', [
+    { container: 'CONT001', iso: '45G1', seal: '111', cargoName: 'Груз', grossWeight: 25000, tareWeight: 3800 },
+  ])];
+
+  const result = crossCheckOrders(combinedWb, orderEntries);
+  assert.equal(result.summary.cargoWeight, 0);
+  assert.equal(result.summary.tareWeight, 0);
+  assert.equal(result.summary.totalWeight, 1);
+  assert.match(discrepancyText(result, 0), /общий вес: свод 19841, ожидается 28800/);
+});
+
+test('crossCheckOrders: общий вес — сумма груза и тары из поручения, без расхождений', () => {
+  const combinedWb = buildCombinedWorkbook([
+    { container: 'CONT001', futnost: '40HC', cargoWeight: 25000, tareWeight: 3800, totalWeight: 28800, seals: '111', orderNumber: 'ORD-1' },
+  ]);
+  const orderEntries = [orderEntry('ord1.xlsx', 'ORD-1', [
+    { container: 'CONT001', iso: '45G1', seal: '111', cargoName: 'Груз', grossWeight: 25000, tareWeight: 3800 },
+  ])];
+
+  const result = crossCheckOrders(combinedWb, orderEntries);
+  assert.equal(result.summary.totalWeight, 0);
+  assert.equal(result.summary.mismatchRows, 0);
 });
 
 test('crossCheckOrders: строка «поддоны» не входит в вес груза', () => {

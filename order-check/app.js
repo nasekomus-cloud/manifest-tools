@@ -2,7 +2,7 @@
 // файла, приём поручений (архивом .zip или отдельными .xlsx, вперемешку),
 // вызов core.js, скачивание результата. Вся логика сверки — в core.js.
 
-import { crossCheckOrders } from './core.js?v=202609101357';
+import { crossCheckOrders } from './core.js?v=202609101845';
 
 const combinedInput = document.getElementById('combined-input');
 const combinedDropzone = document.getElementById('combined-dropzone');
@@ -196,6 +196,7 @@ async function loadOrderWorkbooks(sources) {
 const CATEGORY_LABELS = [
   ['cargoWeight', 'вес груза'],
   ['tareWeight', 'вес тары'],
+  ['totalWeight', 'общий вес'],
   ['seals', 'номер пломбы'],
   ['futnost', 'тип контейнера'],
   ['dangerous', 'класс опасности'],

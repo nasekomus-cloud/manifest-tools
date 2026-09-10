@@ -124,6 +124,7 @@ function findSummaryColumns(sheet) {
     futnost: findColumnByKeyword(row, FIRST_COLUMN, LAST_COLUMN, 'футность'),
     cargoWeight: findColumnByKeyword(row, FIRST_COLUMN, LAST_COLUMN, 'груза'),
     tareWeight: findColumnByKeyword(row, FIRST_COLUMN, LAST_COLUMN, 'тары'),
+    totalWeight: findColumnByKeyword(row, FIRST_COLUMN, LAST_COLUMN, 'общий'),
     seals: findColumnByKeyword(row, FIRST_COLUMN, LAST_COLUMN, 'пломбы'),
     dangerous: findColumnByKeyword(row, FIRST_COLUMN, LAST_COLUMN, 'опасн'),
     orderNumber: findColumnByKeyword(row, FIRST_COLUMN, LAST_COLUMN, 'поручения'),
@@ -134,6 +135,7 @@ function findSummaryColumns(sheet) {
     futnost: '«Футность»',
     cargoWeight: '«Веc груза»',
     tareWeight: '«Веc тары»',
+    totalWeight: '«Общий Веc»',
     seals: '«Пломбы»',
     dangerous: '«Опасные грузы»',
     orderNumber: '«№ поручения»',
@@ -332,6 +334,7 @@ export function crossCheckOrders(combinedWb, orderEntries) {
     mismatchRows: 0,
     cargoWeight: 0,
     tareWeight: 0,
+    totalWeight: 0,
     seals: 0,
     futnost: 0,
     orderWrong: 0,
@@ -390,6 +393,21 @@ export function crossCheckOrders(combinedWb, orderEntries) {
       if (tareWeight === null || entry.tareWeight === null || Math.abs(tareWeight - entry.tareWeight) > WEIGHT_EPSILON) {
         issues.push(`вес тары: свод ${tareWeight ?? '—'}, по поручению ${entry.tareWeight ?? '—'} кг`);
         summary.tareWeight += 1;
+      }
+
+      // Общий вес — как сумма веса груза и веса тары, взятых из поручения
+      // (тех же значений, что сверяются выше как R01/R02), а не как сумма
+      // столбцов свода: если у самого свода вес груза/тары в этой строке
+      // разъехался с общим весом (например, при перепутанных при сборке
+      // соседних строках), это отдельная, самостоятельная поломка — итог
+      // не обязан совпадать с суммой двух уже неверных чисел.
+      const totalWeight = cellNumber(row.getCell(cols.totalWeight));
+      if (entry.tareWeight !== null) {
+        const expectedTotal = entry.cargoWeight + entry.tareWeight;
+        if (totalWeight === null || Math.abs(totalWeight - expectedTotal) > WEIGHT_EPSILON) {
+          issues.push(`общий вес: свод ${totalWeight ?? '—'}, ожидается ${expectedTotal} кг (вес груза + вес тары по поручению)`);
+          summary.totalWeight += 1;
+        }
       }
 
       const seals = cellText(row.getCell(cols.seals));
