@@ -2,7 +2,7 @@
 // файла, приём поручений (архивом .zip или отдельными .xlsx, вперемешку),
 // вызов core.js, скачивание результата. Вся логика сверки — в core.js.
 
-import { crossCheckOrders } from './core.js?v=202609101857';
+import { crossCheckOrders } from './core.js?v=202609101913';
 
 const combinedInput = document.getElementById('combined-input');
 const combinedDropzone = document.getElementById('combined-dropzone');

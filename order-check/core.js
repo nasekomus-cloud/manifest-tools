@@ -21,6 +21,28 @@ const NEW_COLUMN_HEADER = 'Несовпадения';
 const YELLOW_ARGB = 'FFFFFF00';
 const WEIGHT_EPSILON = 0.01;
 
+// ExcelJS 4.4.0 умеет ЧИТАТЬ условное форматирование любого типа, но при
+// записи поддерживает только эти — остальные (например, «duplicateValues»,
+// которое реально встретилось в файле пользователя, подсветка повторов в
+// колонке «Футность») молча пишутся как пустой <conditionalFormatting/> без
+// правила внутри: это невалидно по схеме OOXML, и Excel показывает диалог
+// «восстановить или удалить нечитаемое содержимое». Баг воспроизводится даже
+// на чистой загрузке-сохранении без единой нашей правки (проверено). Раз
+// библиотека не может записать такое правило корректно, безопаснее вообще
+// убрать его из результата, чем отдать пользователю файл, который Excel
+// считает повреждённым — сама подсветка дублей это лишь оформление, не данные.
+const WRITABLE_CF_TYPES = new Set([
+  'expression', 'cellIs', 'top10', 'aboveAverage',
+  'dataBar', 'colorScale', 'iconSet', 'containsText', 'timePeriod',
+]);
+
+function dropUnwritableConditionalFormatting(sheet) {
+  const kept = sheet.conditionalFormattings
+    .map((cf) => ({ ...cf, rules: cf.rules.filter((rule) => WRITABLE_CF_TYPES.has(rule.type)) }))
+    .filter((cf) => cf.rules.length > 0);
+  sheet.conditionalFormattings = kept;
+}
+
 // Слова, которыми в поручении помечают строку с весом упаковочных поддонов/палет,
 // а не самого груза (см. spec «Решения по реализации» §7 — в брифе названы оба
 // слова, «поддоны» и «палеты», в данных пользователя встретилось только первое).
@@ -448,6 +470,8 @@ export function crossCheckOrders(combinedWb, orderEntries) {
   }
 
   summary.missingFromSummary = [...index.keys()].filter((key) => !matchedContainers.has(key)).length;
+
+  dropUnwritableConditionalFormatting(combinedSheet);
 
   return { ok: true, resultWorkbook: combinedWb, summary, warnings };
 }

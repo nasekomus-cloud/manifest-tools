@@ -140,6 +140,37 @@ test('crossCheckOrders: ширина существующих колонок с�
   assert.equal(resultSheet.getColumn(LAST_COLUMN + 1).width, 60);
 });
 
+test('crossCheckOrders: условное форматирование неподдерживаемого типа (duplicateValues) убирается, чтобы не отдавать повреждённый файл', () => {
+  // ExcelJS 4.4.0 умеет прочитать «duplicateValues», но при записи пишет
+  // пустой <conditionalFormatting/> без <cfRule> внутри — невалидно по схеме
+  // OOXML, Excel требует восстановления файла. Воспроизведено на реальном
+  // файле пользователя (подсветка дублей в колонке «Футность») даже на
+  // чистой загрузке-сохранении без единой правки поверх. Поддерживаемый тип
+  // («cellIs») при этом должен остаться как есть.
+  const combinedWb = buildCombinedWorkbook([
+    { container: 'CONT001', futnost: '40HC', cargoWeight: 25000, tareWeight: 3800, seals: '111', orderNumber: 'ORD-1' },
+  ]);
+  const sheet = combinedWb.getWorksheet(SHEET_NAME);
+  sheet.addConditionalFormatting({
+    ref: `${String.fromCharCode(64 + COL.futnost)}1:${String.fromCharCode(64 + COL.futnost)}1048576`,
+    rules: [{ type: 'duplicateValues', priority: 1, dxfId: 0 }],
+  });
+  sheet.addConditionalFormatting({
+    ref: `${String.fromCharCode(64 + COL.cargoWeight)}1:${String.fromCharCode(64 + COL.cargoWeight)}1048576`,
+    rules: [{ type: 'cellIs', operator: 'greaterThan', formulae: [100], priority: 2, dxfId: 0 }],
+  });
+
+  const orderEntries = [orderEntry('ord1.xlsx', 'ORD-1', [
+    { container: 'CONT001', iso: '45G1', seal: '111', cargoName: 'Груз', grossWeight: 25000, tareWeight: 3800 },
+  ])];
+
+  const result = crossCheckOrders(combinedWb, orderEntries);
+  const cfs = result.resultWorkbook.getWorksheet(SHEET_NAME).conditionalFormattings;
+  const types = cfs.flatMap((cf) => cf.rules.map((r) => r.type));
+  assert.ok(!types.includes('duplicateValues'), 'duplicateValues должно быть убрано');
+  assert.ok(types.includes('cellIs'), 'поддерживаемый тип должен остаться');
+});
+
 test('crossCheckOrders: всё совпадает — без расхождений и без заливки', () => {
   const combinedWb = buildCombinedWorkbook([
     { container: 'CONT001', futnost: '40HC', cargoWeight: 25000, tareWeight: 3800, seals: '111', orderNumber: 'ORD-1' },
