@@ -3,7 +3,23 @@
 // скачиванием блоба — вся DOM-логика живёт здесь. Считать книги и склеивать
 // их — дело core.js (mergeManifests), сюда импортируется как обычный модуль.
 
-import { mergeManifests } from './core.js?v=202609062100';
+import { mergeManifests } from './core.js?v=202609110952';
+
+const SUMMARY_COLUMNS = 5; // Файл, Строк, Вес груза, Вес тары, Общий вес
+
+// Вручную, а не toLocaleString: тот же приём и тот же формат, что уже принят
+// в grand-total/app.js для веса на этом сайте — сгруппированные по тысячам
+// цифры, три знака после запятой, суффикс « KGS».
+function formatWeight(n) {
+  const [intPart, fracPart] = Math.abs(n).toFixed(3).split('.');
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${n < 0 ? '-' : ''}${grouped},${fracPart} KGS`;
+}
+
+function weightCells(weight) {
+  if (!weight) return ['колонка не найдена', 'колонка не найдена', 'колонка не найдена'];
+  return [formatWeight(weight.cargoWeight), formatWeight(weight.tareWeight), formatWeight(weight.totalWeight)];
+}
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
@@ -119,7 +135,7 @@ function renderSummary(summary) {
   summaryTable.innerHTML = '';
 
   const headerRow = document.createElement('tr');
-  ['Файл', 'Строк'].forEach((text) => {
+  ['Файл', 'Строк', 'Вес груза', 'Вес тары', 'Общий вес'].forEach((text) => {
     const th = document.createElement('th');
     th.textContent = text;
     headerRow.appendChild(th);
@@ -128,22 +144,20 @@ function renderSummary(summary) {
 
   summary.files.forEach((file) => {
     const row = document.createElement('tr');
-    const nameCell = document.createElement('td');
-    nameCell.textContent = file.fileName;
-    const rowsCell = document.createElement('td');
-    rowsCell.textContent = String(file.rows);
-    row.appendChild(nameCell);
-    row.appendChild(rowsCell);
+    [String(file.fileName), String(file.rows), ...weightCells(file.weight)].forEach((text) => {
+      const cell = document.createElement('td');
+      cell.textContent = text;
+      row.appendChild(cell);
+    });
     summaryTable.appendChild(row);
   });
 
   const totalRow = document.createElement('tr');
-  const totalLabel = document.createElement('td');
-  totalLabel.textContent = 'Итого';
-  const totalValue = document.createElement('td');
-  totalValue.textContent = String(summary.totalRows);
-  totalRow.appendChild(totalLabel);
-  totalRow.appendChild(totalValue);
+  ['Итого', String(summary.totalRows), ...weightCells(summary.weightTotals)].forEach((text) => {
+    const cell = document.createElement('td');
+    cell.textContent = text;
+    totalRow.appendChild(cell);
+  });
   summaryTable.appendChild(totalRow);
 
   addStatRow(summaryTable, 'Уникальных контейнеров', summary.uniqueContainers);
@@ -158,6 +172,7 @@ function addStatRow(table, label, value) {
   const row = document.createElement('tr');
   const labelCell = document.createElement('td');
   labelCell.textContent = label;
+  labelCell.colSpan = SUMMARY_COLUMNS - 1;
   const valueCell = document.createElement('td');
   valueCell.textContent = value === null ? 'колонка не найдена' : String(value);
   row.appendChild(labelCell);

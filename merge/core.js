@@ -14,6 +14,7 @@ import {
   LAST_COLUMN,
   validateStructure,
 } from '../lib/manifest-format.js?v=202609062100';
+import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609062100';
 
 const FIRST_COPY_COLUMN = 1; // A — на случай, если колонка "№п/п" стоит перед проверяемым диапазоном C:Y
 const FALLBACK_NUMBER_COLUMN = 1; // A — если заголовок "№п/п" не нашёлся в шапке вообще
@@ -87,6 +88,21 @@ function normalizeValue(text) {
   return text.trim().toUpperCase();
 }
 
+// Вес считается из исходных книг (workbooks), а не из resultWorkbook: в
+// реальных файлах под последней строкой данных стоит ещё одна строка с
+// формулами СУММ() по весу, без номера контейнера (см. buildManifestTotals
+// в lib/port-breakdown.js — тот же случай, что уже один раз задвоил итог
+// в дашборде по портам). rowHasData() ниже копирует такую строку в
+// resultWorkbook как обычную строку данных (в ней есть непустые ячейки),
+// так что подсчёт по result задвоил бы её вес; buildManifestTotals уже
+// отбрасывает строки без контейнера сам.
+function computeWeight(workbooks) {
+  const totals = buildManifestTotals(workbooks);
+  if (!totals.ok) return null;
+  const { cargoWeight, tareWeight, totalWeight } = totals.grandTotal;
+  return { cargoWeight, tareWeight, totalWeight };
+}
+
 function copyHeaderMerges(sourceSheet, targetSheet) {
   const merges = (sourceSheet.model && sourceSheet.model.merges) || [];
   merges.forEach((range) => {
@@ -114,7 +130,7 @@ function copyHeaderMerges(sourceSheet, targetSheet) {
  *        renumber — пересчитать колонку "№п/п" (найденную по заголовку, не
  *        обязательно A) от 1 до N по всему своду; по умолчанию false —
  *        нумерация остаётся как в исходниках.
- * @returns {{resultWorkbook: import('exceljs').Workbook, summary: {files: Array<{fileName: string, rows: number}>, totalRows: number, uniqueContainers: number|null, uniqueBillsOfLading: number|null, duplicateContainers: Array<{container: string, rows: number[]}>|null}}}
+ * @returns {{resultWorkbook: import('exceljs').Workbook, summary: {files: Array<{fileName: string, rows: number, weight: {cargoWeight: number, tareWeight: number, totalWeight: number}|null}>, totalRows: number, uniqueContainers: number|null, uniqueBillsOfLading: number|null, duplicateContainers: Array<{container: string, rows: number[]}>|null, weightTotals: {cargoWeight: number, tareWeight: number, totalWeight: number}|null}}}
  * @throws {Error} если структура файлов не совпадает (см. validateStructure) —
  *         сообщение уже содержит имя файла и адрес несовпавшей ячейки.
  */
@@ -190,7 +206,7 @@ export function mergeManifests(workbooks, { renumber = false } = {}) {
       rows++;
     }
 
-    files.push({ fileName, rows });
+    files.push({ fileName, rows, weight: computeWeight([{ fileName, workbook }]) });
   }
 
   const totalRows = files.reduce((sum, file) => sum + file.rows, 0);
@@ -214,6 +230,7 @@ export function mergeManifests(workbooks, { renumber = false } = {}) {
       uniqueContainers: containerCol ? containerRows.size : null,
       uniqueBillsOfLading: billCol ? uniqueBillsOfLading.size : null,
       duplicateContainers,
+      weightTotals: computeWeight(workbooks),
     },
   };
 }

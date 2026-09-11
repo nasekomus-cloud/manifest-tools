@@ -89,16 +89,17 @@ test('mergeManifests: склеивает файлы по порядку, сох�
   });
 
   // сводка: файл → строк, и итог; в этом тесте заголовки — плейсхолдеры без
-  // «контейнер»/«коносамент», поэтому статистика по ним — null
+  // «контейнер»/«коносамент»/весовых колонок, поэтому статистика по ним — null
   assert.deepEqual(summary, {
     files: [
-      { fileName: 'a.xlsx', rows: 2 },
-      { fileName: 'b.xlsx', rows: 1 },
+      { fileName: 'a.xlsx', rows: 2, weight: null },
+      { fileName: 'b.xlsx', rows: 1, weight: null },
     ],
     totalRows: 3,
     uniqueContainers: null,
     uniqueBillsOfLading: null,
     duplicateContainers: null,
+    weightTotals: null,
   });
 });
 
@@ -227,6 +228,84 @@ test('mergeManifests: если в шапке нет колонок «конте�
   assert.equal(summary.uniqueContainers, null);
   assert.equal(summary.uniqueBillsOfLading, null);
   assert.equal(summary.duplicateContainers, null);
+});
+
+test('mergeManifests: считает вес груза/тары/общий по каждому файлу и по своду в целом', () => {
+  const headers = [...SAMPLE_HEADERS];
+  const containerIdx = 0;
+  const typeIdx = 1;
+  const cargoIdx = 2;
+  const tareIdx = 3;
+  const totalIdx = 4;
+  headers[containerIdx] = '№ контейнера';
+  headers[typeIdx] = 'Футность';
+  headers[cargoIdx] = 'Вес груза';
+  headers[tareIdx] = 'Вес тары';
+  headers[totalIdx] = 'Общий вес';
+
+  function rowWith(container, cargo, tare, total) {
+    const row = emptyRowData();
+    row[containerIdx] = container;
+    row[typeIdx] = '20DC';
+    row[cargoIdx] = cargo;
+    row[tareIdx] = tare;
+    row[totalIdx] = total;
+    return row;
+  }
+
+  const wbA = buildManifestWorkbook({
+    headers,
+    dataRows: [rowWith('AAAA1111111', 1000, 200, 1200), rowWith('BBBB2222222', 500, 100, 600)],
+  });
+  const wbB = buildManifestWorkbook({
+    headers,
+    dataRows: [rowWith('CCCC3333333', 2000, 300, 2300)],
+  });
+
+  const { summary } = mergeManifests([
+    { fileName: 'a.xlsx', workbook: wbA },
+    { fileName: 'b.xlsx', workbook: wbB },
+  ]);
+
+  assert.deepEqual(summary.files[0].weight, { cargoWeight: 1500, tareWeight: 300, totalWeight: 1800 });
+  assert.deepEqual(summary.files[1].weight, { cargoWeight: 2000, tareWeight: 300, totalWeight: 2300 });
+  assert.deepEqual(summary.weightTotals, { cargoWeight: 3500, tareWeight: 600, totalWeight: 4100 });
+});
+
+test('mergeManifests: строка-«Итого» с формулами СУММ() внизу листа (без номера контейнера) не задваивает вес', () => {
+  const headers = [...SAMPLE_HEADERS];
+  const containerIdx = 0;
+  const typeIdx = 1;
+  const cargoIdx = 2;
+  const tareIdx = 3;
+  const totalIdx = 4;
+  headers[containerIdx] = '№ контейнера';
+  headers[typeIdx] = 'Футность';
+  headers[cargoIdx] = 'Вес груза';
+  headers[tareIdx] = 'Вес тары';
+  headers[totalIdx] = 'Общий вес';
+
+  function rowWith(container, cargo, tare, total) {
+    const row = emptyRowData();
+    row[containerIdx] = container;
+    row[typeIdx] = '20DC';
+    row[cargoIdx] = cargo;
+    row[tareIdx] = tare;
+    row[totalIdx] = total;
+    return row;
+  }
+
+  // вторая строка — «итоговая» СУММ()-строка листа: есть вес, нет контейнера
+  const footerRow = rowWith('', 1000, 200, 1200);
+  const wbA = buildManifestWorkbook({
+    headers,
+    dataRows: [rowWith('AAAA1111111', 1000, 200, 1200), footerRow],
+  });
+
+  const { summary } = mergeManifests([{ fileName: 'a.xlsx', workbook: wbA }]);
+
+  assert.deepEqual(summary.files[0].weight, { cargoWeight: 1000, tareWeight: 200, totalWeight: 1200 });
+  assert.deepEqual(summary.weightTotals, { cargoWeight: 1000, tareWeight: 200, totalWeight: 1200 });
 });
 
 test('mergeManifests: отказывает при несовпадающей структуре, называя файл и ячейку', () => {
