@@ -1,16 +1,30 @@
-// Состояние страницы «Сверить с поручениями на погрузку»: выбор сводного
-// файла, приём поручений (архивом .zip или отдельными .xlsx, вперемешку),
-// вызов core.js, скачивание результата. Вся логика сверки — в core.js.
+// Состояние страницы «Сверить с поручениями на погрузку»: сводный файл (с числом
+// строк), приём поручений (архивом .zip или отдельными .xlsx, вперемешку), вызов
+// core.js, скачивание результата. Вся логика сверки — в core.js
+// (crossCheckOrders); панель, шаги и полоса действия — общий каркас
+// assets/shell.js (window.Shell). Разметка списка файлов, плиток и зон — по
+// образцу merge/app.js.
+//
+// Шаг 1 — пока нет сводного файла, 2 — пока нет результата, 3 — результат
+// показан; любое изменение файлов прячет устаревший результат.
 
-import { crossCheckOrders } from './core.js?v=202609101913';
+import { crossCheckOrders } from './core.js?v=202609122000';
+import { countDataRows } from '../lib/manifest-format.js?v=202609121930';
+
+const Shell = window.Shell;
+
+function rowsLabel(n) {
+  return `${n} ${Shell.plural(n, 'строка', 'строки', 'строк')}`;
+}
 
 const combinedInput = document.getElementById('combined-input');
+const combinedPickBtn = document.getElementById('combined-pick-btn');
 const combinedDropzone = document.getElementById('combined-dropzone');
 const combinedFileList = document.getElementById('combined-file-list');
 
 const ordersInput = document.getElementById('orders-input');
+const ordersPickBtn = document.getElementById('orders-pick-btn');
 const ordersDropzone = document.getElementById('orders-dropzone');
-const ordersCount = document.getElementById('orders-count');
 const ordersFileList = document.getElementById('orders-file-list');
 
 const checkBtn = document.getElementById('check-btn');
@@ -18,90 +32,143 @@ const downloadBtn = document.getElementById('download-btn');
 const errorBox = document.getElementById('error-box');
 const warningsBox = document.getElementById('warnings-box');
 const summaryBox = document.getElementById('summary-box');
+const resultStats = document.getElementById('result-stats');
+const categoriesBox = document.getElementById('categories-box');
 
 const state = {
-  combinedFile: null,
-  /** @type {Array<{id:number, name:string, getBuffer: () => Promise<ArrayBuffer>}>} */
+  /** rows: undefined — ещё считается; number — строк данных; null — файл не читается как манифест. */
+  combined: /** @type {{file: File, rows: number|null|undefined}|null} */ (null),
+  /** @type {Array<{id:number, name:string, size:number|null, getBuffer: () => Promise<ArrayBuffer>}>} */
   orderSources: [],
   resultWorkbook: null,
 };
 let nextOrderId = 1;
+let busy = false;
+let setVersion = 0; // растёт при каждом изменении файлов — результат старого набора не показываем
 
 const MACOS_JUNK = /(^|\/)(__MACOSX\/|\.DS_Store$)/i;
 
-function resetResults() {
-  errorBox.hidden = true;
-  errorBox.textContent = '';
-  warningsBox.hidden = true;
-  warningsBox.innerHTML = '';
-  summaryBox.hidden = true;
-  summaryBox.innerHTML = '';
-  downloadBtn.hidden = true;
-  state.resultWorkbook = null;
+function combinedInfo() {
+  if (!state.combined) return 'не выбран';
+  const { rows } = state.combined;
+  if (rows === undefined) return 'считаю строки…';
+  if (rows === null) return state.combined.file.name;
+  return rowsLabel(rows);
 }
 
-function showError(message) {
-  errorBox.textContent = message;
-  errorBox.hidden = false;
+function actionInfoText() {
+  if (!state.combined && !state.orderSources.length) return 'Файлы не выбраны';
+  const n = state.orderSources.length;
+  const orders = n ? `${n} ${Shell.plural(n, 'файл', 'файла', 'файлов')}` : 'не выбраны';
+  return `Сводный: ${combinedInfo()} · Поручения: ${orders}`;
 }
 
-function updateCheckButton() {
-  checkBtn.disabled = !(state.combinedFile && state.orderSources.length);
+function actionHintText() {
+  if (!state.combined) return 'Добавьте сводный файл';
+  if (!state.orderSources.length) return 'Добавьте поручения';
+  return null;
 }
 
-function renderCombinedFile() {
-  combinedFileList.innerHTML = '';
-  if (!state.combinedFile) return;
+function updateUi() {
+  checkBtn.disabled = !(state.combined && state.orderSources.length) || busy;
+  Shell.setAction({ info: actionInfoText(), hint: actionHintText() });
+  Shell.setStep(state.resultWorkbook ? 3 : state.combined ? 2 : 1);
+}
+
+function combinedMeta(entry) {
+  if (entry.rows === undefined) return { text: 'считаю строки…', error: false };
+  if (entry.rows === null) return { text: 'не удалось прочитать — это точно .xlsx манифеста?', error: true };
+  return { text: rowsLabel(entry.rows), error: false };
+}
+
+function fileRow(fileName, { text, error }, onRemove) {
   const li = document.createElement('li');
+
   const name = document.createElement('span');
-  name.textContent = state.combinedFile.name;
+  name.className = 'file-list__name';
+  name.textContent = fileName;
+
+  const meta = document.createElement('span');
+  meta.className = error ? 'file-list__meta file-list__meta--error' : 'file-list__meta';
+  meta.textContent = text;
+
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'btn';
-  removeBtn.textContent = 'Убрать';
-  removeBtn.addEventListener('click', () => setCombinedFile(null));
+  removeBtn.className = 'file-list__remove';
+  removeBtn.textContent = '✕';
+  removeBtn.setAttribute('aria-label', `Убрать файл ${fileName}`);
+  removeBtn.addEventListener('click', onRemove);
+
   li.appendChild(name);
+  li.appendChild(meta);
   li.appendChild(removeBtn);
-  combinedFileList.appendChild(li);
+  return li;
+}
+
+function renderFileLists() {
+  combinedFileList.innerHTML = '';
+  if (state.combined) {
+    combinedFileList.appendChild(
+      fileRow(state.combined.file.name, combinedMeta(state.combined), () => setCombinedFile(null)),
+    );
+  }
+
+  ordersFileList.innerHTML = '';
+  state.orderSources.forEach((entry) => {
+    const meta = { text: entry.size === null ? '' : Shell.formatSize(entry.size), error: false };
+    ordersFileList.appendChild(
+      fileRow(entry.name, meta, () => {
+        state.orderSources = state.orderSources.filter((e) => e.id !== entry.id);
+        setChanged();
+      }),
+    );
+  });
+}
+
+// Любое изменение файлов делает показанный результат устаревшим — прячем его,
+// чтобы нельзя было скачать не то.
+function setChanged() {
+  setVersion++;
+  clearError();
+  hideSummary();
+  renderFileLists();
+  updateUi();
+}
+
+async function countRows(entry) {
+  let rows = null;
+  try {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await entry.file.arrayBuffer());
+    rows = countDataRows(workbook);
+  } catch {
+    rows = null; // не .xlsx или повреждён — скажем в списке, запуск не блокируем
+  }
+  if (state.combined !== entry) return; // файл уже убрали или заменили
+  entry.rows = rows;
+  renderFileLists();
+  updateUi();
 }
 
 function setCombinedFile(file) {
-  state.combinedFile = file;
-  renderCombinedFile();
-  updateCheckButton();
-  resetResults();
+  state.combined = file ? { file, rows: undefined } : null;
+  setChanged();
+  if (state.combined) countRows(state.combined);
 }
 
-function renderOrderSources() {
-  ordersCount.textContent = state.orderSources.length
-    ? `Поручений загружено: ${state.orderSources.length}`
-    : '';
-  ordersFileList.innerHTML = '';
-  state.orderSources.forEach((entry) => {
-    const li = document.createElement('li');
-    const name = document.createElement('span');
-    name.textContent = entry.name;
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn';
-    removeBtn.textContent = 'Убрать';
-    removeBtn.addEventListener('click', () => {
-      state.orderSources = state.orderSources.filter((e) => e.id !== entry.id);
-      renderOrderSources();
-      updateCheckButton();
-      resetResults();
-    });
-    li.appendChild(name);
-    li.appendChild(removeBtn);
-    ordersFileList.appendChild(li);
-  });
-  updateCheckButton();
+// Размер записи архива до распаковки: JSZip держит его в _data.uncompressedSize
+// (внутреннее поле 3.x). Нет поля — размер просто не показываем, это только подпись.
+function zipEntrySize(entry) {
+  const size = entry._data && entry._data.uncompressedSize;
+  return typeof size === 'number' ? size : null;
 }
 
 // Разворачивает .zip в браузере (JSZip) и добавляет к нему все .xlsx-записи;
 // отдельно выбранный .xlsx добавляется как есть. Служебные записи архива
 // (__MACOSX/, .DS_Store, каталоги) молча пропускаются — не ошибка.
 async function addOrderFiles(fileList) {
+  const errors = [];
+  const added = [];
   for (const file of Array.from(fileList)) {
     const lowerName = file.name.toLowerCase();
     if (lowerName.endsWith('.zip')) {
@@ -109,34 +176,63 @@ async function addOrderFiles(fileList) {
       try {
         zip = await JSZip.loadAsync(await file.arrayBuffer());
       } catch (err) {
-        showError(`Не удалось прочитать архив «${file.name}»: ${err.message}`);
+        errors.push(`Не удалось прочитать архив «${file.name}»: ${err.message}`);
         continue;
       }
       for (const [entryName, entry] of Object.entries(zip.files)) {
         if (entry.dir) continue;
         if (MACOS_JUNK.test(entryName)) continue;
         if (!entryName.toLowerCase().endsWith('.xlsx')) continue;
-        state.orderSources.push({
+        added.push({
           id: nextOrderId++,
           name: entryName.split('/').pop(),
+          size: zipEntrySize(entry),
           getBuffer: () => entry.async('arraybuffer'),
         });
       }
     } else if (lowerName.endsWith('.xlsx')) {
-      state.orderSources.push({
+      added.push({
         id: nextOrderId++,
         name: file.name,
+        size: file.size,
         getBuffer: () => file.arrayBuffer(),
       });
     }
     // остальные типы файлов (перетащенные по ошибке) молча пропускаются
   }
-  renderOrderSources();
-  resetResults();
+  if (!added.length && !errors.length) return; // ничего подходящего — набор не изменился
+  state.orderSources.push(...added);
+  setChanged();
+  if (errors.length) showError(errors.join('\n'));
+}
+
+function showError(message) {
+  errorBox.textContent = message;
+  errorBox.hidden = false;
+}
+
+function clearError() {
+  errorBox.hidden = true;
+  errorBox.textContent = '';
+}
+
+function hideSummary() {
+  summaryBox.hidden = true;
+  resultStats.innerHTML = '';
+  categoriesBox.innerHTML = '';
+  warningsBox.hidden = true;
+  warningsBox.innerHTML = '';
+  state.resultWorkbook = null;
+  Shell.setResultShown(false);
+}
+
+function isFileDrag(event) {
+  return Boolean(event.dataTransfer) && Array.from(event.dataTransfer.types || []).includes('Files');
 }
 
 function setupDropzone(dropzone, onFiles) {
   dropzone.addEventListener('dragover', (event) => {
+    if (!isFileDrag(event)) return;
     event.preventDefault();
     dropzone.classList.add('dropzone--active');
   });
@@ -153,6 +249,9 @@ function setupDropzone(dropzone, onFiles) {
 
 setupDropzone(combinedDropzone, (files) => setCombinedFile(files[0]));
 setupDropzone(ordersDropzone, (files) => addOrderFiles(files));
+
+combinedPickBtn.addEventListener('click', () => combinedInput.click());
+ordersPickBtn.addEventListener('click', () => ordersInput.click());
 
 combinedInput.addEventListener('change', () => {
   if (combinedInput.files.length) setCombinedFile(combinedInput.files[0]);
@@ -205,28 +304,44 @@ const CATEGORY_LABELS = [
   ['notFound', 'контейнер не найден ни в одном поручении'],
 ];
 
+function addStat(value, label) {
+  const stat = document.createElement('div');
+  stat.className = 'stat';
+  const valueEl = document.createElement('span');
+  valueEl.className = 'stat__value';
+  valueEl.textContent = value;
+  const labelEl = document.createElement('span');
+  labelEl.className = 'stat__label';
+  labelEl.textContent = label;
+  stat.appendChild(valueEl);
+  stat.appendChild(labelEl);
+  resultStats.appendChild(stat);
+}
+
 function renderSummary(summary) {
-  summaryBox.innerHTML = '';
-
-  const list = document.createElement('ul');
-  const total = document.createElement('li');
-  total.textContent = `Всего строк: ${summary.totalRows}, с расхождениями: ${summary.mismatchRows}`;
-  list.appendChild(total);
-
-  CATEGORY_LABELS.forEach(([key, label]) => {
-    if (!summary[key]) return;
-    const li = document.createElement('li');
-    li.textContent = `${label}: ${summary[key]}`;
-    list.appendChild(li);
-  });
-
+  resultStats.innerHTML = '';
+  addStat(String(summary.totalRows), 'Строк проверено');
+  addStat(String(summary.mismatchRows), 'С расхождениями');
   if (summary.missingFromSummary) {
-    const li = document.createElement('li');
-    li.textContent = `Контейнеров из поручений, не найденных в своде: ${summary.missingFromSummary}`;
-    list.appendChild(li);
+    addStat(String(summary.missingFromSummary), 'Нет в своде');
   }
 
-  summaryBox.appendChild(list);
+  categoriesBox.innerHTML = '';
+  const categories = CATEGORY_LABELS.filter(([key]) => summary[key]);
+  if (categories.length) {
+    const heading = document.createElement('h3');
+    heading.textContent = 'Расхождения по категориям';
+    categoriesBox.appendChild(heading);
+
+    const list = document.createElement('ul');
+    categories.forEach(([key, label]) => {
+      const li = document.createElement('li');
+      li.textContent = `${label}: ${summary[key]}`;
+      list.appendChild(li);
+    });
+    categoriesBox.appendChild(list);
+  }
+
   summaryBox.hidden = false;
 }
 
@@ -250,12 +365,19 @@ function renderWarnings(warnings) {
 }
 
 checkBtn.addEventListener('click', async () => {
-  resetResults();
-  checkBtn.disabled = true;
+  if (!state.combined || !state.orderSources.length) return;
+  clearError();
+  hideSummary();
+
+  const version = setVersion;
+  const checkLabel = checkBtn.textContent;
+  busy = true;
   checkBtn.textContent = 'Сверяю…';
+  updateUi();
   try {
-    const combinedWb = await loadCombinedWorkbook(state.combinedFile);
+    const combinedWb = await loadCombinedWorkbook(state.combined.file);
     const { entries, loadWarnings } = await loadOrderWorkbooks(state.orderSources);
+    if (version !== setVersion) return; // пока читали, файлы поменяли — результат уже не тот
 
     if (!entries.length) {
       showError('Ни одно поручение не удалось прочитать');
@@ -271,13 +393,13 @@ checkBtn.addEventListener('click', async () => {
     state.resultWorkbook = result.resultWorkbook;
     renderSummary(result.summary);
     renderWarnings([...loadWarnings, ...result.warnings]);
-    downloadBtn.hidden = false;
+    Shell.setResultShown(true);
   } catch (err) {
-    showError(err.message);
+    if (version === setVersion) showError(err.message);
   } finally {
-    checkBtn.disabled = false;
-    checkBtn.textContent = 'Сверить';
-    updateCheckButton();
+    busy = false;
+    checkBtn.textContent = checkLabel;
+    updateUi();
   }
 });
 
@@ -297,5 +419,5 @@ downloadBtn.addEventListener('click', async () => {
   URL.revokeObjectURL(url);
 });
 
-renderCombinedFile();
-renderOrderSources();
+renderFileLists();
+updateUi();

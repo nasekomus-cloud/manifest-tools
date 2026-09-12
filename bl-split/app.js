@@ -2,12 +2,19 @@
 // страниц (pdf.js), нарезка PDF по группам (pdf-lib), сборка zip-архива
 // (JSZip) и скачивание. Логика разбиения на группы — дело core.js
 // (extractBillGroups), которая ничего не знает ни про одну из трёх
-// библиотек (см. interfaces.md).
+// библиотек (см. interfaces.md). Панель, шаги и полоса действия — общий
+// каркас assets/shell.js (window.Shell); разметка списка файлов и плиток — по
+// образцу merge/app.js.
+//
+// Шаг 1 — файла нет, 2 — файл есть, 3 — показан результат; замена или
+// удаление файла прячет устаревший результат.
 
 import { extractBillGroups } from './core.js?v=202609062010';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const Shell = window.Shell;
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
@@ -17,31 +24,61 @@ const splitBtn = document.getElementById('split-btn');
 const errorBox = document.getElementById('error-box');
 const warningsBox = document.getElementById('warnings-box');
 const summaryBox = document.getElementById('summary-box');
+const resultStats = document.getElementById('result-stats');
+const groupsTable = document.getElementById('groups-table');
 const downloadBtn = document.getElementById('download-btn');
 
 let selectedFile = null;
 /** @type {Blob | null} */
 let zipBlob = null;
+let busy = false;
+let setVersion = 0; // растёт при каждой смене файла — результат старого файла не показываем
 
+function updateUi() {
+  splitBtn.disabled = !selectedFile || busy;
+  Shell.setAction({
+    info: selectedFile ? `${selectedFile.name} · ${Shell.formatSize(selectedFile.size)}` : 'Файл не выбран',
+    hint: selectedFile ? null : 'Сначала добавьте файл',
+  });
+  Shell.setStep(zipBlob ? 3 : selectedFile ? 2 : 1);
+}
+
+function renderFileList() {
+  fileListEl.innerHTML = '';
+  if (!selectedFile) return;
+
+  const li = document.createElement('li');
+
+  const name = document.createElement('span');
+  name.className = 'file-list__name';
+  name.textContent = selectedFile.name;
+
+  const meta = document.createElement('span');
+  meta.className = 'file-list__meta';
+  meta.textContent = Shell.formatSize(selectedFile.size);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'file-list__remove';
+  removeBtn.textContent = '✕';
+  removeBtn.setAttribute('aria-label', `Убрать файл ${selectedFile.name}`);
+  removeBtn.addEventListener('click', () => setFile(null));
+
+  li.appendChild(name);
+  li.appendChild(meta);
+  li.appendChild(removeBtn);
+  fileListEl.appendChild(li);
+}
+
+// Смена файла делает показанный результат устаревшим — прячем его, чтобы
+// нельзя было скачать архив от другого файла.
 function setFile(file) {
   selectedFile = file;
-  fileListEl.innerHTML = '';
-  if (file) {
-    const li = document.createElement('li');
-    const name = document.createElement('span');
-    name.textContent = file.name;
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn';
-    removeBtn.textContent = 'Убрать';
-    removeBtn.addEventListener('click', () => setFile(null));
-    li.appendChild(name);
-    li.appendChild(removeBtn);
-    fileListEl.appendChild(li);
-  }
-  splitBtn.disabled = !file;
+  setVersion++;
   clearError();
   clearResults();
+  renderFileList();
+  updateUi();
 }
 
 function showError(message) {
@@ -57,10 +94,11 @@ function clearError() {
 function clearResults() {
   warningsBox.innerHTML = '';
   warningsBox.hidden = true;
-  summaryBox.innerHTML = '';
+  resultStats.innerHTML = '';
+  groupsTable.innerHTML = '';
   summaryBox.hidden = true;
-  downloadBtn.hidden = true;
   zipBlob = null;
+  Shell.setResultShown(false);
 }
 
 function showWarnings(warnings) {
@@ -69,6 +107,9 @@ function showWarnings(warnings) {
     warningsBox.hidden = true;
     return;
   }
+  const heading = document.createElement('p');
+  heading.textContent = 'Предупреждения:';
+  warningsBox.appendChild(heading);
   const list = document.createElement('ul');
   warnings.forEach((text) => {
     const li = document.createElement('li');
@@ -79,34 +120,50 @@ function showWarnings(warnings) {
   warningsBox.hidden = false;
 }
 
-function showSummary(groups) {
-  summaryBox.innerHTML = '';
+function addStat(value, label) {
+  const stat = document.createElement('div');
+  stat.className = 'stat';
+  const valueEl = document.createElement('span');
+  valueEl.className = 'stat__value';
+  valueEl.textContent = value;
+  const labelEl = document.createElement('span');
+  labelEl.className = 'stat__label';
+  labelEl.textContent = label;
+  stat.appendChild(valueEl);
+  stat.appendChild(labelEl);
+  resultStats.appendChild(stat);
+}
 
-  const heading = document.createElement('p');
-  heading.textContent = `Коносаментов: ${groups.length}`;
-  summaryBox.appendChild(heading);
-
-  const table = document.createElement('table');
-  const headerRow = document.createElement('tr');
-  ['Файл', 'Страницы'].forEach((text) => {
-    const th = document.createElement('th');
-    th.textContent = text;
-    headerRow.appendChild(th);
+// cells: Array<{text: string, className?: string}>
+function appendRow(table, cells, { header = false } = {}) {
+  const row = document.createElement('tr');
+  cells.forEach(({ text, className }) => {
+    const cell = document.createElement(header ? 'th' : 'td');
+    cell.textContent = text;
+    if (className) cell.className = className;
+    row.appendChild(cell);
   });
-  table.appendChild(headerRow);
+  table.appendChild(row);
+}
 
+function showSummary(groups, warnings) {
+  resultStats.innerHTML = '';
+  addStat(String(groups.length), 'Коносаментов');
+  if (warnings.length) {
+    addStat(String(warnings.length), 'Предупреждений');
+  }
+
+  showWarnings(warnings);
+
+  groupsTable.innerHTML = '';
+  appendRow(groupsTable, [{ text: 'Файл' }, { text: 'Страницы', className: 'num' }], { header: true });
   groups.forEach((g) => {
-    const row = document.createElement('tr');
-    const nameCell = document.createElement('td');
-    nameCell.textContent = g.fileName;
-    const pagesCell = document.createElement('td');
-    pagesCell.textContent = g.startPage === g.endPage ? `${g.startPage}` : `${g.startPage}–${g.endPage}`;
-    row.appendChild(nameCell);
-    row.appendChild(pagesCell);
-    table.appendChild(row);
+    appendRow(groupsTable, [
+      { text: g.fileName, className: 'mono' },
+      { text: g.startPage === g.endPage ? `${g.startPage}` : `${g.startPage}–${g.endPage}`, className: 'num' },
+    ]);
   });
 
-  summaryBox.appendChild(table);
   summaryBox.hidden = false;
 }
 
@@ -152,28 +209,35 @@ async function handleSplitClick() {
 
   clearError();
   clearResults();
-  splitBtn.disabled = true;
+
+  const file = selectedFile;
+  const version = setVersion;
+  const splitLabel = splitBtn.textContent;
+  busy = true;
   splitBtn.textContent = 'Обрабатываю…';
+  updateUi();
 
   try {
-    const pageTexts = await extractPageTexts(selectedFile);
+    const pageTexts = await extractPageTexts(file);
     const result = extractBillGroups(pageTexts);
 
     if (!result.ok) {
-      showError(result.error);
+      if (version === setVersion) showError(result.error);
       return;
     }
 
-    showWarnings(result.warnings);
-    showSummary(result.groups);
+    const blob = await buildZip(file, result.groups);
+    if (version !== setVersion) return; // пока резали, файл поменяли — архив уже не тот
 
-    zipBlob = await buildZip(selectedFile, result.groups);
-    downloadBtn.hidden = false;
+    zipBlob = blob;
+    showSummary(result.groups, result.warnings);
+    Shell.setResultShown(true);
   } catch (err) {
-    showError(`Не удалось обработать файл «${selectedFile.name}»: ${err.message}`);
+    if (version === setVersion) showError(`Не удалось обработать файл «${file.name}»: ${err.message}`);
   } finally {
-    splitBtn.disabled = !selectedFile;
-    splitBtn.textContent = 'Разделить';
+    busy = false;
+    splitBtn.textContent = splitLabel;
+    updateUi();
   }
 }
 
@@ -191,6 +255,10 @@ function handleDownloadClick() {
   URL.revokeObjectURL(url);
 }
 
+function isFileDrag(event) {
+  return Boolean(event.dataTransfer) && Array.from(event.dataTransfer.types || []).includes('Files');
+}
+
 pickFileBtn.addEventListener('click', () => fileInput.click());
 
 fileInput.addEventListener('change', () => {
@@ -201,6 +269,7 @@ fileInput.addEventListener('change', () => {
 });
 
 dropzone.addEventListener('dragover', (event) => {
+  if (!isFileDrag(event)) return;
   event.preventDefault();
   dropzone.classList.add('dropzone--active');
 });
@@ -218,3 +287,6 @@ dropzone.addEventListener('drop', (event) => {
 
 splitBtn.addEventListener('click', handleSplitClick);
 downloadBtn.addEventListener('click', handleDownloadClick);
+
+renderFileList();
+updateUi();

@@ -4,42 +4,62 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Разделить коносаменты</title>
+  <link rel="stylesheet" href="../assets/fonts.css?v=202609121900" />
   <link rel="stylesheet" href="../assets/style.css?v=202609121930" />
 </head>
-<body>
-  <main class="page">
-    <a class="back-link" href="../index.html">← Все инструменты</a>
+<body class="app">
+  <aside class="app__side" id="app-side"></aside>
+
+  <main class="app__main">
     <h1 class="page__title">Разделить коносаменты</h1>
     <p class="page__subtitle">
       Загрузите один PDF с несколькими коносаментами — каждый коносамент (титульный лист
       и приложения) станет отдельным файлом, названным его номером. На выходе — zip-архив.
     </p>
 
+    <ol class="steps" id="steps">
+      <li>Файлы</li>
+      <li>Запуск</li>
+      <li>Результат</li>
+    </ol>
+
+    <ul id="file-list" class="file-list" aria-label="Выбранный файл"></ul>
+
     <div id="dropzone" class="dropzone">
-      Перетащите файл сюда или
-      <button type="button" id="pick-file-btn" class="btn">Выбрать файл</button>
+      <p class="dropzone__text">Перетащите файл сюда или</p>
+      <button type="button" id="pick-file-btn" class="btn btn--secondary">Выбрать файл</button>
+      <p class="dropzone__hint">.pdf, один файл</p>
       <input type="file" id="file-input" accept=".pdf" hidden />
     </div>
 
-    <ul id="file-list" class="file-list"></ul>
-
-    <p>
+    <div class="action-bar" id="action-bar">
+      <p class="action-bar__info" id="action-info">Файл не выбран</p>
+      <span class="action-bar__hint" id="action-hint">Сначала добавьте файл</span>
       <button type="button" id="split-btn" class="btn" disabled>Разделить</button>
-    </p>
+    </div>
 
-    <div id="error-box" class="error-message" hidden></div>
-    <div id="warnings-box" class="error-message" hidden></div>
+    <div id="error-box" class="error-message" role="alert" hidden></div>
 
-    <div id="summary-box" hidden></div>
-
-    <p>
-      <button type="button" id="download-btn" class="btn" hidden>Скачать архив (.zip)</button>
-    </p>
+    <section id="summary-box" class="result" aria-label="Результат разделения" hidden>
+      <div class="result__head">
+        <div class="result__stats" id="result-stats"></div>
+        <div class="result__actions">
+          <button type="button" id="download-btn" class="btn">Скачать архив (.zip)</button>
+        </div>
+      </div>
+      <div id="warnings-box" class="warning-message" hidden></div>
+      <h2>Коносаменты</h2>
+      <div class="table-scroll">
+        <table id="groups-table" class="data-table"></table>
+      </div>
+    </section>
   </main>
 
+  <script src="../tools.js?v=202609121900"></script>
+  <script src="../assets/shell.js?v=202609121930"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script type="module" src="app.js?v=202609062010"></script>
+  <script type="module" src="app.js?v=202609122000"></script>
 </body>
 </html>
