@@ -1,0 +1,609 @@
+<title>Эскизы сайта манифестов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Sans:ital,wght@0,400;0,700;1,400&family=PT+Mono&family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Fira+Sans:wght@400;500;600&family=Fira+Sans+Extra+Condensed:wght@600;700;800&family=Fira+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --ground: #F2F3F0;
+  --surface: #FFFFFF;
+  --ink: #1A1E1C;
+  --muted: #58615C;
+  --rule: #D5DAD6;
+  --accent: #23507C;
+  --chip: #E5EAE7;
+  --good: #2E6B45;
+  --warn: #8A5A12;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #141716;
+    --surface: #1C201E;
+    --ink: #E6EAE7;
+    --muted: #9BA49F;
+    --rule: #2F3532;
+    --accent: #8DB4DC;
+    --chip: #262B28;
+    --good: #7FC498;
+    --warn: #E0B368;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #141716;
+  --surface: #1C201E;
+  --ink: #E6EAE7;
+  --muted: #9BA49F;
+  --rule: #2F3532;
+  --accent: #8DB4DC;
+  --chip: #262B28;
+  --good: #7FC498;
+  --warn: #E0B368;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 16px/1.55 "Golos Text", "Segoe UI", system-ui, sans-serif;
+}
+.wrap { max-width: 1240px; margin: 0 auto; padding: 48px 28px 80px; }
+.eyebrow {
+  font: 500 12px/1 "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+}
+h1 { font-size: 40px; line-height: 1.1; font-weight: 700; letter-spacing: -.02em; margin: 12px 0 16px; text-wrap: balance; }
+h2 { font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -.015em; margin: 0; text-wrap: balance; }
+h3 { font-size: 17px; font-weight: 600; margin: 0 0 8px; }
+.lead { font-size: 19px; color: var(--muted); max-width: 64ch; margin: 0; }
+.intro { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 40px; align-items: end; padding-bottom: 36px; border-bottom: 1px solid var(--rule); }
+.keep { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 20px; font-size: 14.5px; }
+.keep ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.keep strong { font-weight: 600; }
+.jump { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.jump a { font-size: 14px; color: var(--ink); text-decoration: none; padding: 7px 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); }
+.jump a:hover, .jump a:focus-visible { border-color: var(--accent); color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.variant { padding: 56px 0 8px; border-bottom: 1px solid var(--rule); }
+.variant__head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: start; margin-bottom: 24px; }
+.variant__letter { font: 500 13px/1 "JetBrains Mono", ui-monospace, monospace; color: var(--muted); letter-spacing: .06em; margin-bottom: 10px; }
+.variant__thesis { font-size: 18px; color: var(--muted); max-width: 70ch; margin: 10px 0 0; }
+.badge { font-size: 13px; font-weight: 600; color: var(--good); border: 1px solid currentColor; border-radius: 999px; padding: 5px 12px; white-space: nowrap; }
+.kit { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: center; margin: 0 0 22px; font-size: 14px; color: var(--muted); }
+.swatches { display: flex; gap: 6px; align-items: center; }
+.sw { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--rule); }
+.kit b { color: var(--ink); font-weight: 600; }
+
+.shots { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.shot figcaption { font-size: 13.5px; color: var(--muted); margin-top: 10px; }
+.shot { margin: 0; }
+.frame { border-radius: 10px; overflow: hidden; border: 1px solid var(--rule); background: #fff; }
+.frame__bar { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px; background: #E4E6E3; border-bottom: 1px solid #D2D6D2; }
+.frame__url { flex: 1; height: 18px; border-radius: 4px; background: #F7F8F6; font: 11px/18px "JetBrains Mono", monospace; color: #6A716C; padding: 0 8px; overflow: hidden; white-space: nowrap; }
+.frame__view { height: 470px; overflow: hidden; position: relative; }
+
+.notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 26px 0 48px; font-size: 15px; }
+.notes ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
+.notes .plus h3 { color: var(--good); }
+.notes .minus h3 { color: var(--warn); }
+
+.common { padding: 56px 0 8px; }
+.common__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
+.tip { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 20px; font-size: 15px; }
+.tip p { margin: 0; color: var(--muted); }
+.tip h3 { margin-bottom: 6px; }
+
+.compare { margin-top: 56px; }
+.table-scroll { overflow-x: auto; margin-top: 20px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); }
+table.cmp { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 720px; }
+.cmp th, .cmp td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.cmp thead th { font-size: 13px; font-weight: 600; color: var(--muted); }
+.cmp tr:last-child td { border-bottom: 0; }
+.cmp td:first-child { color: var(--muted); width: 22%; }
+.rec { margin-top: 28px; padding: 22px 24px; border-radius: 10px; background: var(--chip); font-size: 16.5px; max-width: 860px; }
+.rec strong { font-weight: 600; }
+
+@media (max-width: 900px) {
+  .intro, .shots, .notes, .common__grid { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 32px; }
+  .variant__head { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+<style>
+.a { --paper: #F7F6F2; --ink: #1C2230; --rule: #C6D0DA; --stamp: #4A3E9E; --mut: #5D6573; --row: #EEF1F4;
+  background: var(--paper); color: var(--ink); font: 12.5px/1.45 "PT Sans", "Segoe UI", sans-serif; height: 100%; padding: 22px 26px; }
+.a-top { display: flex; justify-content: space-between; align-items: center; font: 10.5px/1 "PT Mono", monospace; color: var(--mut); letter-spacing: .04em; text-transform: uppercase; padding-bottom: 10px; border-bottom: 1px solid var(--ink); }
+.a-safe { color: var(--stamp); }
+.a-safe::before { content: ""; display: inline-block; width: 7px; height: 7px; border: 1.5px solid currentColor; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.a h4 { font-size: 23px; line-height: 1.1; margin: 16px 0 4px; font-weight: 700; }
+.a-sub { color: var(--mut); margin: 0 0 14px; }
+.a-tabs { display: flex; gap: 2px; }
+.a-tab { padding: 6px 16px 5px; border: 1px solid var(--rule); border-bottom: 0; border-radius: 5px 5px 0 0; background: var(--row); color: var(--mut); font-weight: 700; }
+.a-tab--on { background: #fff; color: var(--ink); border-color: var(--ink); position: relative; top: 1px; }
+.a-sheet { background: #fff; border: 1px solid var(--ink); padding: 4px 14px 8px; }
+.a-reg { width: 100%; border-collapse: collapse; }
+.a-reg th { font: 9.5px/1 "PT Mono", monospace; text-transform: uppercase; letter-spacing: .05em; color: var(--mut); text-align: left; padding: 8px 6px 6px; border-bottom: 1.5px solid var(--ink); font-weight: 400; }
+.a-reg td { padding: 8px 6px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.a-reg tr:last-child td { border-bottom: 0; }
+.a-n { font-family: "PT Mono", monospace; color: var(--mut); width: 22px; }
+.a-name { font-weight: 700; font-size: 13.5px; }
+.a-desc { color: var(--mut); display: block; font-size: 11.5px; margin-top: 1px; }
+.a-io { font: 10.5px/1.3 "PT Mono", monospace; color: var(--stamp); white-space: nowrap; }
+.a-go { color: var(--stamp); font-weight: 700; text-align: right; }
+.a-reg tr.a-hover td { background: var(--row); }
+.a-back { color: var(--stamp); font-weight: 700; font-size: 12px; }
+.a-gr { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 0 10px; padding: 10px 0; border-top: 1px solid var(--rule); }
+.a-gr__n { font: 700 15px/1 "PT Mono", monospace; color: var(--stamp); border: 1.5px solid var(--stamp); width: 24px; height: 24px; display: grid; place-items: center; border-radius: 3px; }
+.a-gr__t { font: 9.5px/1 "PT Mono", monospace; text-transform: uppercase; letter-spacing: .05em; color: var(--mut); margin: 2px 0 7px; }
+.a-drop { border: 1.5px dashed var(--stamp); background: #fff; padding: 9px 12px; display: flex; justify-content: space-between; align-items: center; color: var(--mut); border-radius: 3px; }
+.a-btn2 { border: 1.5px solid var(--stamp); color: var(--stamp); font-weight: 700; padding: 4px 10px; border-radius: 3px; background: #fff; font-size: 11.5px; }
+.a-files { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11.5px; }
+.a-files td { padding: 3px 4px; border-bottom: 1px dotted var(--rule); }
+.a-files td:last-child { text-align: right; font-family: "PT Mono", monospace; font-variant-numeric: tabular-nums; }
+.a-files tr.a-sum td { border-bottom: 0; border-top: 1.5px solid var(--ink); font-weight: 700; }
+.a-check { display: flex; gap: 7px; align-items: center; }
+.a-box { width: 13px; height: 13px; border: 1.5px solid var(--ink); display: grid; place-items: center; font-size: 10px; line-height: 1; }
+.a-res { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.a-stamp { font: 700 12px/1.15 "PT Sans", sans-serif; color: var(--stamp); border: 2px solid var(--stamp); border-radius: 4px; padding: 5px 9px; transform: rotate(-4deg); text-transform: uppercase; letter-spacing: .06em; text-align: center; opacity: .92; }
+.a-stamp small { display: block; font: 400 9.5px/1.2 "PT Mono", monospace; letter-spacing: 0; text-transform: none; }
+.a-btn { background: var(--stamp); color: #fff; font-weight: 700; padding: 8px 14px; border-radius: 3px; font-size: 12.5px; }
+</style>
+<style>
+.b { --navy: #0F2A3B; --navy2: #183A4F; --water: #EAF1F2; --ink: #10202A; --mut: #52646E; --line: #CFDDE2; --mag: #A8126A; --mag2: #F6E3EE; --buff: #F3EACB;
+  display: grid; grid-template-columns: 172px minmax(0, 1fr); height: 100%; font: 12.5px/1.45 "Onest", "Segoe UI", sans-serif; color: var(--ink); background: var(--water); }
+.b-side { background: var(--navy); color: #D5E3EA; padding: 16px 12px; display: flex; flex-direction: column; gap: 12px; position: relative; overflow: hidden; }
+.b-side::after { content: ""; position: absolute; left: -20px; right: -20px; bottom: -10px; height: 150px; opacity: .22;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='150' fill='none' stroke='%237FB3C8' stroke-width='1'%3E%3Cpath d='M0 40 C40 20 80 60 120 38 S190 20 220 34'/%3E%3Cpath d='M0 62 C44 44 84 84 124 60 S192 44 220 58'/%3E%3Cpath d='M0 86 C48 68 88 108 128 84 S194 68 220 82'/%3E%3Cpath d='M0 110 C52 92 92 132 132 108 S196 92 220 106'/%3E%3Cpath d='M0 134 C56 116 96 156 136 132 S198 116 220 130'/%3E%3C/svg%3E") center bottom / 220px 150px repeat-x; }
+.b-brand { font-weight: 700; color: #fff; font-size: 13px; line-height: 1.2; }
+.b-brand span { display: block; font: 400 9.5px/1.3 "JetBrains Mono", monospace; color: #8FB2C4; margin-top: 3px; letter-spacing: .02em; }
+.b-seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--navy2); border-radius: 7px; padding: 3px; }
+.b-seg div { text-align: center; padding: 5px 0; border-radius: 5px; font-weight: 600; color: #9FBCCB; font-size: 11.5px; }
+.b-seg .on { background: #fff; color: var(--navy); }
+.b-nav { display: grid; gap: 2px; position: relative; z-index: 1; }
+.b-nav div { padding: 6px 8px; border-radius: 6px; font-size: 11.5px; line-height: 1.25; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.b-nav i { font: normal 9px/1 "JetBrains Mono", monospace; color: #7FA3B6; }
+.b-nav .on { background: #fff; color: var(--navy); font-weight: 600; }
+.b-nav .on i { color: var(--mag); }
+.b-safe { margin-top: auto; font-size: 10px; color: #8FB2C4; line-height: 1.35; position: relative; z-index: 1; }
+.b-main { padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.b-crumb { font: 10px/1 "JetBrains Mono", monospace; color: var(--mut); letter-spacing: .03em; }
+.b h4 { font-size: 21px; line-height: 1.15; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+.b-sub { color: var(--mut); margin: -6px 0 0; }
+.b-route { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 12px; }
+.b-route__t { font: 10px/1 "JetBrains Mono", monospace; color: var(--mut); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
+.b-stops { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); position: relative; }
+.b-stops::before { content: ""; position: absolute; top: 6px; left: 10%; right: 10%; border-top: 2px dashed var(--mag); opacity: .55; }
+.b-stop { text-align: center; position: relative; font-size: 10.5px; line-height: 1.25; padding: 0 3px; }
+.b-stop::before { content: ""; display: block; width: 10px; height: 10px; margin: 1px auto 7px; border-radius: 50%; background: #fff; border: 2px solid var(--mag); }
+.b-stop b { display: block; font-weight: 600; }
+.b-stop span { color: var(--mut); font: 9px/1.3 "JetBrains Mono", monospace; }
+.b-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.b-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.b-card b { display: block; font-size: 12.5px; }
+.b-card span { color: var(--mut); font-size: 11px; }
+.b-steps { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--mut); }
+.b-steps div { display: flex; align-items: center; gap: 6px; }
+.b-steps em { font-style: normal; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font: 600 10px/1 "JetBrains Mono", monospace; border: 1.5px solid var(--line); background: #fff; }
+.b-steps .done em { background: var(--navy); border-color: var(--navy); color: #fff; }
+.b-steps .cur { color: var(--ink); font-weight: 600; }
+.b-steps .cur em { border-color: var(--mag); color: var(--mag); }
+.b-steps hr { width: 22px; border: 0; border-top: 1.5px solid var(--line); margin: 0; }
+.b-list { background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.b-list div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: 11.5px; align-items: center; }
+.b-list div:last-child { border-bottom: 0; }
+.b-list span { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--mut); font-variant-numeric: tabular-nums; }
+.b-list s { text-decoration: none; color: #9AAAB2; font-size: 11px; }
+.b-add { border: 1.5px dashed #9DBAC5; border-radius: 10px; padding: 8px 12px; color: var(--mut); font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; background: #F7FAFB; }
+.b-add b { color: var(--navy); font-weight: 600; }
+.b-opt { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
+.b-tgl { width: 26px; height: 15px; border-radius: 999px; background: var(--navy); position: relative; }
+.b-tgl::after { content: ""; position: absolute; right: 2px; top: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; }
+.b-bar { margin-top: auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px 9px 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.b-bar span:not(.b-btn) { color: var(--mut); font-size: 11.5px; }
+.b-bar b { color: var(--ink); }
+.b-btn { background: var(--mag); color: #fff; font-weight: 600; padding: 8px 14px; border-radius: 7px; font-size: 12px; white-space: nowrap; }
+</style>
+<style>
+.c { --graph: #1F2328; --conc: #E7E5E0; --ink: #1B1D20; --mut: #5B6167; --yel: #F2B705; --line: #CFCBC3;
+  background: var(--conc); color: var(--ink); font: 12.5px/1.45 "Fira Sans", "Segoe UI", sans-serif; height: 100%; }
+.c-top { background: var(--graph); color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 10px 22px; font: 600 11px/1 "Fira Mono", monospace; letter-spacing: .04em; }
+.c-top span { color: #B9BEC4; font-weight: 400; }
+.c-haz { height: 5px; background: repeating-linear-gradient(-45deg, var(--yel) 0 9px, var(--graph) 9px 18px); }
+.c-body { padding: 16px 22px; }
+.c h4 { font: 800 27px/1 "Fira Sans Extra Condensed", "Arial Narrow", sans-serif; text-transform: uppercase; letter-spacing: .01em; margin: 0 0 12px; }
+.c-tabs { display: flex; gap: 0; margin-bottom: 12px; border: 2px solid var(--graph); width: max-content; }
+.c-tab { font: 700 14px/1 "Fira Sans Extra Condensed", sans-serif; text-transform: uppercase; letter-spacing: .06em; padding: 8px 18px; color: var(--graph); background: #fff; }
+.c-tab--on { background: var(--yel); }
+.c-yard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.c-box { --k: #9E3B26; color: #fff; padding: 10px 11px 11px; min-height: 118px; display: flex; flex-direction: column; gap: 5px; position: relative;
+  background: repeating-linear-gradient(90deg, rgba(0,0,0,.0) 0 7px, rgba(0,0,0,.13) 7px 9px, rgba(255,255,255,.06) 9px 10px), var(--k); }
+.c-box::after { content: ""; position: absolute; left: 50%; top: 8px; bottom: 8px; border-left: 1px solid rgba(0,0,0,.28); }
+.c-code { font: 500 10px/1 "Fira Mono", monospace; letter-spacing: .06em; opacity: .9; position: relative; z-index: 1; }
+.c-code b { display: inline-block; border: 1px solid currentColor; padding: 0 2px; margin-left: 2px; font-weight: 500; }
+.c-name { font: 700 16px/1.02 "Fira Sans Extra Condensed", sans-serif; text-transform: uppercase; letter-spacing: .01em; position: relative; z-index: 1; margin-top: auto; max-width: 92%; text-wrap: balance; }
+.c-plate { align-self: flex-start; background: rgba(255,255,255,.92); color: var(--graph); font: 600 9.5px/1 "Fira Mono", monospace; padding: 3px 5px; position: relative; z-index: 1; }
+.c-k1 { --k: #9E3B26; } .c-k2 { --k: #2F6B45; } .c-k3 { --k: #1F5F8B; } .c-k4 { --k: #B8611F; } .c-k5 { --k: #5F666D; } .c-k6 { --k: #1D6E6A; }
+.c-head { --k: #9E3B26; color: #fff; padding: 12px 22px 12px; display: flex; justify-content: space-between; align-items: end; gap: 12px;
+  background: repeating-linear-gradient(90deg, rgba(0,0,0,0) 0 7px, rgba(0,0,0,.13) 7px 9px, rgba(255,255,255,.06) 9px 10px), var(--k); }
+.c-head h4 { color: #fff; margin: 4px 0 0; font-size: 25px; }
+.c-back { font: 500 10.5px/1 "Fira Mono", monospace; opacity: .9; }
+.c-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 12px; }
+.c-step { background: #fff; border-bottom: 3px solid var(--line); padding: 6px 9px; font: 700 12px/1 "Fira Sans Extra Condensed", sans-serif; text-transform: uppercase; letter-spacing: .05em; color: var(--mut); display: flex; gap: 7px; align-items: center; }
+.c-step i { font-style: normal; font-family: "Fira Mono", monospace; font-size: 11px; }
+.c-step.done { border-color: var(--graph); color: var(--graph); }
+.c-step.cur { border-color: var(--yel); color: var(--graph); background: #FFF8E1; }
+.c-files { background: #fff; border: 2px solid var(--graph); }
+.c-files div { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--line); font-size: 11.5px; align-items: center; }
+.c-files div:last-child { border-bottom: 0; }
+.c-files i { font: normal 10px/1 "Fira Mono", monospace; color: var(--mut); }
+.c-files span { font: 500 10.5px/1 "Fira Mono", monospace; font-variant-numeric: tabular-nums; }
+.c-files .add { color: var(--mut); background: repeating-linear-gradient(-45deg, #F6F4EF 0 6px, #fff 6px 12px); display: flex; justify-content: space-between; }
+.c-files .add b { color: var(--graph); text-decoration: underline; text-underline-offset: 2px; }
+.c-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+.c-go { flex: 1; background: var(--yel); color: var(--graph); border: 2px solid var(--graph); font: 800 16px/1 "Fira Sans Extra Condensed", sans-serif; text-transform: uppercase; letter-spacing: .05em; padding: 11px 14px; text-align: center; box-shadow: 3px 3px 0 var(--graph); }
+.c-opt { font-size: 11.5px; display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.c-opt::before { content: "✓"; width: 14px; height: 14px; background: var(--graph); color: var(--yel); display: grid; place-items: center; font-size: 10px; }
+.c-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: 12px; }
+.c-stat { background: var(--graph); color: #fff; padding: 8px 10px; }
+.c-stat b { display: block; font: 700 19px/1 "Fira Sans Extra Condensed", sans-serif; letter-spacing: .01em; font-variant-numeric: tabular-nums; }
+.c-stat span { font: 10px/1.2 "Fira Mono", monospace; color: #B9BEC4; }
+</style>
+<div class="wrap">
+  <header class="intro">
+    <div>
+      <div class="eyebrow">manifest.nasekomuspro.ru · предложение по дизайну</div>
+      <h1>Три направления для сайта манифестов</h1>
+      <p class="lead">Сайт уже умеет главное — обрабатывать файлы. Ниже три варианта того, как он может выглядеть и вести по работе. Каждый показан на одних и тех же двух экранах: главная с открытой вкладкой «Экспорт» и страница «Объединить манифесты» с загруженными файлами. Цифры в макетах примерные.</p>
+      <nav class="jump" aria-label="Разделы">
+        <a href="#a">А · Бланк</a>
+        <a href="#b">Б · Лоция</a>
+        <a href="#c">В · Терминал</a>
+        <a href="#common">Что улучшится в любом варианте</a>
+        <a href="#compare">Сравнение и рекомендация</a>
+      </nav>
+    </div>
+    <aside class="keep">
+      <h3>Во всех вариантах остаётся</h3>
+      <ul>
+        <li><strong>Две вкладки «Экспорт» и «Импорт»</strong> на первом экране — это было ваше требование, его не трогаю.</li>
+        <li>Всё по-русски, крупный текст и кнопки, без входа и регистрации.</li>
+        <li>Файлы по-прежнему не уходят с компьютера.</li>
+        <li>Сайт остаётся простым набором страниц без сборки: GitHub Pages и ваш сервер работают как раньше.</li>
+      </ul>
+    </aside>
+  </header>
+  <section class="variant" id="a">
+    <div class="variant__head">
+      <div>
+        <div class="variant__letter">ВАРИАНТ А</div>
+        <h2>Бланк</h2>
+        <p class="variant__thesis">Сайт как аккуратно свёрстанный служебный документ: реестр вместо плиток, графы вместо разрозненных блоков, фиолетовая «печать» вместо рыжего акцента. Ближе всего к нынешнему виду — это его взросление, а не замена.</p>
+      </div>
+      <span class="badge">Меньше всего работы</span>
+    </div>
+    <div class="kit">
+      <div class="swatches" aria-label="Палитра">
+        <span class="sw" style="background:#F7F6F2" title="Бумага #F7F6F2"></span>
+        <span class="sw" style="background:#1C2230" title="Чернила #1C2230"></span>
+        <span class="sw" style="background:#C6D0DA" title="Линовка #C6D0DA"></span>
+        <span class="sw" style="background:#4A3E9E" title="Печать #4A3E9E"></span>
+      </div>
+      <span>Шрифты: <b>PT Sans</b> и <b>PT Mono</b> — их делали по госзаказу как раз для российских официальных документов</span>
+    </div>
+    <div class="shots">
+      <figure class="shot">
+        <div class="frame">
+          <div class="frame__bar"><div class="frame__url">manifest.nasekomuspro.ru</div></div>
+          <div class="frame__view">
+            <div class="a">
+              <div class="a-top"><span>Судовые манифесты</span><span class="a-safe">Файлы не покидают компьютер</span></div>
+              <h4>Инструменты для судовых манифестов</h4>
+              <p class="a-sub">Выберите инструмент. Во второй колонке — что загрузить и что получится.</p>
+              <div class="a-tabs"><div class="a-tab a-tab--on">Экспорт</div><div class="a-tab">Импорт</div></div>
+              <div class="a-sheet">
+                <table class="a-reg">
+                  <thead><tr><th>№</th><th>Инструмент</th><th>Вход → выход</th><th></th></tr></thead>
+                  <tbody>
+                    <tr class="a-hover"><td class="a-n">1</td><td><span class="a-name">Объединить манифесты</span><span class="a-desc">Склеить файлы одного рейса, сохранив оформление</span></td><td class="a-io">xlsx ×N → xlsx</td><td class="a-go">→</td></tr>
+                    <tr><td class="a-n">2</td><td><span class="a-name">Сверить с поручениями на погрузку</span><span class="a-desc">Вес, пломбы, тип, № поручения, класс ОГ</span></td><td class="a-io">xlsx + zip → xlsx</td><td class="a-go">→</td></tr>
+                    <tr><td class="a-n">3</td><td><span class="a-name">Итоговый отчёт GRAND TOTAL</span><span class="a-desc">Сводка по типам контейнеров</span></td><td class="a-io">xlsx → pdf, xlsx</td><td class="a-go">→</td></tr>
+                    <tr><td class="a-n">4</td><td><span class="a-name">Реестр поручений и коносаментов</span><span class="a-desc">Уникальные пары без повторов</span></td><td class="a-io">xlsx ×N → xlsx</td><td class="a-go">→</td></tr>
+                    <tr><td class="a-n">5</td><td><span class="a-name">Разделить коносаменты</span><span class="a-desc">Один PDF → файл на каждый коносамент</span></td><td class="a-io">pdf → zip</td><td class="a-go">→</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption>Главная: вместо плиток разной высоты — реестр с графой «вход → выход». Сразу видно, какой файл нести в какой инструмент.</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="frame">
+          <div class="frame__bar"><div class="frame__url">manifest.nasekomuspro.ru/merge/</div></div>
+          <div class="frame__view">
+            <div class="a">
+              <span class="a-back">← Все инструменты</span>
+              <h4>Объединить манифесты</h4>
+              <p class="a-sub">Файлы одного рейса склеятся в один с сохранением оформления.</p>
+              <div class="a-gr">
+                <div class="a-gr__n">1</div>
+                <div>
+                  <div class="a-gr__t">Файлы манифестов</div>
+                  <div class="a-drop"><span>Перетащите .xlsx сюда</span><span class="a-btn2">Выбрать файлы</span></div>
+                  <table class="a-files">
+                    <tr><td>+man_CNQTAO.xlsx</td><td>242</td></tr>
+                    <tr><td>+man_EGEDK.xlsx</td><td>92</td></tr>
+                    <tr><td>+man_NICT.xlsx</td><td>56</td></tr>
+                    <tr><td>+man_NNBO.xlsx · +man_PK.xlsx · +man_Shanghai.xlsx</td><td>525</td></tr>
+                    <tr class="a-sum"><td>6 файлов, строк</td><td>915</td></tr>
+                  </table>
+                </div>
+              </div>
+              <div class="a-gr">
+                <div class="a-gr__n">2</div>
+                <div>
+                  <div class="a-gr__t">Параметры</div>
+                  <div class="a-check"><span class="a-box">✓</span>Сквозная нумерация «№п/п»</div>
+                </div>
+              </div>
+              <div class="a-gr">
+                <div class="a-gr__n">3</div>
+                <div>
+                  <div class="a-gr__t">Результат</div>
+                  <div class="a-res">
+                    <span class="a-stamp">Объединено<small>915 строк · 6 файлов</small></span>
+                    <span class="a-btn">Скачать manifest_combined.xlsx</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption>Страница инструмента: три нумерованные графы, как в бланке, — порядок действий виден сразу. Итог — «штамп» с цифрами и одна главная кнопка.</figcaption>
+      </figure>
+    </div>
+    <div class="notes">
+      <div class="plus"><h3>Сильные стороны</h3><ul><li>Спокойный, «бумажный» — глаз не устаёт за день.</li><li>Похож на документы, с которыми и так идёт работа.</li><li>В основном правка одного файла стилей.</li></ul></div>
+      <div class="minus"><h3>Слабые стороны</h3><ul><li>Переход между инструментами — по-прежнему через главную.</li><li>Меньше «характера», чем у Б и В.</li></ul></div>
+      <div><h3>Объём работы</h3><ul><li><code>assets/style.css</code> — почти целиком.</li><li>Разметка: графы 1-2-3 на страницах инструментов, реестр на главной.</li><li>Логика инструментов не меняется.</li></ul></div>
+    </div>
+  </section>
+  <section class="variant" id="b">
+    <div class="variant__head">
+      <div>
+        <div class="variant__letter">ВАРИАНТ Б</div>
+        <h2>Лоция</h2>
+        <p class="variant__thesis">Сайт как рабочее место: слева постоянная панель со всеми инструментами, справа — сама работа, шаг за шагом. Цвета морской карты: глубокий синий, бледная вода и навигационный пурпур для главного действия — как им на картах отмечают важное.</p>
+      </div>
+      <span class="badge">Удобнее всего в работе</span>
+    </div>
+    <div class="kit">
+      <div class="swatches" aria-label="Палитра">
+        <span class="sw" style="background:#0F2A3B" title="Глубина #0F2A3B"></span>
+        <span class="sw" style="background:#EAF1F2" title="Вода #EAF1F2"></span>
+        <span class="sw" style="background:#CFDDE2" title="Изобата #CFDDE2"></span>
+        <span class="sw" style="background:#A8126A" title="Навигационный пурпур #A8126A"></span>
+      </div>
+      <span>Шрифты: <b>Onest</b> для интерфейса и <b>JetBrains Mono</b> для номеров и кодов</span>
+    </div>
+    <div class="shots">
+      <figure class="shot">
+        <div class="frame">
+          <div class="frame__bar"><div class="frame__url">manifest.nasekomuspro.ru</div></div>
+          <div class="frame__view">
+            <div class="b">
+              <aside class="b-side">
+                <div class="b-brand">Судовые манифесты<span>набор инструментов</span></div>
+                <div class="b-seg"><div class="on">Экспорт</div><div>Импорт</div></div>
+                <div class="b-nav">
+                  <div>Объединить манифесты <i>xlsx</i></div>
+                  <div>Сверить с поручениями <i>xlsx</i></div>
+                  <div>Итоговый отчёт <i>pdf</i></div>
+                  <div>Реестр поручений <i>xlsx</i></div>
+                  <div>Разделить коносаменты <i>zip</i></div>
+                </div>
+                <div class="b-safe">Файлы обрабатываются на этом компьютере и никуда не отправляются.</div>
+              </aside>
+              <div class="b-main">
+                <div class="b-crumb">ЭКСПОРТ</div>
+                <h4>С чего начать</h4>
+                <p class="b-sub">Слева все инструменты вкладки — они под рукой на любой странице.</p>
+                <div class="b-route">
+                  <div class="b-route__t">Обычный порядок работы на экспорте</div>
+                  <div class="b-stops">
+                    <div class="b-stop"><b>Объединить</b><span>xlsx ×N</span></div>
+                    <div class="b-stop"><b>Сверить с поручениями</b><span>+ zip</span></div>
+                    <div class="b-stop"><b>Итоговый отчёт</b><span>pdf</span></div>
+                    <div class="b-stop"><b>Реестр</b><span>xlsx</span></div>
+                    <div class="b-stop"><b>Разделить коносаменты</b><span>pdf → zip</span></div>
+                  </div>
+                </div>
+                <div class="b-cards">
+                  <div class="b-card"><b>Объединить манифесты</b><span>Склеить файлы одного рейса, сохранив оформление</span></div>
+                  <div class="b-card"><b>Сверить с поручениями</b><span>Расхождения подсветятся жёлтым</span></div>
+                  <div class="b-card"><b>Итоговый отчёт GRAND TOTAL</b><span>PDF и Excel по типам контейнеров</span></div>
+                  <div class="b-card"><b>Реестр поручений и коносаментов</b><span>Уникальные пары без повторов</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption>Главная: панель слева с переключателем «Экспорт / Импорт». Справа — порядок работы как маршрут; сам порядок — моё предположение, его стоит сверить с Леной.</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="frame">
+          <div class="frame__bar"><div class="frame__url">manifest.nasekomuspro.ru/merge/</div></div>
+          <div class="frame__view">
+            <div class="b">
+              <aside class="b-side">
+                <div class="b-brand">Судовые манифесты<span>набор инструментов</span></div>
+                <div class="b-seg"><div class="on">Экспорт</div><div>Импорт</div></div>
+                <div class="b-nav">
+                  <div class="on">Объединить манифесты <i>xlsx</i></div>
+                  <div>Сверить с поручениями <i>xlsx</i></div>
+                  <div>Итоговый отчёт <i>pdf</i></div>
+                  <div>Реестр поручений <i>xlsx</i></div>
+                  <div>Разделить коносаменты <i>zip</i></div>
+                </div>
+                <div class="b-safe">Файлы обрабатываются на этом компьютере и никуда не отправляются.</div>
+              </aside>
+              <div class="b-main">
+                <div class="b-crumb">ЭКСПОРТ / ОБЪЕДИНИТЬ МАНИФЕСТЫ</div>
+                <h4>Объединить манифесты</h4>
+                <div class="b-steps">
+                  <div class="done"><em>✓</em>Файлы</div><hr>
+                  <div class="cur"><em>2</em>Параметры</div><hr>
+                  <div><em>3</em>Результат</div>
+                </div>
+                <div class="b-list">
+                  <div>+man_CNQTAO.xlsx<span>242 строки</span><s>✕</s></div>
+                  <div>+man_EGEDK.xlsx<span>92 строки</span><s>✕</s></div>
+                  <div>+man_NICT.xlsx<span>56 строк</span><s>✕</s></div>
+                  <div>+man_NNBO.xlsx<span>83 строки</span><s>✕</s></div>
+                  <div>+man_PK.xlsx<span>60 строк</span><s>✕</s></div>
+                  <div>+man_Shanghai.xlsx<span>382 строки</span><s>✕</s></div>
+                </div>
+                <div class="b-add"><span>Перетащите ещё файлы сюда</span><b>Выбрать файлы</b></div>
+                <div class="b-opt"><span class="b-tgl"></span>Сквозная нумерация «№п/п»</div>
+                <div class="b-bar"><span><b>6 файлов</b> · 915 строк</span><span class="b-btn">Объединить →</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption>Страница инструмента: шаги наверху, список файлов с числом строк, внизу закреплённая полоса с итогом и единственной главной кнопкой.</figcaption>
+      </figure>
+    </div>
+    <div class="notes">
+      <div class="plus"><h3>Сильные стороны</h3><ul><li>Следующий инструмент — в один клик, без возврата на главную.</li><li>Выдержит и 15, и 20 инструментов — список просто станет длиннее.</li><li>Выглядит как настоящее рабочее приложение.</li></ul></div>
+      <div class="minus"><h3>Слабые стороны</h3><ul><li>Самая большая переделка разметки из трёх.</li><li>На узком экране панель придётся прятать в меню.</li></ul></div>
+      <div><h3>Объём работы</h3><ul><li>Новый общий скрипт боковой панели — строит её из того же <code>tools.js</code>.</li><li>Все 10 страниц: обёртка панели + шаги.</li><li>Логика инструментов не меняется.</li></ul></div>
+    </div>
+  </section>
+  <section class="variant" id="c">
+    <div class="variant__head">
+      <div>
+        <div class="variant__letter">ВАРИАНТ В</div>
+        <h2>Терминал</h2>
+        <p class="variant__thesis">Сайт как контейнерный терминал: каждый инструмент — контейнер своего цвета с настоящим номером, главное действие — жёлто-чёрное, как разметка на причале. Цвет инструмента повторяется на его странице, поэтому нужный находится взглядом, не чтением.</p>
+      </div>
+      <span class="badge">Самый запоминающийся</span>
+    </div>
+    <div class="kit">
+      <div class="swatches" aria-label="Палитра">
+        <span class="sw" style="background:#1F2328" title="Графит #1F2328"></span>
+        <span class="sw" style="background:#E7E5E0" title="Бетон #E7E5E0"></span>
+        <span class="sw" style="background:#F2B705" title="Сигнальный жёлтый #F2B705"></span>
+        <span class="sw" style="background:#9E3B26" title="Контейнер: ржавый"></span>
+        <span class="sw" style="background:#2F6B45" title="Контейнер: зелёный"></span>
+        <span class="sw" style="background:#1F5F8B" title="Контейнер: синий"></span>
+      </div>
+      <span>Шрифты: <b>Fira Sans Extra Condensed</b> для надписей, <b>Fira Sans</b> и <b>Fira Mono</b> для текста и номеров</span>
+    </div>
+    <div class="shots">
+      <figure class="shot">
+        <div class="frame">
+          <div class="frame__bar"><div class="frame__url">manifest.nasekomuspro.ru</div></div>
+          <div class="frame__view">
+            <div class="c">
+              <div class="c-top">СУДОВЫЕ МАНИФЕСТЫ <span>файлы не покидают компьютер</span></div>
+              <div class="c-haz"></div>
+              <div class="c-body">
+                <h4>Инструменты для манифестов</h4>
+                <div class="c-tabs"><div class="c-tab c-tab--on">Экспорт</div><div class="c-tab">Импорт</div></div>
+                <div class="c-yard">
+                  <div class="c-box c-k1" style="grid-column: span 2;"><span class="c-code">LENU 000001 <b>8</b></span><span class="c-plate">XLSX ×N → XLSX</span><span class="c-name">Объединить манифесты</span></div>
+                  <div class="c-box c-k2"><span class="c-code">LENU 000002 <b>3</b></span><span class="c-plate">XLSX + ZIP → XLSX</span><span class="c-name">Сверить с поручениями</span></div>
+                  <div class="c-box c-k3"><span class="c-code">LENU 000003 <b>9</b></span><span class="c-plate">XLSX → PDF</span><span class="c-name">Итоговый отчёт Grand Total</span></div>
+                  <div class="c-box c-k4"><span class="c-code">LENU 000004 <b>4</b></span><span class="c-plate">XLSX → XLSX</span><span class="c-name">Реестр поручений и коносаментов</span></div>
+                  <div class="c-box c-k5"><span class="c-code">LENU 000005 <b>0</b></span><span class="c-plate">PDF → ZIP</span><span class="c-name">Разделить коносаменты</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption>Главная: инструменты — контейнеры. Номера настоящие по ISO 6346, с верной контрольной цифрой (в рамке), — такое заметит только тот, кто сверяет их каждый день.</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="frame">
+          <div class="frame__bar"><div class="frame__url">manifest.nasekomuspro.ru/merge/</div></div>
+          <div class="frame__view">
+            <div class="c">
+              <div class="c-top">СУДОВЫЕ МАНИФЕСТЫ <span>файлы не покидают компьютер</span></div>
+              <div class="c-head">
+                <div><span class="c-back">← ВСЕ ИНСТРУМЕНТЫ</span><h4>Объединить манифесты</h4></div>
+                <span class="c-code">LENU 000001 <b>8</b></span>
+              </div>
+              <div class="c-body">
+                <div class="c-steps">
+                  <div class="c-step done"><i>1</i>Файлы ✓</div>
+                  <div class="c-step done"><i>2</i>Параметры ✓</div>
+                  <div class="c-step cur"><i>3</i>Результат</div>
+                </div>
+                <div class="c-files">
+                  <div><i>01</i>+man_CNQTAO.xlsx<span>242</span></div>
+                  <div><i>02</i>+man_EGEDK.xlsx<span>92</span></div>
+                  <div><i>03</i>+man_NICT.xlsx<span>56</span></div>
+                  <div><i>+3</i>ещё: NNBO, PK, Shanghai<span>525</span></div>
+                  <div class="add"><span>Перетащите ещё файлы</span><b>Выбрать</b></div>
+                </div>
+                <div class="c-stats">
+                  <div class="c-stat"><b>915</b><span>строк в своде</span></div>
+                  <div class="c-stat"><b>6</b><span>файлов</span></div>
+                  <div class="c-stat"><b>8 692 506</b><span>вес груза, кг</span></div>
+                </div>
+                <div class="c-row">
+                  <span class="c-opt">Сквозная «№п/п»</span>
+                  <span class="c-go">Скачать свод</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption>Страница инструмента: шапка цвета «своего» контейнера, три шага крупными плашками, итог — тёмными табло с цифрами, главная кнопка — одна и заметная.</figcaption>
+      </figure>
+    </div>
+    <div class="notes">
+      <div class="plus"><h3>Сильные стороны</h3><ul><li>Инструмент узнаётся по цвету — быстрее, чем по названию.</li><li>Самый «свой»: сделан из мира контейнерных перевозок.</li><li>Крупные цели для клика, трудно промахнуться.</li></ul></div>
+      <div class="minus"><h3>Слабые стороны</h3><ul><li>Громкий: за восьмичасовой день может утомлять.</li><li>Узкий шрифт заглавными хорош для надписей, но не для длинных описаний.</li></ul></div>
+      <div><h3>Объём работы</h3><ul><li><code>assets/style.css</code> — целиком.</li><li>В <code>tools.js</code> у каждого инструмента появляется свой цвет и номер.</li><li>Шапки страниц инструментов — по разметке на каждой.</li></ul></div>
+    </div>
+  </section>
+  <section class="common" id="common">
+    <div class="eyebrow">Независимо от выбора</div>
+    <h2 style="margin-top:10px">Что улучшится в любом варианте</h2>
+    <p class="lead" style="margin-top:10px">Это не про цвета, а про то, что сейчас мешает. Всё найдено на нынешних страницах сайта.</p>
+    <div class="common__grid">
+      <div class="tip"><h3>Одна главная кнопка</h3><p>Сейчас «Выбрать файлы» и «Объединить» — одинаковые оранжевые кнопки, и непонятно, куда смотреть. Выбор файлов станет второстепенной кнопкой, а у неактивной главной появится подпись, почему она неактивна: «Сначала добавьте файлы».</p></div>
+      <div class="tip"><h3>Заметная зона для файлов</h3><p>Пунктир вокруг зоны почти не виден на белом фоне. Сделаю его контрастным и добавлю подсказку, что сюда класть: «.xlsx, можно несколько» или «.pdf, один файл».</p></div>
+      <div class="tip"><h3>Шаги 1 → 2 → 3</h3><p>Файлы → параметры → результат на каждой странице инструмента. У двух сверок это уже наполовину есть: «1. Сводный файл», «2. DG-манифест», — остальные страницы станут такими же.</p></div>
+      <div class="tip"><h3>Итог — цифрами и сразу</h3><p>После обработки сначала главное — строки, контейнеры, вес, — а рядом кнопка «Скачать». Сейчас она оказывается внизу, под таблицей.</p></div>
+      <div class="tip"><h3>«Файлы не покидают компьютер» — всегда на виду</h3><p>Сейчас это одна фраза в подзаголовке главной. Станет постоянной строкой в шапке каждой страницы: так спокойнее грузить рабочие документы.</p></div>
+      <div class="tip"><h3>Свой шрифт, одинаковый везде</h3><p>Сейчас шрифт системный, и на Windows сайт выглядит иначе, чем на Mac. Файлы шрифта лягут рядом с сайтом, а не на Google: будет работать и с вашего сервера, и при открытии файла двойным кликом.</p></div>
+    </div>
+  </section>
+
+  <section class="compare" id="compare">
+    <div class="eyebrow">Выбор</div>
+    <h2 style="margin-top:10px">Сравнение</h2>
+    <div class="table-scroll">
+      <table class="cmp">
+        <thead><tr><th></th><th>А · Бланк</th><th>Б · Лоция</th><th>В · Терминал</th></tr></thead>
+        <tbody>
+          <tr><td>Характер</td><td>Спокойный служебный документ</td><td>Рабочее приложение в цветах морской карты</td><td>Яркий контейнерный терминал</td></tr>
+          <tr><td>Переход к другому инструменту</td><td>Через главную</td><td>В один клик из панели слева</td><td>Через главную</td></tr>
+          <tr><td>Сколько инструментов выдержит</td><td>15–20: это строки реестра</td><td>20 и больше: список в панели</td><td>Около 12, дальше «двор» станет пёстрым</td></tr>
+          <tr><td>Нагрузка на глаза за день</td><td>Минимальная</td><td>Низкая</td><td>Заметная</td></tr>
+          <tr><td>Что меняется в коде</td><td><code>style.css</code> и немного разметки</td><td><code>style.css</code>, новый скрипт панели, разметка всех 10 страниц</td><td><code>style.css</code>, цвета в <code>tools.js</code>, шапки страниц</td></tr>
+          <tr><td>Объём работы</td><td>Меньше всего</td><td>Больше всего</td><td>Средний</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="rec">
+      <strong>Рекомендую Б — «Лоцию».</strong> Главное в ней не цвет, а панель слева: инструменты на сайте используются цепочкой — объединить, сверить, сделать отчёт, — и с панелью следующий шаг всегда в один клик. К тому же инструментов за неделю стало восемь, и их станет больше: панель это выдержит, а плитки на главной — нет.
+      <br><br>
+      Если хочется минимум переделок — А. Варианты можно смешивать: например, панель из Б с «бумажной» палитрой и шрифтами PT из А.
+    </div>
+  </section>
+</div>
