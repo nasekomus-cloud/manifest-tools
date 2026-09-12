@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Проверить шаблон эл. поручения</title>
+  <link rel="stylesheet" href="../assets/fonts.css?v=202609121900" />
+  <link rel="stylesheet" href="../assets/style.css?v=202609121616" />
+</head>
+<body class="app">
+  <aside class="app__side" id="app-side"></aside>
+
+  <main class="app__main">
+    <h1 class="page__title">Проверить шаблон эл. поручения</h1>
+    <p class="page__subtitle">
+      Загрузите шаблон эл. поручения и поручение на погрузку — сверка с формой и с
+      поручением пройдёт прямо в браузере, файлы никуда не отправляются.
+    </p>
+
+    <ol class="steps" id="steps">
+      <li>Файлы от заказчика</li>
+      <li>Проверка</li>
+      <li>Результат</li>
+    </ol>
+
+    <p class="hint">Шаблон и поручение из письма заказчика — отдельными файлами или архивом .zip, как их отдаёт почта.</p>
+    <ul id="file-list" class="file-list" aria-label="Файлы от заказчика"></ul>
+
+    <div id="dropzone" class="dropzone">
+      <p class="dropzone__text">Перетащите файлы сюда или</p>
+      <button type="button" id="pick-files-btn" class="btn btn--secondary">Выбрать файлы</button>
+      <p class="dropzone__hint">.xlsx или .zip, можно несколько</p>
+      <input type="file" id="file-input" accept=".xlsx,.zip" multiple hidden />
+    </div>
+
+    <div class="action-bar" id="action-bar">
+      <p class="action-bar__info" id="action-info">Файлы не выбраны</p>
+      <span class="action-bar__hint" id="action-hint">Добавьте шаблон</span>
+      <button type="button" id="check-btn" class="btn" disabled>Проверить</button>
+    </div>
+
+    <div id="error-box" class="error-message" role="alert" hidden></div>
+
+    <section id="summary-box" class="result" aria-label="Результат проверки" hidden>
+      <div class="result__head">
+        <div class="result__stats" id="result-stats"></div>
+        <div class="result__actions">
+          <button type="button" id="download-corrected-btn" class="btn" hidden>Скачать исправленный шаблон</button>
+          <button type="button" id="download-marked-btn" class="btn" hidden>Скачать шаблон с пометками</button>
+          <button type="button" id="download-report-btn" class="btn">Скачать отчёт (.txt)</button>
+        </div>
+      </div>
+      <p class="hint" id="corrected-caption" hidden></p>
+      <div id="warnings-box" class="warning-message" hidden></div>
+      <div id="findings-box"></div>
+    </section>
+  </main>
+
+  <script src="../tools.js?v=202609131500"></script>
+  <script src="../assets/shell.js?v=202609131500"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script type="module" src="app.js?v=202609131500"></script>
+</body>
+</html>

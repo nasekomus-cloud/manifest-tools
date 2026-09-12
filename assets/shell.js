@@ -345,13 +345,26 @@
   }
 
   // Пурпурная кнопка на экране всегда одна: до результата — запуск в полосе,
-  // после — первая кнопка в .result__head (остальные там второстепенные).
+  // после — первая ВИДИМАЯ кнопка в .result__head (остальные там
+  // второстепенные). «Видимая» — без атрибута hidden: у страниц, где часть
+  // кнопок результата показывается не всегда (например «Проверить шаблон»),
+  // главной должна стать первая по порядку из показанных сейчас, а не просто
+  // первая по разметке.
   function setResultShown(shown) {
     var heads = document.querySelectorAll('.result__head');
     Array.prototype.forEach.call(heads, function (head) {
       var buttons = head.querySelectorAll('.btn');
-      Array.prototype.forEach.call(buttons, function (button, index) {
-        button.classList.toggle('btn--secondary', !(shown && index === 0));
+      var mainButton = null;
+      if (shown) {
+        for (var i = 0; i < buttons.length; i++) {
+          if (!buttons[i].hidden) {
+            mainButton = buttons[i];
+            break;
+          }
+        }
+      }
+      Array.prototype.forEach.call(buttons, function (button) {
+        button.classList.toggle('btn--secondary', button !== mainButton);
       });
     });
     if (runButton) runButton.classList.toggle('btn--secondary', Boolean(shown));
