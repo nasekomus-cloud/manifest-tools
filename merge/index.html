@@ -4,46 +4,68 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Объединить манифесты</title>
-  <link rel="stylesheet" href="../assets/style.css?v=202609102230" />
+  <link rel="stylesheet" href="../assets/fonts.css?v=202609121900" />
+  <link rel="stylesheet" href="../assets/style.css?v=202609121930" />
 </head>
-<body>
-  <main class="page">
-    <a class="back-link" href="../index.html">← Все инструменты</a>
+<body class="app">
+  <aside class="app__side" id="app-side"></aside>
+
+  <main class="app__main">
     <h1 class="page__title">Объединить манифесты</h1>
     <p class="page__subtitle">
       Добавьте файлы манифестов одного рейса — они склеятся в один файл с сохранением оформления.
     </p>
 
+    <ol class="steps" id="steps">
+      <li>Файлы</li>
+      <li>Параметры</li>
+      <li>Результат</li>
+    </ol>
+
+    <p class="hint" id="order-hint" hidden>Порядок файлов — порядок строк в общем файле. Перетащите строку, чтобы его изменить.</p>
+    <ul id="file-list" class="file-list" aria-label="Выбранные файлы"></ul>
+
     <div id="dropzone" class="dropzone">
-      Перетащите файлы сюда или
-      <button type="button" id="pick-files-btn" class="btn">Выбрать файлы</button>
+      <p class="dropzone__text">Перетащите файлы сюда или</p>
+      <button type="button" id="pick-files-btn" class="btn btn--secondary">Выбрать файлы</button>
+      <p class="dropzone__hint">.xlsx, можно несколько</p>
       <input type="file" id="file-input" accept=".xlsx" multiple hidden />
     </div>
 
-    <ul id="file-list" class="file-list"></ul>
-
-    <p>
-      <label>
-        <input type="checkbox" id="renumber-checkbox" />
+    <div class="options">
+      <label class="switch">
+        <input type="checkbox" class="switch__input" id="renumber-checkbox" role="switch" />
+        <span class="switch__track" aria-hidden="true"></span>
         Сквозная нумерация «№п/п»
       </label>
-    </p>
-
-    <p>
-      <button type="button" id="merge-btn" class="btn" disabled>Объединить</button>
-    </p>
-
-    <div id="error-box" class="error-message" hidden></div>
-
-    <div id="summary-box" hidden>
-      <h2>Результат</h2>
-      <table id="summary-table"></table>
-      <div id="duplicates-box"></div>
-      <p><button type="button" id="download-btn" class="btn">Скачать</button></p>
     </div>
+
+    <div class="action-bar" id="action-bar">
+      <p class="action-bar__info" id="action-info">Файлы не выбраны</p>
+      <span class="action-bar__hint" id="action-hint">Сначала добавьте файлы</span>
+      <button type="button" id="merge-btn" class="btn" disabled>Объединить</button>
+    </div>
+
+    <div id="error-box" class="error-message" role="alert" hidden></div>
+
+    <section id="summary-box" class="result" aria-label="Результат склейки" hidden>
+      <div class="result__head">
+        <div class="result__stats" id="result-stats"></div>
+        <div class="result__actions">
+          <button type="button" id="download-btn" class="btn">Скачать</button>
+        </div>
+      </div>
+      <h2>Результат</h2>
+      <div class="table-scroll">
+        <table id="summary-table" class="data-table"></table>
+      </div>
+      <div id="duplicates-box"></div>
+    </section>
   </main>
 
+  <script src="../tools.js?v=202609121900"></script>
+  <script src="../assets/shell.js?v=202609121930"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-  <script type="module" src="app.js?v=202609111500"></script>
+  <script type="module" src="app.js?v=202609121930"></script>
 </body>
 </html>

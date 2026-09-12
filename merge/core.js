@@ -13,10 +13,11 @@ import {
   FIRST_COLUMN,
   LAST_COLUMN,
   validateStructure,
-} from '../lib/manifest-format.js?v=202609062100';
+  rowHasData,
+  ROW_FIRST_COLUMN as FIRST_COPY_COLUMN,
+} from '../lib/manifest-format.js?v=202609121930';
 import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609111500';
 
-const FIRST_COPY_COLUMN = 1; // A — на случай, если колонка "№п/п" стоит перед проверяемым диапазоном C:Y
 const FALLBACK_NUMBER_COLUMN = 1; // A — если заголовок "№п/п" не нашёлся в шапке вообще
 
 function cellText(cell) {
@@ -61,17 +62,6 @@ function copyRow(sourceSheet, targetSheet, sourceRowNumber, targetRowNumber) {
   if (sourceRow.height) {
     targetRow.height = sourceRow.height;
   }
-}
-
-function rowHasData(sheet, rowNumber) {
-  const row = sheet.getRow(rowNumber);
-  for (let col = FIRST_COPY_COLUMN; col <= LAST_COLUMN; col++) {
-    const value = row.getCell(col).value;
-    if (value !== null && value !== undefined && value !== '') {
-      return true;
-    }
-  }
-  return false;
 }
 
 function copyColumnWidths(sourceSheet, targetSheet) {

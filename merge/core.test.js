@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
 import { mergeManifests } from './core.js';
+import { countDataRows } from '../lib/manifest-format.js';
 
 const SAMPLE_HEADERS = Array.from({ length: 23 }, (_, i) => `Колонка ${i + 1}`);
 
@@ -327,4 +328,24 @@ test('mergeManifests: отказывает при несовпадающей с�
       return true;
     }
   );
+});
+
+test('countDataRows на той же книге равно «Строк» склейки для этого файла', () => {
+  const wb = buildManifestWorkbook({
+    dataRows: [
+      ['a1', ...emptyRowData().slice(1)],
+      ['a2', ...emptyRowData().slice(1)],
+    ],
+  });
+  const sheet = wb.getWorksheet('Manifest');
+  sheet.getRow(8).getCell(2).value = 'только B'; // данные вне C:Y
+  // строка 9 пустая — не считается
+  sheet.getRow(10).getCell(7).value = { formula: 'SUM(G6:G8)', result: 0 }; // строка-довесок без контейнера
+
+  const expected = 4; // строки 6, 7, 8, 10
+  const rowsInList = countDataRows(wb);
+  const { summary } = mergeManifests([{ fileName: 'a.xlsx', workbook: wb }], { renumber: false });
+
+  assert.equal(rowsInList, expected);
+  assert.equal(summary.files[0].rows, expected);
 });

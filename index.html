@@ -4,86 +4,80 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Инструменты для судовых манифестов</title>
-  <link rel="stylesheet" href="assets/style.css?v=202609102230" />
+  <link rel="stylesheet" href="assets/fonts.css?v=202609121900" />
+  <link rel="stylesheet" href="assets/style.css?v=202609121930" />
 </head>
-<body>
-  <main class="page">
-    <div class="page__kicker">Судовые манифесты — набор инструментов</div>
-    <h1 class="page__title">Инструменты для судовых манифестов</h1>
-    <p class="page__subtitle">
-      Выберите нужный инструмент — вся обработка идёт прямо в браузере, файлы никуда не отправляются.
-    </p>
-    <div class="tabs" role="tablist">
-      <button type="button" class="tab tab--active" id="tab-export" role="tab" aria-selected="true" aria-controls="tool-grid-export">Экспорт</button>
-      <button type="button" class="tab" id="tab-import" role="tab" aria-selected="false" aria-controls="tool-grid-import">Импорт</button>
-    </div>
-    <div class="tool-grid" id="tool-grid-export" role="tabpanel" aria-labelledby="tab-export"></div>
-    <div class="tool-grid" id="tool-grid-import" role="tabpanel" aria-labelledby="tab-import" hidden></div>
+<body class="app">
+  <aside class="app__side" id="app-side"></aside>
+
+  <main class="app__main">
+    <h1 class="page__title">С чего начать</h1>
+    <p class="page__subtitle">Слева все инструменты вкладки — они под рукой на любой странице.</p>
+
+    <section class="home-panel" data-tab-panel="export" role="tabpanel" aria-labelledby="side-tab-export">
+      <div class="route">
+        <h2 class="route__title" id="route-title-export">Обычный порядок работы на экспорте</h2>
+        <ol class="route__stops" id="route-export" aria-labelledby="route-title-export"></ol>
+      </div>
+      <div class="tool-cards" id="cards-export"></div>
+    </section>
+
+    <section class="home-panel" data-tab-panel="import" role="tabpanel" aria-labelledby="side-tab-import" hidden>
+      <div class="route">
+        <h2 class="route__title" id="route-title-import">Обычный порядок работы на импорте</h2>
+        <ol class="route__stops" id="route-import" aria-labelledby="route-title-import"></ol>
+      </div>
+      <div class="tool-cards" id="cards-import"></div>
+    </section>
   </main>
 
-  <script src="tools.js?v=202609121301"></script>
+  <script src="tools.js?v=202609121900"></script>
+  <script src="assets/shell.js?v=202609121930"></script>
   <script>
-    (function renderTools() {
-      var grids = {
-        export: document.getElementById('tool-grid-export'),
-        import: document.getElementById('tool-grid-import'),
-      };
-      var tabs = {
-        export: document.getElementById('tab-export'),
-        import: document.getElementById('tab-import'),
-      };
+    // Маршрут и карточки главной — по window.TOOLS, в порядке записей tools.js
+    // (другого места, где задан порядок, нет). Какая вкладка видна — решает
+    // assets/shell.js по атрибуту data-tab-panel.
+    (function renderHome() {
       var tools = window.TOOLS || [];
-      var byCategory = { export: [], import: [] };
 
-      tools.forEach(function (tool) {
-        (byCategory[tool.category] || byCategory.import).push(tool);
-      });
+      function el(tag, className, text) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text) node.textContent = text;
+        return node;
+      }
 
-      Object.keys(grids).forEach(function (category) {
-        var grid = grids[category];
-        var list = byCategory[category];
+      ['export', 'import'].forEach(function (category) {
+        var route = document.getElementById('route-' + category);
+        var cards = document.getElementById('cards-' + category);
+        var list = tools.filter(function (tool) {
+          return tool.category === category;
+        });
 
         if (!list.length) {
-          var empty = document.createElement('p');
-          empty.className = 'tool-empty';
-          empty.textContent = 'Инструменты пока не добавлены.';
-          grid.appendChild(empty);
+          route.parentNode.hidden = true;
+          cards.appendChild(el('p', 'tool-empty', 'Инструменты пока не добавлены.'));
           return;
         }
 
+        route.style.setProperty('--stops', String(list.length));
+
         list.forEach(function (tool) {
-          var card = document.createElement('a');
-          card.className = 'tool-card';
+          var stop = el('li', 'route__stop');
+          var stopLink = el('a', 'route__link');
+          stopLink.href = tool.href;
+          stopLink.appendChild(el('span', 'route__name', tool.navTitle || tool.title));
+          if (tool.output) stopLink.appendChild(el('span', 'fmt', tool.output));
+          stop.appendChild(stopLink);
+          route.appendChild(stop);
+
+          var card = el('a', 'tool-card');
           card.href = tool.href;
-
-          var title = document.createElement('h2');
-          title.className = 'tool-card__title';
-          title.textContent = tool.title;
-
-          var description = document.createElement('p');
-          description.className = 'tool-card__description';
-          description.textContent = tool.description;
-
-          card.appendChild(title);
-          card.appendChild(description);
-          grid.appendChild(card);
+          card.appendChild(el('h3', 'tool-card__title', tool.title));
+          card.appendChild(el('p', 'tool-card__description', tool.description));
+          if (tool.output) card.appendChild(el('span', 'fmt', tool.output));
+          cards.appendChild(card);
         });
-      });
-
-      function selectTab(category) {
-        Object.keys(grids).forEach(function (key) {
-          var isActive = key === category;
-          grids[key].hidden = !isActive;
-          tabs[key].classList.toggle('tab--active', isActive);
-          tabs[key].setAttribute('aria-selected', String(isActive));
-        });
-      }
-
-      tabs.export.addEventListener('click', function () {
-        selectTab('export');
-      });
-      tabs.import.addEventListener('click', function () {
-        selectTab('import');
       });
     })();
   </script>
