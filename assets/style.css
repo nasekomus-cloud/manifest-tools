@@ -135,7 +135,9 @@ h3 {
 .app__main {
   min-width: 0;
   width: 100%;
-  max-width: 1000px;
+  /* Не уже 1240: таблица «Результат» склейки (имя файла + три колонки веса
+     «18 360 789,626 KGS») требует ~920 px и при 1000 уходила в прокрутку. */
+  max-width: 1240px;
   padding: 32px 40px 40px;
 }
 
@@ -770,6 +772,22 @@ h3 {
   margin-bottom: 16px;
 }
 
+/* На Mac полоса прокрутки по умолчанию прячется, пока не начнёшь листать, —
+   широкая таблица в узком окне выглядела обрезанной. Своя полоса видна всегда. */
+.table-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.table-scroll::-webkit-scrollbar-track {
+  background: var(--line);
+  border-radius: 5px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 5px;
+}
+
 .data-table {
   width: 100%;
   border-collapse: separate;
@@ -782,7 +800,7 @@ h3 {
 
 .data-table th,
 .data-table td {
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
@@ -801,6 +819,7 @@ h3 {
 
 .data-table .num {
   font-family: var(--font-mono);
+  font-size: 15px; /* моноширинный шире Onest: при 17 px три колонки веса не влезали в 1280 px */
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
