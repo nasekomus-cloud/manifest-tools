@@ -1,7 +1,7 @@
 window.STATE =
 {
   "slug": "orders-bl-registry",
-  "dir": "2026-09-12-orders-bl-registry--wip",
+  "dir": "2026-09-12-orders-bl-registry",
   "title": "Сводный реестр поручений и коносаментов",
   "mode": "semi",
   "depth": "normal",
@@ -11,8 +11,8 @@ window.STATE =
   "memoryFile": "CLAUDE.md",
   "skillDir": "/Users/nasekomus/.claude/skills/autopilot",
   "startedAt": "2026-09-12T11:18:37+03:00",
-  "updatedAt": "2026-09-12T12:40:00+03:00",
-  "finishedAt": null,
+  "updatedAt": "2026-09-12T13:05:00+03:00",
+  "finishedAt": "2026-09-12T13:05:00+03:00",
   "stages": [
     { "id": "preflight", "status": "done", "startedAt": "2026-09-12T11:18:37+03:00", "finishedAt": "2026-09-12T11:20:00+03:00" },
     { "id": "manifest",  "status": "done", "startedAt": "2026-09-12T11:20:00+03:00", "finishedAt": "2026-09-12T11:24:00+03:00" },
@@ -21,10 +21,10 @@ window.STATE =
     { "id": "plan",      "status": "skipped", "note": "ярус T0 — без разбивки на таски" },
     { "id": "build",     "status": "done", "startedAt": "2026-09-12T11:56:00+03:00", "finishedAt": "2026-09-12T12:40:00+03:00" },
     { "id": "review",    "status": "done", "startedAt": "2026-09-12T12:35:00+03:00", "finishedAt": "2026-09-12T12:40:00+03:00", "note": "T0 — все три оси сам, инлайн; блокирующих находок нет" },
-    { "id": "final",     "status": "pending" }
+    { "id": "final",     "status": "done", "startedAt": "2026-09-12T12:40:00+03:00", "finishedAt": "2026-09-12T13:05:00+03:00" }
   ],
   "requirements": {
-    "total": 9, "done": 0, "inTicket": 0, "inSpec": 9,
+    "total": 9, "done": 9, "inTicket": 0, "inSpec": 0,
     "placeholder": 0, "deferred": 0, "dropped": 0
   },
   "tickets": [],
@@ -38,7 +38,7 @@ window.STATE =
       "index.html"
     ],
     "tests": "npm test → 191 passed, 0 failed (было 178, +13 новых теста)",
-    "commit": null,
+    "commit": "9aebd50",
     "startedAt": "2026-09-12T11:56:00+03:00",
     "finishedAt": "2026-09-12T12:40:00+03:00"
   },
@@ -51,5 +51,9 @@ window.STATE =
   },
   "concerns": [],
   "reviewers": { "manifestSpec": null, "craft": null },
-  "blind": null
+  "blind": {
+    "verdict": "все 9 требований — «реализовано», расхождений с манифестом нет",
+    "note": "единственное отличие от эталонного файла — опечатка в самом эталоне (кириллическая «С» вместо латинской в одном номере коносамента), не в манифесте и не в инструменте",
+    "commands": "npm test → 191 passed; node --test bl-registry/core.test.js → 13 passed; python3 -m http.server + сквозной прогон в браузере с реальным файлом — 131 строка, 131/129 уникальных, скачанный .xlsx проверен повторным разбором ExcelJS"
+  }
 }
