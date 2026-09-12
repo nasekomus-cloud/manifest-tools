@@ -21,6 +21,13 @@ const ORDER_CONTAINERS = [
   { number: 'TEST7654321', owner: '-', iso: '22G1', seal: 'AB0012', tare: 2200,
     goods: [{ name: 'Запчасти', places: 10, gross: 5000 }, { name: 'Двигатель', places: 2, gross: 1000 }] },
 ];
+// Те же два контейнера поручения ещё раз под другими номерами — для тестов A07/G03
+// с 3+ строками одного коносамента, где нужно больше двух разных контейнеров.
+const ORDER_CONTAINERS_4 = [
+  ORDER_CONTAINERS[0], ORDER_CONTAINERS[1],
+  { ...ORDER_CONTAINERS[0], number: 'TEST1111111' },
+  { ...ORDER_CONTAINERS[1], number: 'TEST2222222' },
+];
 
 function buildOrder({ number = ORDER_NUMBER, date = '07.09.2026', vessel = 'TEST VESSEL', voyage = '0001E',
   containers = ORDER_CONTAINERS } = {}) {
@@ -457,9 +464,66 @@ test('контейнер поручения, которого нет в шабл
   assert.equal(f.container, 'TEST7654321');
 });
 
-test('A07: у строк одного коносамента разный терминал — предупреждение во второй строке', () => {
-  const f = only(check(buildTemplate({ rows: [ROW1, { ...ROW2, F: 'Alexandria' }] })), () => true);
-  assert.deepEqual(brief(f), ['F10', 'ТЕРМИНАЛ ВЫГРУЗКИ (коносамент)', 'warning', null]);
+test('A07/G03: расхождение общих полей одного коносамента — ошибка «уточнить у заказчика» на каждом из восьми полей', () => {
+  const cases = [
+    ['C', 'ДАТА КОНОСАМЕНТА', '10.09.2026'],
+    ['F', 'ТЕРМИНАЛ ВЫГРУЗКИ (коносамент)', 'Alexandria'],
+    ['P', 'SHIPPER', 'ROMASHKA LLC, MOSCOW'], // известное поручению значение — не задеть A03
+    ['Q', 'SHIPPER_ADDRESS', 'ANOTHER CITY, RUSSIA'],
+    ['R', 'CONSIGNEE', 'VASILEK LLP, ALMATY'], // так же — не задеть A03
+    ['S', 'CONSIGNEE_ADDRESS', 'ANOTHER CITY, KAZAKHSTAN'],
+    ['T', 'NOTIFY', 'VASILEK LLP, ALMATY'], // так же — не задеть A03
+    ['U', 'NOTIFY_ADDRESS', 'ANOTHER CITY'],
+  ];
+  for (const [letter, field, value] of cases) {
+    const f = only(check(buildTemplate({ rows: [ROW1, { ...ROW2, [letter]: value }] })), () => true);
+    assert.deepEqual(brief(f), [`${letter}10`, field, 'error', 'customer'], letter);
+  }
+});
+
+test('A07/G03: коносамент из 3+ строк — красится только расходящаяся строка, не первая (эталон)', async () => {
+  const order = buildOrder({ containers: ORDER_CONTAINERS_4.slice(0, 3) });
+  const result = check(buildTemplate({
+    rows: [ROW1, ROW2, { ...ROW1, D: 'TEST1111111', P: 'ROMASHKA LLC, MOSCOW' }],
+  }), orders(order));
+  const f = only(result, () => true);
+  assert.deepEqual(brief(f), ['P11', 'SHIPPER', 'error', 'customer']);
+  assert.equal(f.container, 'TEST1111111');
+  assert.deepEqual(result.summary, { containers: 3, errors: 1, autoFixable: 0, needsCustomer: 1, warnings: 0 });
+  assert.match(result.reportText, /УТОЧНИТЬ У ЗАКАЗЧИКА — 1/);
+  assert.doesNotMatch(result.reportText, /ПРЕДУПРЕЖДЕНИЯ/);
+  const marked = await roundTrip(result.markedWorkbook);
+  const sheet = marked.getWorksheet('EXPORT_MANIFEST');
+  const fillOf = (address) => sheet.getCell(address).fill?.fgColor?.argb ?? null;
+  assert.equal(fillOf('P11'), 'FFFFFF00');
+  assert.equal(fillOf('P9'), null); // первая строка коносамента — эталон, не красится
+});
+
+test('A07/G03: коносамент из 4 строк, расхождение в строках 2 и 4 (3-я совпадает) — две находки, не одна', () => {
+  const order = buildOrder({ containers: ORDER_CONTAINERS_4 });
+  const result = check(buildTemplate({
+    rows: [
+      ROW1,
+      { ...ROW2, R: 'VASILEK LLP, ALMATY' },
+      { ...ROW1, D: 'TEST1111111' },
+      { ...ROW2, D: 'TEST2222222', R: 'VASILEK LLP, ALMATY' },
+    ],
+  }), orders(order));
+  const found = result.findings.filter((f) => f.field === 'CONSIGNEE');
+  assert.deepEqual(found.map((f) => f.cell), ['R10', 'R12']);
+  assert.ok(found.every((f) => f.level === 'error' && f.fix === 'customer'));
+});
+
+test('A07/G03: два разных коносамента в одном файле — сравнение только внутри своего, между ними не сверяется', () => {
+  const order = buildOrder({ containers: ORDER_CONTAINERS_4 });
+  const result = check(buildTemplate({
+    rows: [
+      ROW1, ROW2,
+      { ...ROW1, A: 'BL0002', D: 'TEST1111111', F: 'Alexandria' },
+      { ...ROW2, A: 'BL0002', D: 'TEST2222222', F: 'Alexandria' },
+    ],
+  }), orders(order));
+  assert.deepEqual(result.findings, []);
 });
 
 test('A01: даты далеко от даты поручения и дата коносамента раньше прихода — предупреждения', () => {

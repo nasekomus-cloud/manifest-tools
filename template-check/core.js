@@ -1043,24 +1043,25 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
 // Пломба в эталонной форме: число, если это одни цифры без ведущего нуля (§3).
 const sealValue = (text) => (/^[1-9]\d*$/.test(String(text ?? '').trim()) ? Number(String(text).trim()) : String(text ?? '').trim());
 
-// A07: у строк одного коносамента общие поля должны совпадать.
+// A07/G03: у строк одного коносамента общие поля должны совпадать — расхождение
+// не исправляется автоматически (нельзя знать, какая из строк верна, а какая
+// испорчена, например протянута в Excel формулой или копированием строки).
+// Находка — на каждой расходящейся строке, не только на первой встреченной.
 function checkBillGroups(model, ctx, dataRows) {
   const keys = ['billDate', 'dischargeTerminal', 'shipper', 'shipperAddress', 'consignee', 'consigneeAddress', 'notify', 'notifyAddress'];
   const firstByBill = new Map();
-  const reported = new Set();
   for (const row of dataRows) {
     const bill = normalizeLoose(trimmedOf(row.cells.billOfLading ? row.cells.billOfLading.value : null));
     if (!bill) continue;
     const first = firstByBill.get(bill);
     if (!first) { firstByBill.set(bill, row); continue; }
     for (const key of keys) {
-      if (!row.cells[key] || reported.has(`${bill}|${key}`)) continue;
+      if (!row.cells[key]) continue;
       const here = normalizeLoose(trimmedOf(row.cells[key].value));
       const there = normalizeLoose(trimmedOf(first.cells[key].value));
       if (here === there) continue;
-      reported.add(`${bill}|${key}`);
-      ctx.warnings.push(finding({
-        level: 'warning', section: 'data', sheet: model.sheetName, cell: row.cells[key].address,
+      ctx.data.push(finding({
+        level: 'error', fix: 'customer', section: 'data', sheet: model.sheetName, cell: row.cells[key].address,
         field: COLUMN_BY_KEY.get(key).header, container: row.container || null,
         message: `у коносамента ${trimmedOf(row.cells.billOfLading.value)} в строке ${first.row} здесь «${trimmedOf(first.cells[key].value)}», а в этой строке «${trimmedOf(row.cells[key].value)}» — общие поля коносамента должны совпадать`,
       }));
