@@ -240,6 +240,7 @@ function renderStats(report) {
   addStat(String(containers), Shell.plural(containers, 'контейнер', 'контейнера', 'контейнеров'));
   addStat(formatWeight(report.grandTotal.totalWeight), 'общий вес');
   if (report.billsOfLading !== null) {
+    // Не дубль строки «Feeder Bill of Lading - N sets» под таблицей: та — предпросмотр той же строки PDF/Excel, не удалять ни одну.
     addStat(String(report.billsOfLading), Shell.plural(report.billsOfLading, 'коносамент', 'коносамента', 'коносаментов'));
   }
 }

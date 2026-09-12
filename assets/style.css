@@ -806,10 +806,6 @@ h3 {
   white-space: nowrap;
 }
 
-.data-table .mono {
-  font-family: var(--font-mono);
-}
-
 .data-table tr.is-total td {
   background: var(--tint);
   font-weight: 600;
@@ -840,11 +836,17 @@ h3 {
   color: var(--warn);
 }
 
-/* ───────────── Главная: маршрут и карточки ───────────── */
-
-.home-panel[hidden] {
-  display: none;
+/* Вложенные строки/списки (заголовок предупреждений, ошибки нескольких архивов) —
+ * без браузерных полей, иначе блок выше, чем нужно. */
+:is(.error-message, .warning-message) :is(p, ul) {
+  margin: 0;
 }
+
+:is(.error-message, .warning-message) ul {
+  padding-left: 1.25em;
+}
+
+/* ───────────── Главная: маршрут и карточки ───────────── */
 
 .route {
   margin: 0 0 24px;
@@ -1068,72 +1070,4 @@ h3 {
 .field input:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 1px;
-}
-
-/* ───────────── Старые страницы (до перевода на каркас .app) ─────────────
- * Страницы инструментов, ещё не переведённые на «Лоцию», держатся на
- * .page / .back-link и своих id-блоках. Правила ниже — чтобы они оставались
- * читаемыми в новой палитре; удаляются вместе с последней такой страницей. */
-
-.page {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 40px 24px 64px;
-}
-
-.back-link {
-  display: inline-block;
-  margin-bottom: 24px;
-  color: var(--sea);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.back-link:hover {
-  color: var(--depth);
-  text-decoration: underline;
-}
-
-.page .file-list li {
-  padding: 8px 8px 8px 16px;
-}
-
-.page #results-box table,
-.page #summary-box table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 12px;
-  background: var(--surface);
-}
-
-.page #results-box th,
-.page #results-box td,
-.page #summary-box th,
-.page #summary-box td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
-  text-align: left;
-}
-
-.page #results-box tr.grand-total-row td {
-  font-weight: 700;
-  background: var(--tint);
-}
-
-.page #warnings-box ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.page .dashboard-block table {
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--surface);
-}
-
-.page .dashboard-block th,
-.page .dashboard-block td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
-  text-align: left;
 }

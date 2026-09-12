@@ -115,7 +115,7 @@ function renderFileLists() {
 
   ordersFileList.innerHTML = '';
   state.orderSources.forEach((entry) => {
-    const meta = { text: entry.size === null ? '' : Shell.formatSize(entry.size), error: false };
+    const meta = { text: entry.size === null ? 'из архива' : Shell.formatSize(entry.size), error: false };
     ordersFileList.appendChild(
       fileRow(entry.name, meta, () => {
         state.orderSources = state.orderSources.filter((e) => e.id !== entry.id);
@@ -203,11 +203,17 @@ async function addOrderFiles(fileList) {
   if (!added.length && !errors.length) return; // ничего подходящего — набор не изменился
   state.orderSources.push(...added);
   setChanged();
-  if (errors.length) showError(errors.join('\n'));
+  if (errors.length) showError(errors);
 }
 
-function showError(message) {
-  errorBox.textContent = message;
+// Несколько сообщений (ошибки нескольких архивов) — каждое своей строкой.
+function showError(messages) {
+  errorBox.innerHTML = '';
+  [].concat(messages).forEach((text) => {
+    const line = document.createElement('p');
+    line.textContent = text;
+    errorBox.appendChild(line);
+  });
   errorBox.hidden = false;
 }
 
