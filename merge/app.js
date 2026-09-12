@@ -3,7 +3,7 @@
 // скачиванием блоба — вся DOM-логика живёт здесь. Считать книги и склеивать
 // их — дело core.js (mergeManifests), сюда импортируется как обычный модуль.
 
-import { mergeManifests } from './core.js?v=202609110952';
+import { mergeManifests } from './core.js?v=202609111500';
 
 const SUMMARY_COLUMNS = 5; // Файл, Строк, Вес груза, Вес тары, Общий вес
 

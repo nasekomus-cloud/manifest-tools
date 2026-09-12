@@ -3,7 +3,7 @@
 // dashboard-departure/ (та же логика, другая колонка-порт). Подробности —
 // в lib/port-breakdown.js.
 
-import { buildPortBreakdownDashboard } from '../lib/port-breakdown.js?v=202609062210';
+import { buildPortBreakdownDashboard } from '../lib/port-breakdown.js?v=202609111500';
 
 /**
  * @param {Array<{fileName: string, workbook: import('exceljs').Workbook}>} workbooks

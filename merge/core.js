@@ -14,7 +14,7 @@ import {
   LAST_COLUMN,
   validateStructure,
 } from '../lib/manifest-format.js?v=202609062100';
-import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609062100';
+import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609111500';
 
 const FIRST_COPY_COLUMN = 1; // A — на случай, если колонка "№п/п" стоит перед проверяемым диапазоном C:Y
 const FALLBACK_NUMBER_COLUMN = 1; // A — если заголовок "№п/п" не нашёлся в шапке вообще

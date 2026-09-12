@@ -43,7 +43,7 @@ window.TOOLS = [
     description:
       'Сводная таблица «GRAND TOTAL» по типам контейнеров в PDF. Позывной, дату прибытия и терминал — впишите вручную.',
     href: 'grand-total/index.html',
-    category: 'import',
+    category: 'export',
   },
   {
     title: 'Сверить с поручениями на погрузку',

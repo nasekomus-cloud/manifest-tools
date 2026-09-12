@@ -4,7 +4,7 @@
 // обычный модуль (см. interfaces.md). Идентично dashboard/app.js — тот же
 // инструмент, другая колонка-порт (см. lib/port-breakdown.js).
 
-import { buildPortDashboard } from './core.js?v=202609062210';
+import { buildPortDashboard } from './core.js?v=202609111500';
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');

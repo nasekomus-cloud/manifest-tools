@@ -3,7 +3,7 @@
 // разбивки — дело core.js (buildPortDashboard), сюда импортируется как
 // обычный модуль (см. interfaces.md).
 
-import { buildPortDashboard } from './core.js?v=202609062210';
+import { buildPortDashboard } from './core.js?v=202609111500';
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');

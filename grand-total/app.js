@@ -4,7 +4,7 @@
 // pdf-lib. Подсчёт разбивки и судно/рейс — дело core.js (buildGrandTotalData),
 // сюда импортируется как обычный модуль (см. interfaces.md).
 
-import { buildGrandTotalData } from './core.js?v=202609062231';
+import { buildGrandTotalData } from './core.js?v=202609111500';
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
@@ -48,8 +48,12 @@ function formatContainerType(type) {
   return match ? `${match[1]}'${match[2]}` : type;
 }
 
+// Порожние контейнеры того же типа — отдельной строкой таблицы (buildManifestTotals
+// уже разбил их по entry.isEmpty), суффикс " empty" строчными буквами, не через
+// normalizeType (тот в верхнем регистре) — как показывает вес груза 0 у таких строк.
 function formatTypeCount(entry) {
-  return `${entry.count}x${formatContainerType(entry.type)}`;
+  const suffix = entry.isEmpty ? ' empty' : '';
+  return `${entry.count}x${formatContainerType(entry.type)}${suffix}`;
 }
 
 // Общие для PDF и Excel строки таблицы — один источник состава и порядка,
@@ -462,28 +466,56 @@ function buildExcelRows(report) {
   return { header: TABLE_COLUMNS, dataRows, totalRow };
 }
 
+// Пять полей шапки — в один ряд (label, value, label, value, ...), как в
+// PDF (VESSEL/VOYAGE/ARRIVAL DATE/CALL SIGN/TERMINAL на одной строке), а не
+// пятью отдельными строками друг под другом: расхождение с формой PDF и
+// эталона (reference.md) — реальная жалоба пользователя на прошлую версию.
+function buildHeaderFields(report, manualFields) {
+  return [
+    ['VESSEL:', report.vessel || ''],
+    ['VOYAGE:', report.voyage || ''],
+    ['ARRIVAL DATE:', manualFields.arrivalDate],
+    ['CALL SIGN:', manualFields.callSign],
+    ['TERMINAL:', manualFields.terminal],
+  ];
+}
+
+// Отступ после значения поля — не самостоятельная колонка-разделитель (она
+// осталась бы пустой и путала бы навигацию по листу), а запас в ширине
+// самой колонки со значением, как визуальный зазор перед следующим label —
+// того же смысла, что +24pt между полями в drawHeaderField() PDF-версии.
+const HEADER_FIELD_GAP = 3;
+
 async function buildExcelWorkbook(report, manualFields) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Grand Total');
 
+  const headerFields = buildHeaderFields(report, manualFields);
   const { header, dataRows, totalRow } = buildExcelRows(report);
   // Ширины колонок — по тексту, который реально будет виден (число через
   // тот же WEIGHT_NUMFMT, что применён к самой ячейке), а не по длине числа
   // как такового — иначе колонка веса окажется у'же, чем нужно для « KGS».
   const asDisplayedRows = dataRows.map((row) => [row[0], formatWeight(row[1]), formatWeight(row[2]), formatWeight(row[3])]);
   const asDisplayedTotal = [totalRow[0], formatWeight(totalRow[1]), formatWeight(totalRow[2]), formatWeight(totalRow[3])];
-  sheet.columns = computeExcelColumnWidths(header, asDisplayedRows, asDisplayedTotal).map((width) => ({ width }));
-
-  function addHeaderField(label, value) {
-    const row = sheet.addRow([label, value]);
-    row.getCell(1).font = { bold: true };
+  const tableWidths = computeExcelColumnWidths(header, asDisplayedRows, asDisplayedTotal);
+  // Строка шапки шире таблицы (10 колонок против 4) — итоговая ширина
+  // колонки берётся по большему из двух требований, колонка за колонкой,
+  // а не как два независимых листа ширин.
+  const headerWidths = headerFields.flatMap(([label, value]) => [label.length + 2, value.length + HEADER_FIELD_GAP]);
+  const columnCount = Math.max(tableWidths.length, headerWidths.length);
+  const columns = [];
+  for (let i = 0; i < columnCount; i++) {
+    columns.push({ width: Math.max(tableWidths[i] || 0, headerWidths[i] || 0) });
   }
+  sheet.columns = columns;
 
-  addHeaderField('VESSEL:', report.vessel || '');
-  addHeaderField('VOYAGE:', report.voyage || '');
-  addHeaderField('ARRIVAL DATE:', manualFields.arrivalDate);
-  addHeaderField('CALL SIGN:', manualFields.callSign);
-  addHeaderField('TERMINAL:', manualFields.terminal);
+  const headerRow = sheet.addRow([]);
+  headerFields.forEach(([label, value], i) => {
+    const labelCell = headerRow.getCell(i * 2 + 1);
+    labelCell.value = label;
+    labelCell.font = { bold: true };
+    headerRow.getCell(i * 2 + 2).value = value;
+  });
   sheet.addRow([]);
 
   const titleRow = sheet.addRow(['GRAND TOTAL:']);
@@ -497,10 +529,14 @@ async function buildExcelWorkbook(report, manualFields) {
     cell.border = { bottom: { style: 'thin' } };
   });
 
+  // Без принудительного center: строки данных и итог — как в исходном файле
+  // пользователя (GQDE 2601E_total PLP.xlsx, лист Total) — там выравнивание
+  // ячеек нигде не выставлено явно, обычное поведение Excel по умолчанию
+  // (текст слева, числа справа). Явный center оставлен только у шапки
+  // колонок (`header`) чуть ниже — она подписи, а не данные.
   dataRows.forEach((cells) => {
     sheet.addRow(cells);
     sheet.lastRow.eachCell((cell, colNumber) => {
-      cell.alignment = { horizontal: 'center' };
       if (colNumber > 1) cell.numFmt = WEIGHT_NUMFMT;
     });
   });
@@ -508,7 +544,6 @@ async function buildExcelWorkbook(report, manualFields) {
   sheet.addRow(totalRow);
   sheet.lastRow.eachCell((cell, colNumber) => {
     cell.font = { bold: true };
-    cell.alignment = { horizontal: 'center' };
     cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' } };
     if (colNumber > 1) cell.numFmt = WEIGHT_NUMFMT;
   });

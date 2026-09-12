@@ -4,13 +4,13 @@
 // там, здесь только добавляется судно/рейс из шапки первого файла (тот же
 // файл, что уже играет роль эталонного при проверке структуры).
 
-import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609062210';
+import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609111500';
 import { readVoyageHeader } from '../lib/manifest-format.js?v=202609062100';
 
 /**
  * @param {Array<{fileName: string, workbook: import('exceljs').Workbook}>} workbooks
  * @returns {{ok: true, vessel: string|null, voyage: string|null,
- *            byType: Array<{type: string, count: number, cargoWeight: number, tareWeight: number, totalWeight: number}>,
+ *            byType: Array<{type: string, isEmpty: boolean, count: number, cargoWeight: number, tareWeight: number, totalWeight: number}>,
  *            grandTotal: {count: number, cargoWeight: number, tareWeight: number, totalWeight: number},
  *            billsOfLading: number|null}
  *          | {ok: false, error: string}}
