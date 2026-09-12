@@ -8,7 +8,7 @@
 // Шаг 1 — пока нет сводного файла, 2 — пока нет результата, 3 — результат
 // показан; любое изменение файлов прячет устаревший результат.
 
-import { crossCheckOrders } from './core.js?v=202609122000';
+import { crossCheckOrders } from './core.js?v=202609130013';
 import { countDataRows } from '../lib/manifest-format.js?v=202609121930';
 
 const Shell = window.Shell;

@@ -8,6 +8,7 @@
 // генерирует система клиента: раскладка колонок в нём стабильна между файлами,
 // но их точную позицию всё равно не фиксируем — ищем по заголовку, как и везде
 // на сайте.
+// Разбор поручения — общий с «Проверить шаблон», в lib/loading-order.js.
 
 import {
   SHEET_NAME,
@@ -16,42 +17,12 @@ import {
   FIRST_COLUMN,
   LAST_COLUMN,
 } from '../lib/manifest-format.js?v=202609121930';
+import { parseLoadingOrder } from '../lib/loading-order.js?v=202609130013';
+import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202609130013';
 
 const NEW_COLUMN_HEADER = 'Несовпадения';
 const YELLOW_ARGB = 'FFFFFF00';
 const WEIGHT_EPSILON = 0.01;
-
-// ExcelJS 4.4.0 умеет ЧИТАТЬ условное форматирование любого типа, но при
-// записи поддерживает только эти — остальные (например, «duplicateValues»,
-// которое реально встретилось в файле пользователя, подсветка повторов в
-// колонке «Футность») молча пишутся как пустой <conditionalFormatting/> без
-// правила внутри: это невалидно по схеме OOXML, и Excel показывает диалог
-// «восстановить или удалить нечитаемое содержимое». Баг воспроизводится даже
-// на чистой загрузке-сохранении без единой нашей правки (проверено). Раз
-// библиотека не может записать такое правило корректно, безопаснее вообще
-// убрать его из результата, чем отдать пользователю файл, который Excel
-// считает повреждённым — сама подсветка дублей это лишь оформление, не данные.
-const WRITABLE_CF_TYPES = new Set([
-  'expression', 'cellIs', 'top10', 'aboveAverage',
-  'dataBar', 'colorScale', 'iconSet', 'containsText', 'timePeriod',
-]);
-
-function dropUnwritableConditionalFormatting(sheet) {
-  const kept = sheet.conditionalFormattings
-    .map((cf) => ({ ...cf, rules: cf.rules.filter((rule) => WRITABLE_CF_TYPES.has(rule.type)) }))
-    .filter((cf) => cf.rules.length > 0);
-  sheet.conditionalFormattings = kept;
-}
-
-// Слова, которыми в поручении помечают строку с весом упаковочных поддонов/палет,
-// а не самого груза (см. spec «Решения по реализации» §7 — в брифе названы оба
-// слова, «поддоны» и «палеты», в данных пользователя встретилось только первое).
-// Сравнение точное (после trim/toLowerCase), не по вхождению подстроки — иначе
-// под исключение случайно попала бы настоящая позиция груза вроде «поддон
-// анализатора ситового» (реальный случай).
-const PALLET_CARGO_NAMES = new Set([
-  'поддоны', 'поддон', 'палеты', 'палета', 'паллеты', 'паллета',
-]);
 
 function cellText(cell) {
   if (!cell) return '';
@@ -169,123 +140,6 @@ function findSummaryColumns(sheet) {
   return { ok: true, columns };
 }
 
-// Заголовки поручения ищутся точным совпадением текста (после trim), а не
-// вхождением подстроки: «Брутто груза» — подстрока заголовка «Брутто груза
-// с весом контейнера», нестрогий поиск задел бы не ту колонку.
-const ORDER_HEADERS = {
-  container: 'номер контейнера',
-  iso: 'код исо',
-  seal: 'номер пломбы',
-  cargoName: 'наименование груза, род упаковки',
-  hazardClass: 'класс опасности',
-  hazardCode: 'код опасности',
-  grossWeight: 'брутто груза',
-  tareWeight: 'вес контейнера',
-};
-const ORDER_FOOTER_MARKER = 'дополнительные сведения';
-
-function findOrderHeaderRow(sheet) {
-  const maxRow = Math.min(sheet.rowCount, 20);
-  for (let r = 1; r <= maxRow; r++) {
-    if (cellText(sheet.getRow(r).getCell(1)).toLowerCase() === ORDER_HEADERS.container) return r;
-  }
-  return null;
-}
-
-function findOrderColumns(sheet, headerRow) {
-  const row = sheet.getRow(headerRow);
-  const maxCol = row.cellCount || 20;
-  const columns = {};
-  for (const [key, label] of Object.entries(ORDER_HEADERS)) {
-    for (let col = 1; col <= maxCol; col++) {
-      if (cellText(row.getCell(col)).toLowerCase() === label) {
-        columns[key] = col;
-        break;
-      }
-    }
-  }
-  return columns;
-}
-
-function findOrderNumber(sheet) {
-  for (let r = 1; r <= Math.min(sheet.rowCount, 5); r++) {
-    for (let c = 1; c <= (sheet.getRow(r).cellCount || 10); c++) {
-      if (cellText(sheet.getRow(r).getCell(c)).toLowerCase() === 'номер поручения') {
-        return cellText(sheet.getRow(r).getCell(c + 1));
-      }
-    }
-  }
-  return null;
-}
-
-/**
- * Разбирает один поручение в набор контейнеров с агрегированными по группе
- * строк данными (см. spec «Решения по реализации» §6, §7, §8).
- *
- * @returns {{ok:true, orderNumber:string, containers:Map<string,object>} | {ok:false, error:string}}
- */
-function parseOrderWorkbook(workbook, fileName) {
-  const sheet = workbook.worksheets[0];
-  if (!sheet) return { ok: false, error: `Файл «${fileName}»: нет ни одного листа` };
-
-  const orderNumber = findOrderNumber(sheet);
-  if (!orderNumber) {
-    return { ok: false, error: `Файл «${fileName}»: не найден номер поручения` };
-  }
-
-  const headerRow = findOrderHeaderRow(sheet);
-  if (!headerRow) {
-    return { ok: false, error: `Файл «${fileName}»: не найден заголовок «Номер контейнера»` };
-  }
-  const cols = findOrderColumns(sheet, headerRow);
-  if (!cols.container || !cols.grossWeight || !cols.tareWeight) {
-    return { ok: false, error: `Файл «${fileName}»: не найдены обязательные колонки таблицы контейнеров` };
-  }
-
-  const containers = new Map();
-  let current = null;
-
-  for (let r = headerRow + 1; r <= sheet.rowCount; r++) {
-    const row = sheet.getRow(r);
-    const containerNum = cellText(row.getCell(cols.container));
-    const cargoName = cols.cargoName ? cellText(row.getCell(cols.cargoName)) : '';
-
-    if (containerNum.toLowerCase() === ORDER_FOOTER_MARKER) {
-      current = null;
-      continue;
-    }
-
-    if (containerNum) {
-      current = {
-        containerNum,
-        isoCode: cols.iso ? cellText(row.getCell(cols.iso)) : '',
-        sealNumber: cols.seal ? cellText(row.getCell(cols.seal)) : '',
-        tareWeight: cellNumber(row.getCell(cols.tareWeight)),
-        cargoWeight: 0,
-        dangerousGoods: new Set(),
-      };
-      containers.set(containerNum, current);
-    }
-    if (!current) continue;
-
-    const isPallet = PALLET_CARGO_NAMES.has(cargoName.trim().toLowerCase());
-    const brutto = cellNumber(row.getCell(cols.grossWeight)) || 0;
-    if (!isPallet) current.cargoWeight += brutto;
-
-    if (cols.hazardClass && cols.hazardCode) {
-      const cls = cellText(row.getCell(cols.hazardClass));
-      const codeText = cellText(row.getCell(cols.hazardCode));
-      if (cls && codeText) {
-        for (const un of codeText.split(',').map((n) => n.trim()).filter(Boolean)) {
-          current.dangerousGoods.add(`${cls}|${un}`);
-        }
-      }
-    }
-  }
-
-  return { ok: true, orderNumber, containers };
-}
-
 /**
  * Сверяет сводный файл манифеста с поручениями на погрузку по номеру
  * контейнера и дописывает столбец с расхождениями.
@@ -313,16 +167,21 @@ export function crossCheckOrders(combinedWb, orderEntries) {
   const warnings = [];
 
   for (const { fileName, workbook } of orderEntries) {
-    const parsed = parseOrderWorkbook(workbook, fileName);
+    const parsed = parseLoadingOrder(workbook);
     if (!parsed.ok) {
-      warnings.push(parsed.error);
+      warnings.push(`Файл «${fileName}»: ${parsed.error}`);
       continue;
     }
-    for (const [containerNum, entry] of parsed.containers) {
-      const key = `${parsed.orderNumber}::${containerNum}`;
+    const { orderNumber } = parsed.order;
+    // Индекс по номеру контейнера (после trim(), как его отдаёт разбор): если
+    // номер повторился в одном поручении, выигрывает последняя группа строк.
+    const containers = new Map();
+    for (const entry of parsed.order.containers) containers.set(entry.containerNumber, entry);
+    for (const [containerNum, entry] of containers) {
+      const key = `${orderNumber}::${containerNum}`;
       index.set(key, entry);
       if (!containerToOrders.has(containerNum)) containerToOrders.set(containerNum, []);
-      containerToOrders.get(containerNum).push(parsed.orderNumber);
+      containerToOrders.get(containerNum).push(orderNumber);
     }
   }
 
