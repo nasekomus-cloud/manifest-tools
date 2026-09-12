@@ -61,4 +61,11 @@ window.TOOLS = [
     href: 'bl-split/index.html',
     category: 'export',
   },
+  {
+    title: 'Сводный реестр поручений и коносаментов',
+    description:
+      'Собрать из одного или нескольких манифестов таблицу уникальных пар «номер поручения — номер коносамента».',
+    href: 'bl-registry/index.html',
+    category: 'export',
+  },
 ];

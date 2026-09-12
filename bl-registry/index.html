@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Сводный реестр поручений и коносаментов</title>
+  <link rel="stylesheet" href="../assets/style.css?v=202609102230" />
+</head>
+<body>
+  <main class="page">
+    <a class="back-link" href="../index.html">← Все инструменты</a>
+    <h1 class="page__title">Сводный реестр поручений и коносаментов</h1>
+    <p class="page__subtitle">
+      Загрузите один или несколько файлов манифеста — получите таблицу уникальных пар
+      «номер поручения — номер коносамента» без повторов, с итоговыми числами внизу.
+    </p>
+
+    <div id="dropzone" class="dropzone">
+      Перетащите файлы сюда или
+      <button type="button" id="pick-files-btn" class="btn">Выбрать файлы</button>
+      <input type="file" id="file-input" accept=".xlsx" multiple hidden />
+    </div>
+
+    <ul id="file-list" class="file-list"></ul>
+
+    <p>
+      <button type="button" id="build-btn" class="btn" disabled>Построить реестр</button>
+    </p>
+
+    <div id="error-box" class="error-message" hidden></div>
+
+    <div id="results-box" hidden></div>
+
+    <p>
+      <button type="button" id="download-btn" class="btn" hidden>Скачать в Excel</button>
+    </p>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <script type="module" src="app.js?v=202609121301"></script>
+</body>
+</html>
