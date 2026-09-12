@@ -2,9 +2,14 @@
 // поля ручного ввода (позывной, дата прибытия, терминал — в манифесте их нет
 // ни в каком виде), предпросмотр на странице и сборка/скачивание PDF через
 // pdf-lib. Подсчёт разбивки и судно/рейс — дело core.js (buildGrandTotalData),
-// сюда импортируется как обычный модуль (см. interfaces.md).
+// сюда импортируется как обычный модуль (см. interfaces.md). Панель, шаги и
+// полоса действия — общий каркас assets/shell.js (window.Shell); список файлов,
+// плитки и полоса повторяют образец merge/app.js.
 
-import { buildGrandTotalData } from './core.js?v=202609111500';
+import { buildGrandTotalData } from './core.js?v=202609122000';
+import { countDataRows } from '../lib/manifest-format.js?v=202609121930';
+
+const Shell = window.Shell;
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
@@ -15,6 +20,8 @@ const arrivalDateInput = document.getElementById('arrival-date-input');
 const terminalInput = document.getElementById('terminal-input');
 const buildBtn = document.getElementById('build-btn');
 const errorBox = document.getElementById('error-box');
+const summaryBox = document.getElementById('summary-box');
+const resultStats = document.getElementById('result-stats');
 const resultsBox = document.getElementById('results-box');
 const downloadBtn = document.getElementById('download-btn');
 const downloadExcelBtn = document.getElementById('download-excel-btn');
@@ -26,11 +33,20 @@ const TABLE_COLUMNS = [
   'TOTAL ALL (TARE + CARGO)',
 ];
 
-/** @type {Array<{id: number, file: File}>} */
+/**
+ * rows: undefined — ещё считается; number — строк данных; null — файл не читается как манифест.
+ * @type {Array<{id: number, file: File, rows: number|null|undefined}>}
+ */
 let entries = [];
 let nextId = 1;
 /** @type {{vessel: string|null, voyage: string|null, byType: Array<object>, grandTotal: object, billsOfLading: number|null} | null} */
 let lastReport = null;
+let busy = false;
+let setVersion = 0; // растёт при каждом изменении набора — результат старого набора не показываем
+
+function rowsLabel(n) {
+  return `${n} ${Shell.plural(n, 'строка', 'строки', 'строк')}`;
+}
 
 // Вручную, а не toLocaleString('ru-RU'): у него группирующий пробел — Unicode
 // U+00A0, а здесь нужна ровно та строка, что показывает эталон
@@ -74,6 +90,97 @@ function buildTableRows(report) {
   return { header: TABLE_COLUMNS, dataRows, totalRow };
 }
 
+function actionInfoText() {
+  if (entries.length === 0) return 'Файлы не выбраны';
+  const n = entries.length;
+  const files = `${n} ${Shell.plural(n, 'файл', 'файла', 'файлов')}`;
+  if (entries.some((e) => e.rows === undefined)) return `${files} · считаю строки…`;
+  const total = entries.reduce((sum, e) => sum + (typeof e.rows === 'number' ? e.rows : 0), 0);
+  return `${files} · ${rowsLabel(total)}`;
+}
+
+function updateUi() {
+  buildBtn.disabled = entries.length === 0 || busy;
+  Shell.setAction({
+    info: actionInfoText(),
+    hint: entries.length === 0 ? 'Сначала добавьте файлы' : null,
+  });
+  Shell.setStep(lastReport ? 3 : entries.length ? 2 : 1);
+}
+
+function metaFor(entry) {
+  if (entry.rows === undefined) return { text: 'считаю строки…', error: false };
+  if (entry.rows === null) return { text: 'не удалось прочитать — это точно .xlsx манифеста?', error: true };
+  return { text: rowsLabel(entry.rows), error: false };
+}
+
+function renderFileList() {
+  fileListEl.innerHTML = '';
+
+  entries.forEach((entry) => {
+    const li = document.createElement('li');
+
+    const name = document.createElement('span');
+    name.className = 'file-list__name';
+    name.textContent = entry.file.name;
+
+    const meta = document.createElement('span');
+    const { text, error } = metaFor(entry);
+    meta.className = error ? 'file-list__meta file-list__meta--error' : 'file-list__meta';
+    meta.textContent = text;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'file-list__remove';
+    removeBtn.textContent = '✕';
+    removeBtn.setAttribute('aria-label', `Убрать файл ${entry.file.name}`);
+    removeBtn.addEventListener('click', () => {
+      entries = entries.filter((e) => e.id !== entry.id);
+      setChanged();
+    });
+
+    li.appendChild(name);
+    li.appendChild(meta);
+    li.appendChild(removeBtn);
+    fileListEl.appendChild(li);
+  });
+}
+
+// Любое изменение набора файлов делает показанный результат устаревшим —
+// прячем его, чтобы нельзя было скачать не то. Три поля ручного ввода сюда не
+// относятся: они читаются в момент скачивания, а не при построении отчёта.
+function setChanged() {
+  setVersion++;
+  clearError();
+  hideSummary();
+  renderFileList();
+  updateUi();
+}
+
+async function countRows(entry) {
+  let rows = null;
+  try {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await entry.file.arrayBuffer());
+    rows = countDataRows(workbook);
+  } catch {
+    rows = null; // не .xlsx или повреждён — скажем в списке, запуск не блокируем
+  }
+  if (!entries.includes(entry)) return; // файл уже убрали из списка
+  entry.rows = rows;
+  renderFileList();
+  updateUi();
+}
+
+function addFiles(fileList) {
+  const added = Array.from(fileList).map((file) => ({ id: nextId++, file, rows: undefined }));
+  entries.push(...added);
+  setChanged();
+  added.forEach((entry) => {
+    countRows(entry);
+  });
+}
+
 function showError(message) {
   errorBox.textContent = message;
   errorBox.hidden = false;
@@ -84,50 +191,12 @@ function clearError() {
   errorBox.textContent = '';
 }
 
-function clearResults() {
+function hideSummary() {
+  summaryBox.hidden = true;
+  resultStats.innerHTML = '';
   resultsBox.innerHTML = '';
-  resultsBox.hidden = true;
-  downloadBtn.hidden = true;
-  downloadExcelBtn.hidden = true;
   lastReport = null;
-}
-
-function renderFileList() {
-  fileListEl.innerHTML = '';
-
-  entries.forEach((entry) => {
-    const li = document.createElement('li');
-    const name = document.createElement('span');
-    name.textContent = entry.file.name;
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn';
-    removeBtn.textContent = 'Убрать';
-    removeBtn.addEventListener('click', () => {
-      entries = entries.filter((e) => e.id !== entry.id);
-      onEntriesChanged();
-    });
-
-    li.appendChild(name);
-    li.appendChild(removeBtn);
-    fileListEl.appendChild(li);
-  });
-
-  buildBtn.disabled = entries.length === 0;
-}
-
-function onEntriesChanged() {
-  renderFileList();
-  clearError();
-  clearResults();
-}
-
-function addFiles(fileList) {
-  Array.from(fileList).forEach((file) => {
-    entries.push({ id: nextId++, file });
-  });
-  onEntriesChanged();
+  Shell.setResultShown(false);
 }
 
 async function loadWorkbook(file) {
@@ -148,40 +217,74 @@ async function loadWorkbook(file) {
   return { fileName: file.name, workbook };
 }
 
+function addStat(value, label) {
+  const stat = document.createElement('div');
+  stat.className = 'stat';
+  const valueEl = document.createElement('span');
+  valueEl.className = 'stat__value';
+  valueEl.textContent = value;
+  const labelEl = document.createElement('span');
+  labelEl.className = 'stat__label';
+  labelEl.textContent = label;
+  stat.appendChild(valueEl);
+  stat.appendChild(labelEl);
+  resultStats.appendChild(stat);
+}
+
+// Плитки — только из того, что уже вернул buildGrandTotalData: контейнеры —
+// сумма «Кол-во» по строкам таблицы (гружёные и порожние вместе), общий вес —
+// итог TOTAL ALL, коносаменты — если колонка найдена.
+function renderStats(report) {
+  resultStats.innerHTML = '';
+  const containers = report.byType.reduce((sum, entry) => sum + entry.count, 0);
+  addStat(String(containers), Shell.plural(containers, 'контейнер', 'контейнера', 'контейнеров'));
+  addStat(formatWeight(report.grandTotal.totalWeight), 'общий вес');
+  if (report.billsOfLading !== null) {
+    addStat(String(report.billsOfLading), Shell.plural(report.billsOfLading, 'коносамент', 'коносамента', 'коносаментов'));
+  }
+}
+
 function renderResults(report) {
   resultsBox.innerHTML = '';
 
   const { header, dataRows, totalRow: totalCells } = buildTableRows(report);
 
   const table = document.createElement('table');
+  table.className = 'data-table';
   const headerRow = document.createElement('tr');
-  header.forEach((text) => {
+  header.forEach((text, i) => {
     const th = document.createElement('th');
     th.textContent = text;
+    if (i > 0) th.className = 'num';
     headerRow.appendChild(th);
   });
   table.appendChild(headerRow);
 
   dataRows.forEach((cells) => {
     const row = document.createElement('tr');
-    cells.forEach((text) => {
+    cells.forEach((text, i) => {
       const td = document.createElement('td');
       td.textContent = text;
+      td.className = i > 0 ? 'num' : 'mono';
       row.appendChild(td);
     });
     table.appendChild(row);
   });
 
   const totalRow = document.createElement('tr');
-  totalRow.className = 'grand-total-row';
-  totalCells.forEach((text) => {
+  totalRow.className = 'is-total';
+  totalCells.forEach((text, i) => {
     const td = document.createElement('td');
     td.textContent = text;
+    if (i > 0) td.className = 'num';
     totalRow.appendChild(td);
   });
   table.appendChild(totalRow);
 
-  resultsBox.appendChild(table);
+  const scroll = document.createElement('div');
+  scroll.className = 'table-scroll';
+  scroll.appendChild(table);
+  resultsBox.appendChild(scroll);
 
   if (report.billsOfLading !== null) {
     const bills = document.createElement('p');
@@ -189,14 +292,19 @@ function renderResults(report) {
     resultsBox.appendChild(bills);
   }
 
-  resultsBox.hidden = false;
+  renderStats(report);
+  summaryBox.hidden = false;
 }
 
 async function handleBuildClick() {
   clearError();
-  clearResults();
+  hideSummary();
 
-  buildBtn.disabled = true;
+  const version = setVersion;
+  const buildLabel = buildBtn.textContent;
+  busy = true;
+  buildBtn.textContent = 'Строю отчёт…';
+  updateUi();
   try {
     const workbooks = [];
     for (const entry of entries) {
@@ -204,6 +312,7 @@ async function handleBuildClick() {
     }
 
     const result = buildGrandTotalData(workbooks);
+    if (version !== setVersion) return; // пока считали, набор файлов поменяли — результат уже не тот
     if (!result.ok) {
       showError(result.error);
       return;
@@ -211,12 +320,13 @@ async function handleBuildClick() {
 
     lastReport = result;
     renderResults(result);
-    downloadBtn.hidden = false;
-    downloadExcelBtn.hidden = false;
+    Shell.setResultShown(true);
   } catch (err) {
-    showError(err.message);
+    if (version === setVersion) showError(err.message);
   } finally {
-    buildBtn.disabled = entries.length === 0;
+    busy = false;
+    buildBtn.textContent = buildLabel;
+    updateUi();
   }
 }
 
@@ -571,6 +681,10 @@ async function handleDownloadExcelClick() {
   );
 }
 
+function isFileDrag(event) {
+  return Boolean(event.dataTransfer) && Array.from(event.dataTransfer.types || []).includes('Files');
+}
+
 pickFilesBtn.addEventListener('click', () => fileInput.click());
 
 fileInput.addEventListener('change', () => {
@@ -581,6 +695,7 @@ fileInput.addEventListener('change', () => {
 });
 
 dropzone.addEventListener('dragover', (event) => {
+  if (!isFileDrag(event)) return;
   event.preventDefault();
   dropzone.classList.add('dropzone--active');
 });
@@ -602,3 +717,4 @@ downloadBtn.addEventListener('click', handleDownloadClick);
 downloadExcelBtn.addEventListener('click', handleDownloadExcelClick);
 
 renderFileList();
+updateUi();

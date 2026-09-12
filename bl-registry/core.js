@@ -15,7 +15,7 @@ import {
   FIRST_COLUMN,
   LAST_COLUMN,
   validateStructure,
-} from '../lib/manifest-format.js?v=202609121301';
+} from '../lib/manifest-format.js?v=202609121930';
 
 function cellText(cell) {
   if (!cell) return '';

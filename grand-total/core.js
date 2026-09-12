@@ -5,7 +5,7 @@
 // файл, что уже играет роль эталонного при проверке структуры).
 
 import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609111500';
-import { readVoyageHeader } from '../lib/manifest-format.js?v=202609062100';
+import { readVoyageHeader } from '../lib/manifest-format.js?v=202609121930';
 
 /**
  * @param {Array<{fileName: string, workbook: import('exceljs').Workbook}>} workbooks
