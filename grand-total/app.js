@@ -370,9 +370,10 @@ function computeColumnWidths(font, bold, header, dataRows, totalRow) {
 }
 
 // Стандартные 14 шрифтов PDF (Helvetica и подобные) — WinAnsi-кодировка,
-// в ней нет кириллицы вовсе: попытка нарисовать «ВЫГРУЗКА» (как в эталоне)
-// или кириллический терминал бросает исключение прямо внутри pdf-lib
-// (обнаружено на реальном файле при проверке — не отдельная гипотеза).
+// в ней нет кириллицы вовсе: попытка нарисовать кириллический терминал
+// (порт погрузки вписывается вручную и может быть на русском) бросает
+// исключение прямо внутри pdf-lib (обнаружено на реальном файле при
+// проверке — не отдельная гипотеза).
 // Поэтому здесь шрифт не берётся из PDFLib.StandardFonts, а грузится с
 // Google Fonts (статические версионированные URL — Google не меняет и не
 // удаляет их задним числом, в отличие от динамических /l/font?kit=...) и
@@ -419,13 +420,9 @@ async function buildPdf(report, manualFields) {
   let x = MARGIN;
   x = drawHeaderField(x, 'VESSEL: ', report.vessel || '');
   x = drawHeaderField(x, 'VOYAGE: ', report.voyage || '');
-  x = drawHeaderField(x, 'ARRIVAL DATE: ', manualFields.arrivalDate);
+  x = drawHeaderField(x, 'SAILING DATE: ', manualFields.arrivalDate);
   x = drawHeaderField(x, 'CALL SIGN: ', manualFields.callSign);
-  drawHeaderField(x, 'TERMINAL: ', manualFields.terminal);
-
-  y -= 36;
-  page.drawText('GRAND TOTAL:', { x: MARGIN, y, size: 16, font: bold });
-  y -= 30;
+  drawHeaderField(x, 'PORT OF LOADING: ', manualFields.terminal);
 
   const { header, dataRows, totalRow } = buildTableRows(report);
   const columnWidths = computeColumnWidths(font, bold, header, dataRows, totalRow);
@@ -434,6 +431,19 @@ async function buildPdf(report, manualFields) {
   const tableWidth = columnWidths.reduce((a, b) => a + b, 0);
   const columnX = [tableLeft];
   for (let i = 1; i < columnWidths.length; i++) columnX.push(columnX[i - 1] + columnWidths[i - 1]);
+
+  // Заголовок центрируется по ширине самой таблицы (tableLeft/tableWidth
+  // известны только после расчёта колонок выше), а не по ширине страницы —
+  // тот же приём centeredX, что и у ячеек строк.
+  y -= 36;
+  const titleText = 'GRAND TOTAL:';
+  page.drawText(titleText, {
+    x: centeredX(titleText, bold, 16, tableLeft, tableWidth),
+    y,
+    size: 16,
+    font: bold,
+  });
+  y -= 30;
 
   function drawLine(atY) {
     page.drawLine({
@@ -477,9 +487,7 @@ async function buildPdf(report, manualFields) {
   y -= 16;
   if (report.billsOfLading !== null) {
     page.drawText(`Feeder Bill of Lading - ${report.billsOfLading} sets`, { x: MARGIN, y, size: FONT_SIZE, font });
-    y -= 24;
   }
-  page.drawText(`ВЫГРУЗКА ${manualFields.arrivalDate}`, { x: MARGIN, y, size: 12, font: bold });
 
   return doc.save();
 }
@@ -577,25 +585,49 @@ function buildExcelRows(report) {
   return { header: TABLE_COLUMNS, dataRows, totalRow };
 }
 
-// Пять полей шапки — в один ряд (label, value, label, value, ...), как в
-// PDF (VESSEL/VOYAGE/ARRIVAL DATE/CALL SIGN/TERMINAL на одной строке), а не
-// пятью отдельными строками друг под другом: расхождение с формой PDF и
-// эталона (reference.md) — реальная жалоба пользователя на прошлую версию.
+// Пять полей шапки — как в PDF, одной строкой в исходном порядке
+// (VESSEL/VOYAGE/SAILING DATE/CALL SIGN/PORT OF LOADING) — расхождение с
+// формой PDF и эталона (reference.md) было реальной жалобой пользователя на
+// прошлую версию (тогда — пять отдельных строк). Здесь эта строка — не ряд
+// из 10 колонок (по label+value на поле), а одна ячейка, объединённая по
+// ширине самой таблицы (см. buildExcelWorkbook) с переносом по словам: ряд
+// из 10 колонок шире таблицы в разы и «не помещается над ней» — вторая
+// реальная жалоба пользователя, уже на эту версию.
 function buildHeaderFields(report, manualFields) {
   return [
     ['VESSEL:', report.vessel || ''],
     ['VOYAGE:', report.voyage || ''],
-    ['ARRIVAL DATE:', manualFields.arrivalDate],
+    ['SAILING DATE:', manualFields.arrivalDate],
     ['CALL SIGN:', manualFields.callSign],
-    ['TERMINAL:', manualFields.terminal],
+    ['PORT OF LOADING:', manualFields.terminal],
   ];
 }
 
-// Отступ после значения поля — не самостоятельная колонка-разделитель (она
-// осталась бы пустой и путала бы навигацию по листу), а запас в ширине
-// самой колонки со значением, как визуальный зазор перед следующим label —
-// того же смысла, что +24pt между полями в drawHeaderField() PDF-версии.
-const HEADER_FIELD_GAP = 3;
+// Разделитель между полями внутри одной ячейки шапки — просто пробелы, не
+// табуляция и не перенос строки: перенос по словам (wrapText) сам решает,
+// где строке ломаться, в зависимости от того, сколько текста реально влезло
+// в ширину таблицы у конкретного файла (значения полей — произвольной
+// длины, длина терминала/позывного не ограничена).
+const HEADER_FIELD_SEPARATOR = '    ';
+
+function buildHeaderRichText(headerFields) {
+  return headerFields.flatMap(([label, value], i) => {
+    const parts = [{ font: { bold: true }, text: `${label} ` }, { text: value }];
+    if (i < headerFields.length - 1) parts.push({ text: HEADER_FIELD_SEPARATOR });
+    return parts;
+  });
+}
+
+// Число строк, на которое перенесётся текст шапки при данной ширине
+// таблицы — грубая оценка по числу символов (тот же посимвольный расчёт
+// ширины, что и у computeExcelColumnWidths), не точный layout-движок Excel:
+// нужна она только чтобы заранее выставить высоту строки — без явной
+// высоты Excel не разворачивает перенесённый текст на нескольких строках
+// автоматически при открытии файла, показывает его обрезанным до первой
+// строки, пока кто-то вручную не подгонит высоту.
+function estimateWrappedLines(text, columnWidthChars) {
+  return Math.max(1, Math.ceil(text.length / Math.max(columnWidthChars, 1)));
+}
 
 async function buildExcelWorkbook(report, manualFields) {
   const workbook = new ExcelJS.Workbook();
@@ -609,28 +641,22 @@ async function buildExcelWorkbook(report, manualFields) {
   const asDisplayedRows = dataRows.map((row) => [row[0], formatWeight(row[1]), formatWeight(row[2]), formatWeight(row[3])]);
   const asDisplayedTotal = [totalRow[0], formatWeight(totalRow[1]), formatWeight(totalRow[2]), formatWeight(totalRow[3])];
   const tableWidths = computeExcelColumnWidths(header, asDisplayedRows, asDisplayedTotal);
-  // Строка шапки шире таблицы (10 колонок против 4) — итоговая ширина
-  // колонки берётся по большему из двух требований, колонка за колонкой,
-  // а не как два независимых листа ширин.
-  const headerWidths = headerFields.flatMap(([label, value]) => [label.length + 2, value.length + HEADER_FIELD_GAP]);
-  const columnCount = Math.max(tableWidths.length, headerWidths.length);
-  const columns = [];
-  for (let i = 0; i < columnCount; i++) {
-    columns.push({ width: Math.max(tableWidths[i] || 0, headerWidths[i] || 0) });
-  }
-  sheet.columns = columns;
+  sheet.columns = tableWidths.map((width) => ({ width }));
 
   const headerRow = sheet.addRow([]);
-  headerFields.forEach(([label, value], i) => {
-    const labelCell = headerRow.getCell(i * 2 + 1);
-    labelCell.value = label;
-    labelCell.font = { bold: true };
-    headerRow.getCell(i * 2 + 2).value = value;
-  });
+  sheet.mergeCells(headerRow.number, 1, headerRow.number, header.length);
+  const headerCell = headerRow.getCell(1);
+  headerCell.value = { richText: buildHeaderRichText(headerFields) };
+  headerCell.alignment = { wrapText: true, vertical: 'top' };
+  const headerPlainText = headerFields.map(([label, value]) => `${label} ${value}`).join(HEADER_FIELD_SEPARATOR);
+  const tableWidthChars = tableWidths.reduce((a, b) => a + b, 0);
+  headerRow.height = estimateWrappedLines(headerPlainText, tableWidthChars) * 15 + 6;
   sheet.addRow([]);
 
   const titleRow = sheet.addRow(['GRAND TOTAL:']);
+  sheet.mergeCells(titleRow.number, 1, titleRow.number, header.length);
   titleRow.getCell(1).font = { bold: true, size: 16 };
+  titleRow.getCell(1).alignment = { horizontal: 'center' };
   sheet.addRow([]);
 
   sheet.addRow(header);
@@ -662,10 +688,6 @@ async function buildExcelWorkbook(report, manualFields) {
   if (report.billsOfLading !== null) {
     sheet.addRow([`Feeder Bill of Lading - ${report.billsOfLading} sets`]);
   }
-  sheet.addRow([]);
-
-  const dischargeRow = sheet.addRow([`ВЫГРУЗКА ${manualFields.arrivalDate}`]);
-  dischargeRow.getCell(1).font = { bold: true, size: 12 };
 
   return workbook.xlsx.writeBuffer();
 }
