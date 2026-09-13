@@ -12,7 +12,7 @@ window.STATE =
   "skillDir": "/Users/nasekomus/.claude/skills/autopilot",
   "startedAt": "2026-09-12T22:39:57+03:00",
   "updatedAt": "2026-09-13T03:07:06+03:00",
-  "finishedAt": "2026-09-13T03:07:06+03:00",
+  "finishedAt": null,
   "stages": [
     {
       "id": "preflight",
