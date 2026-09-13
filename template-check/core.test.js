@@ -30,7 +30,7 @@ const ORDER_CONTAINERS_4 = [
 ];
 
 function buildOrder({ number = ORDER_NUMBER, date = '07.09.2026', vessel = 'TEST VESSEL', voyage = '0001E',
-  containers = ORDER_CONTAINERS } = {}) {
+  dischargePort = 'Port Said(EGPSD)', containers = ORDER_CONTAINERS } = {}) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(`№ ${number}`);
   const head = {
@@ -39,7 +39,7 @@ function buildOrder({ number = ORDER_NUMBER, date = '07.09.2026', vessel = 'TEST
     A3: 'Грузополучатель', B3: 'ТОО ВАСИЛЁК, АЛМАТЫ', C3: 'Грузополучатель (англ)', D3: 'VASILEK LLP, ALMATY',
     A4: 'Извещение', B4: 'VASILEK LLP, ALMATY',
     E7: 'Судно', F7: vessel, G7: 'Рейс', H7: voyage, I7: 'Порт погрузки', J7: 'Санкт-Петербург',
-    K7: 'Порт выгрузки', L7: 'Port Said(EGPSD)',
+    K7: 'Порт выгрузки', L7: dischargePort,
   };
   for (const [address, value] of Object.entries(head)) sheet.getCell(address).value = value;
   ORDER_COLUMNS.forEach((title, i) => { sheet.getRow(8).getCell(i + 1).value = title; });
@@ -69,7 +69,7 @@ const LETTERS = Object.keys(STANDARD_HEADERS);
 const HEAD = {
   D1: 'СУДНО', E1: 'TEST VESSEL', D2: 'РЕЙС', E2: '0001E', D3: 'ДАТА ПРИХОДА', E3: '09.09.2026',
   D4: 'ДАТА ВЫХОДА', E4: '11.09.2026', D5: 'ТЕРМИНАЛ ПОГРУЗКИ', E5: 'Timber Port',
-  D6: 'ТЕРМИНАЛ ВЫГРУЗКИ', E6: 'Test Container Terminal',
+  D6: 'ТЕРМИНАЛ ВЫГРУЗКИ', E6: 'Port Said Terminal', // содержит «Port Said» — как в order.dischargePort (L7)
   G3: 'Таблицу заполнять строго в соответствии с п/поручением и ДТ!',
 };
 // Номер коносамента с неразрывным пробелом в конце — так он записан в образце 1.
@@ -186,11 +186,13 @@ test('форма: подпись шапки не на месте или нето
   assert.deepEqual(pick(only(inexact, () => true)), formError('auto', 'D5', 'ТЕРМИНАЛ ПОГРУЗКИ'));
 });
 
-test('форма: строки шапки нет — СУДНО «исправлю сам» из поручения, дата и терминал «уточнить у заказчика»', () => {
+test('форма: строки шапки нет — СУДНО и ТЕРМИНАЛ ВЫГРУЗКИ «исправлю сам» из поручения, дата «уточнить у заказчика»', () => {
   const result = check(buildTemplate({ head: { D1: null, E1: null, D3: null, E3: null, D6: null, E6: null } }));
   assert.deepEqual(brief(only(result, (f) => f.field === 'СУДНО')), [null, 'СУДНО', 'error', 'auto']);
   assert.deepEqual(brief(only(result, (f) => f.field === 'ДАТА ПРИХОДА')), [null, 'ДАТА ПРИХОДА', 'error', 'customer']);
-  assert.deepEqual(brief(only(result, (f) => f.field === 'ТЕРМИНАЛ ВЫГРУЗКИ')), [null, 'ТЕРМИНАЛ ВЫГРУЗКИ', 'error', 'customer']);
+  const terminal = only(result, (f) => f.field === 'ТЕРМИНАЛ ВЫГРУЗКИ');
+  assert.deepEqual(brief(terminal), [null, 'ТЕРМИНАЛ ВЫГРУЗКИ', 'error', 'auto']);
+  assert.match(terminal.correction, /Port Said\(EGPSD\)/);
 });
 
 test('шапка: пустое значение — РЕЙС «исправлю сам», ТЕРМИНАЛ ПОГРУЗКИ «уточнить у заказчика»', () => {
@@ -554,6 +556,31 @@ test('E1 СУДНО не то — «исправлю сам» из поруче�
   assert.equal(f.correction, 'TEST VESSEL');
 });
 
+test('E6 ТЕРМИНАЛ ВЫГРУЗКИ не связан с портом выгрузки поручения — «исправлю сам» из поручения', () => {
+  const f = only(check(buildTemplate({ head: { E6: 'Совсем другой терминал' } })), () => true);
+  assert.deepEqual(brief(f), ['E6', 'ТЕРМИНАЛ ВЫГРУЗКИ', 'error', 'auto']);
+  assert.equal(f.correction, 'Port Said(EGPSD)');
+});
+
+// Реальный случай пользователя: в шапке — полное описательное название терминала,
+// в поручении — город и код порта в скобках; сверяем не текст целиком, а название
+// порта без скобочного кода, вхождением, поэтому находки быть не должно.
+test('E6 ТЕРМИНАЛ ВЫГРУЗКИ — название порта без скобочного кода совпадает вхождением, находки нет', () => {
+  const result = check(buildTemplate({ head: { E6: 'El Dekheila Alexandria Int. Container Terminal' } }),
+    orders(buildOrder({ dischargePort: 'El Dekheila(EGEDK)' })));
+  assert.deepEqual(result.findings, []);
+});
+
+test('E6 ТЕРМИНАЛ ВЫГРУЗКИ — у поручений разные порты выгрузки — «уточнить у заказчика»', () => {
+  const first = buildOrder({ dischargePort: 'El Dekheila(EGEDK)', containers: [ORDER_CONTAINERS[0]] });
+  const second = buildOrder({ number: ORDER2_NUMBER, dischargePort: 'Alexandria(EGALY)', containers: [ORDER_CONTAINERS[1]] });
+  const result = check(buildTemplate({ head: { E6: 'Что-то ещё' }, rows: [ROW1, { ...ROW2, B: ORDER2_NUMBER }] }),
+    orders(first, second));
+  const f = only(result, (x) => x.field === 'ТЕРМИНАЛ ВЫГРУЗКИ');
+  assert.equal(f.fix, 'customer');
+  assert.match(f.message, /разные терминалы выгрузки/);
+});
+
 /* ——— три результата (spec §5.5, §7) ——— */
 
 // Через запись и чтение: ExcelJS при чтении файла отдаёт ОДИН объект стиля
@@ -604,8 +631,16 @@ test('исправленный шаблон: эталонная форма, ис
   const result = check(buildTemplate({
     sheetName: 'Лист1', sheets: ['Лист2'], headerRow: 9, headers: { L: 'Веc груза' }, extra: ['ПРИМЕЧАНИЕ'],
     columns: LETTERS.filter((letter) => letter !== 'Z'), // недостающая колонка должна появиться
-    rows: [{ ...ROW1, K: '20', C: new Date(Date.UTC(2026, 8, 9)), L: '28 000', extra: ['срочно'] }, null, ROW2, { K: 32, L: 34120 }],
+    rows: [{ ...ROW1, K: '20', C: new Date(Date.UTC(2026, 8, 9)), L: '28 000', extra: ['срочно'] }, null,
+      { ...ROW2, G: 'детали', J: 'PALLETS' }, { K: 32, L: 34120 }],
   }));
+  // У второй строки данных — своя ошибка (G кириллицей, «уточнить у заказчика») и
+  // своё предупреждение (J не похож на код упаковки); в исходнике (headerRow: 9,
+  // а перед этой строкой ещё пустая) её адрес — строка 12, а в исправленном
+  // шаблоне пустая строка убрана — та же строка данных должна оказаться на 10-й
+  // и там же покраситься, не на исходном адресе.
+  assert.ok(result.findings.some((f) => f.cell === 'G12' && f.fix === 'customer'));
+  assert.ok(result.findings.some((f) => f.cell === 'J12' && f.level === 'warning'));
   const corrected = await roundTrip(result.correctedWorkbook);
   assert.deepEqual(corrected.worksheets.map((s) => s.name), ['EXPORT_MANIFEST']);
   const sheet = corrected.getWorksheet('EXPORT_MANIFEST');
@@ -620,11 +655,18 @@ test('исправленный шаблон: эталонная форма, ис
   assert.equal(sheet.getCell('K9').value, '20'); // места — ровно как у заказчика, текстом
   assert.deepEqual(sheet.getCell('C9').value, new Date(Date.UTC(2026, 8, 9))); // дата Excel сохранена
   assert.equal(sheet.getCell('A9').value, ROW1.A); // NBSP сохранён
-  assert.equal(sheet.getCell('D10').value, 'TEST7654321'); // пустая строка убрана
+  assert.equal(sheet.getCell('D10').value, 'TEST7654321'); // пустая строка убрана, строка сдвинулась
   assert.equal(sheet.getCell('D11').value, null); // строка «итого» убрана
   assert.equal(sheet.getColumn('G').width, 26.14);
   assert.equal(sheet.getRow(1).height, 23.25);
   assert.equal(sheet.getRow(9).height, 30);
+  // Оставшаяся ошибка и предупреждение видны и здесь — на НОВОМ (сдвинутом) адресе,
+  // не на исходном G12/J12, которого в исправленном шаблоне уже нет.
+  assert.equal(sheet.getCell('G10').fill?.fgColor?.argb, 'FFFFFF00');
+  assert.ok(noteText(sheet.getCell('G10')));
+  assert.equal(sheet.getCell('J10').fill?.fgColor?.argb, 'FFADD8E6');
+  assert.ok(noteText(sheet.getCell('J10')));
+  assert.equal(sheet.getCell('G12').fill?.fgColor?.argb ?? null, null); // старого адреса нет вовсе
 });
 
 test('исправленный шаблон: формула заменена значением, объединение — значением в каждой ячейке', async () => {

@@ -235,6 +235,21 @@ const normalizeLoose = (text) => String(text ?? '').trim().toUpperCase().replace
 // Имя стороны коносамента: только буквы и цифры, латиница-двойник → кириллица.
 const normalizeName = (text) => normalizeHeader(text);
 
+// Терминал выгрузки (шапка E6) и «Порт выгрузки» поручения часто называют одно
+// и то же место по-разному: «El Dekheila(EGEDK)» в поручении и «El Dekheila
+// Alexandria Int. Container Terminal» в шапке (реальные образцы пользователя) —
+// сравниваем не текст целиком, а название порта без скобочного кода, вхождением
+// в любую сторону, а не точным совпадением.
+function stripPortCode(text) {
+  return String(text ?? '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+function samePort(a, b) {
+  const x = normalizeLoose(stripPortCode(a));
+  const y = normalizeLoose(stripPortCode(b));
+  if (!x || !y) return false;
+  return x.includes(y) || y.includes(x);
+}
+
 const sealSet = (text) => new Set(String(text ?? '')
   .split(/[,;]/)
   .map((part) => part.replace(/\s/g, '').toUpperCase())
@@ -635,7 +650,7 @@ export function checkTemplate(templateWb, orderEntries, options = {}) {
     report: `${base} (отчёт).txt`,
   };
   const markedWorkbook = buildMarkedWorkbook(templateWb, model, findings, ctx);
-  const correctedWorkbook = autoFixable > 0 ? buildCorrectedWorkbook(model, ctx, createWorkbook) : null;
+  const correctedWorkbook = autoFixable > 0 ? buildCorrectedWorkbook(model, ctx, createWorkbook, findings) : null;
   const reportText = buildReportText({ model, ctx, findings, summary, fileNames, templateFileName, checkedAt, parsed });
   return {
     ok: true,
@@ -659,12 +674,14 @@ function buildOrderInfo(parsed) {
   const byNumber = new Map();
   const vessels = new Map();
   const voyages = new Map();
+  const dischargePorts = new Map();
   const dates = [];
   for (const entry of parsed) {
     const { order } = entry;
     byNumber.set(normalizeOrderNumber(order.orderNumber), entry);
     if (order.vessel) vessels.set(normalizeLoose(order.vessel), order.vessel.trim());
     if (order.voyage) voyages.set(normalizeLoose(order.voyage), order.voyage.trim());
+    if (order.dischargePort) dischargePorts.set(normalizeLoose(order.dischargePort), order.dischargePort.trim());
     const date = readDate(order.date, null);
     if (date.parts) dates.push({ parts: date.parts, day: dayNumber(date.parts) });
     for (const container of order.containers) {
@@ -675,10 +692,11 @@ function buildOrderInfo(parsed) {
   }
   const single = (map) => (map.size === 1 ? [...map.values()][0] : null);
   return {
-    parsed, byContainer, byNumber, vessels, voyages,
+    parsed, byContainer, byNumber, vessels, voyages, dischargePorts,
     earliest: dates.length ? dates.reduce((a, b) => (a.day <= b.day ? a : b)) : null,
     latest: dates.length ? dates.reduce((a, b) => (a.day >= b.day ? a : b)) : null,
-    headerValue: (key) => (key === 'vessel' ? single(vessels) : (key === 'voyage' ? single(voyages) : null)),
+    headerValue: (key) => (key === 'vessel' ? single(vessels)
+      : (key === 'voyage' ? single(voyages) : (key === 'dischargeTerminal' ? single(dischargePorts) : null))),
   };
 }
 
@@ -708,10 +726,39 @@ function dateKindFinding(model, info, field, date, container) {
   });
 }
 
+// Слово для «а у загруженных поручений разные…» — когда известных значений
+// больше одного и они не совпадают ни с одним, автоматически не исправляем.
+const MULTI_ORDER_LABEL = { vessel: 'разные суда', voyage: 'разные рейсы', dischargeTerminal: 'разные терминалы выгрузки' };
+
 function checkHeaderValues(model, ctx) {
   const { orderInfo } = ctx;
   const push = (props) => ctx.data.push(finding({ section: 'data', sheet: model.sheetName, ...props }));
   const dates = {};
+
+  // СУДНО/РЕЙС/ТЕРМИНАЛ ВЫГРУЗКИ сверяются с тем же полем поручений: если оно
+  // одно на все загруженные поручения и не совпадает — «исправлю сам», если
+  // поручения разошлись между собой — «уточнить у заказчика» (не гадаем, какое верно).
+  const matchAgainstOrders = (field, known, text, info, sameFn) => {
+    const list = [...known.values()];
+    if (list.length === 0) {
+      if (!text) push({ level: 'error', fix: 'customer', cell: info.address, field: field.label, message: 'не заполнено, а в поручении этого поля нет' });
+      return;
+    }
+    if (list.some((value) => sameFn(text, value))) return;
+    if (list.length === 1) {
+      push({
+        level: 'error', fix: 'auto', cell: info.address, field: field.label, correction: list[0],
+        message: text ? `в шаблоне «${text}», по поручению «${list[0]}»` : `не заполнено, по поручению «${list[0]}»`,
+      });
+      ctx.fixes.set(`head:${field.key}`, list[0]);
+    } else {
+      push({
+        level: 'error', fix: 'customer', cell: info.address, field: field.label,
+        message: `в шаблоне «${text}», а у загруженных поручений ${MULTI_ORDER_LABEL[field.key]}: ${list.map((v) => `«${v}»`).join(', ')}`,
+      });
+    }
+  };
+
   for (const field of HEADER_FIELDS) {
     const label = model.labels.get(field.key);
     if (!label) continue; // о том, что строки нет, уже сказано в §4.2
@@ -719,23 +766,11 @@ function checkHeaderValues(model, ctx) {
     const text = trimmedOf(info.value);
     if (field.key === 'vessel' || field.key === 'voyage') {
       const known = field.key === 'vessel' ? orderInfo.vessels : orderInfo.voyages;
-      const list = [...known.values()];
-      if (list.length === 0) {
-        if (!text) push({ level: 'error', fix: 'customer', cell: info.address, field: field.label, message: 'не заполнено, а в поручении этого поля нет' });
-      } else if (!known.has(normalizeLoose(text))) {
-        if (list.length === 1) {
-          push({
-            level: 'error', fix: 'auto', cell: info.address, field: field.label, correction: list[0],
-            message: text ? `в шаблоне «${text}», по поручению «${list[0]}»` : `не заполнено, по поручению «${list[0]}»`,
-          });
-          ctx.fixes.set(`head:${field.key}`, list[0]);
-        } else {
-          push({
-            level: 'error', fix: 'customer', cell: info.address, field: field.label,
-            message: `в шаблоне «${text}», а у загруженных поручений ${field.key === 'vessel' ? 'разные суда' : 'разные рейсы'}: ${list.map((v) => `«${v}»`).join(', ')}`,
-          });
-        }
-      }
+      matchAgainstOrders(field, known, text, info, (a, b) => normalizeLoose(a) === normalizeLoose(b));
+      continue;
+    }
+    if (field.key === 'dischargeTerminal') {
+      matchAgainstOrders(field, orderInfo.dischargePorts, text, info, samePort);
       continue;
     }
     if (field.kind === 'date') {
@@ -1105,32 +1140,40 @@ function noteLine(f) {
   return `Ошибка: ${f.message}. Уточнить у заказчика.`;
 }
 
-function buildMarkedWorkbook(workbook, model, findings, ctx) {
+// Красит на листе ячейки найденных находок (жёлтым — ошибки, голубым —
+// предупреждения; ошибка на той же ячейке важнее и не перекрашивается обратно
+// голубым) и пишет примечания. `resolve(f)` — адрес находки НА ЭТОМ листе: на
+// листе с пометками это f.cell как есть, на исправленном шаблоне — адрес после
+// переноса значений (см. addressMap в buildCorrectedWorkbook).
+function paintFindings(sheet, findings, resolve) {
   const notes = new Map();
   const painted = new Set();
   const warned = new Set();
   for (const f of findings) {
-    if (!f.cell) continue;
-    if (!notes.has(f.cell)) notes.set(f.cell, []);
-    notes.get(f.cell).push(noteLine(f));
-    if (f.level === 'error') painted.add(f.cell);
-    else if (f.level === 'warning') warned.add(f.cell);
+    const address = resolve(f);
+    if (!address) continue;
+    if (!notes.has(address)) notes.set(address, []);
+    notes.get(address).push(noteLine(f));
+    if (f.level === 'error') painted.add(address);
+    else if (f.level === 'warning') warned.add(address);
   }
   for (const [address, lines] of notes) {
-    const cell = model.sheet.getCell(address);
+    const cell = sheet.getCell(address);
     const previous = noteTextOf(cell);
     cell.note = previous ? `${previous}\n${lines.join('\n')}` : lines.join('\n');
   }
   const paint = (address, argb) => {
-    const cell = model.sheet.getCell(address);
+    const cell = sheet.getCell(address);
     const style = cloneStyle(cell.style);
     style.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
     cell.style = style;
   };
   for (const address of painted) paint(address, YELLOW_ARGB);
-  // Предупреждение — голубым; ошибка на той же ячейке (по другому правилу) важнее
-  // и уже покрашена жёлтым выше — не перекрашиваем её обратно.
   for (const address of warned) if (!painted.has(address)) paint(address, BLUE_ARGB);
+}
+
+function buildMarkedWorkbook(workbook, model, findings, ctx) {
+  paintFindings(model.sheet, findings, (f) => f.cell);
   for (const sheet of ctx.yellowTabs) sheet.properties.tabColor = { argb: YELLOW_ARGB };
   // ExcelJS 4.4.0 не умеет записать часть правил условного форматирования и
   // делает файл нечитаемым для Excel (CLAUDE.md) — убираем такие правила.
@@ -1144,10 +1187,14 @@ const thinBorder = () => ({
   top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' },
 });
 
-function buildCorrectedWorkbook(model, ctx, createWorkbook) {
+function buildCorrectedWorkbook(model, ctx, createWorkbook, findings) {
   const workbook = createWorkbook();
   const sheet = workbook.addWorksheet(SHEET_NAME);
   COLUMNS.forEach((def, index) => { sheet.getColumn(index + 1).width = def.width; });
+  // Адрес на исходном листе -> адрес той же ячейки на этом. Строится по ходу
+  // переноса значений — единственное надёжное отображение, когда в исходнике
+  // были сдвинуты колонки или лишние/пустые строки (их в исправленном уже нет).
+  const addressMap = new Map();
 
   for (const field of HEADER_FIELDS) {
     sheet.getRow(field.row).height = HEADER_ROW_HEIGHT;
@@ -1163,6 +1210,7 @@ function buildCorrectedWorkbook(model, ctx, createWorkbook) {
     valueCell.font = { ...FONTS.headerValue };
     valueCell.alignment = { horizontal: 'left', vertical: 'middle' };
     applyFormat(valueCell, field.kind === 'date', source ? source.value.numFmt : null);
+    if (source) addressMap.set(source.value.address, valueCell.address);
   }
   const noteCell = sheet.getCell(NOTE_CELL);
   noteCell.value = NOTE_TEXT;
@@ -1193,9 +1241,15 @@ function buildCorrectedWorkbook(model, ctx, createWorkbook) {
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: def.wrap };
       cell.border = thinBorder();
       applyFormat(cell, def.kind === 'text' || def.kind === 'date', source ? source.numFmt : null);
+      if (source) addressMap.set(source.address, cell.address);
     });
     target += 1;
   }
+  // Оставшиеся находки (не «исправлю сам» — их уже незачем показывать) видны
+  // и здесь, не только в книге с пометками: иначе про них узнать можно было бы
+  // только из отдельного отчёта, а не из самого исправленного файла.
+  const remaining = findings.filter((f) => f.cell && f.fix !== 'auto');
+  paintFindings(sheet, remaining, (f) => addressMap.get(f.cell) || null);
   return workbook;
 }
 
