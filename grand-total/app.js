@@ -629,6 +629,37 @@ function estimateWrappedLines(text, columnWidthChars) {
   return Math.max(1, Math.ceil(text.length / Math.max(columnWidthChars, 1)));
 }
 
+const A4_PAPER_SIZE = 9; // код формата бумаги A4 в OOXML
+
+// Разметка страницы для печати — тот же приём, что formatSheetForPrint в
+// dashboard/app.js: альбомная A4 (как и сам PDF отчёта), по ширине — одна
+// страница, по высоте — сколько нужно, таблица по центру листа. Без неё Excel
+// печатает книжную страницу в масштабе 100%, а таблица шире книжного A4 —
+// последняя колонка (TOTAL ALL) уезжает на отдельный лист.
+// Рамку и сетку, в отличие от дашборда, не добавляем: линии таблицы — только
+// под шапкой колонок и вокруг TOTAL, как в PDF и в эталоне пользователя
+// (reference.md), и распечатка Excel должна выглядеть так же.
+// Object.assign, а не замена sheet.pageSetup целиком — иначе пропадут поля
+// страницы, которые ExcelJS выставляет по умолчанию.
+function formatSheetForPrint(sheet, { columnHeaderRow, columnCount }) {
+  Object.assign(sheet.pageSetup, {
+    paperSize: A4_PAPER_SIZE,
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    // Строки — со знаком $ заранее: ExcelJS дописывает $ только перед буквой
+    // колонки ('A1:D14' превратился бы в '$A1:$D14' — строки относительные,
+    // область печати могла бы съезжать вслед за выделенной ячейкой), а Excel
+    // сам всегда пишет её полностью абсолютной — '$A$1:$D$14'.
+    printArea: `A$1:${sheet.getColumn(columnCount).letter}$${sheet.rowCount}`,
+    // Строка заголовков колонок повторяется наверху каждой печатной
+    // страницы, если строк типов окажется больше, чем влезает на одну.
+    printTitlesRow: `${columnHeaderRow}:${columnHeaderRow}`,
+  });
+}
+
 async function buildExcelWorkbook(report, manualFields) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Grand Total');
@@ -659,7 +690,7 @@ async function buildExcelWorkbook(report, manualFields) {
   titleRow.getCell(1).alignment = { horizontal: 'center' };
   sheet.addRow([]);
 
-  sheet.addRow(header);
+  const columnHeaderRow = sheet.addRow(header).number;
   sheet.lastRow.eachCell((cell) => {
     cell.font = { bold: true };
     cell.alignment = { horizontal: 'center' };
@@ -688,6 +719,8 @@ async function buildExcelWorkbook(report, manualFields) {
   if (report.billsOfLading !== null) {
     sheet.addRow([`Feeder Bill of Lading - ${report.billsOfLading} sets`]);
   }
+
+  formatSheetForPrint(sheet, { columnHeaderRow, columnCount: header.length });
 
   return workbook.xlsx.writeBuffer();
 }
