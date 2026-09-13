@@ -1,7 +1,7 @@
 window.STATE =
 {
   "slug": "dashboard-destination-rework",
-  "dir": "2026-09-13-dashboard-destination-rework--wip",
+  "dir": "2026-09-13-dashboard-destination-rework",
   "title": "Дашборд по портам назначения — переименование, перенос в Экспорт, порожние, печать",
   "mode": "semi",
   "depth": "normal",
@@ -11,8 +11,8 @@ window.STATE =
   "memoryFile": "CLAUDE.md",
   "skillDir": "/Users/nasekomus/.claude/skills/autopilot",
   "startedAt": "2026-09-13T15:14:14+03:00",
-  "updatedAt": "2026-09-13T15:39:41+03:00",
-  "finishedAt": null,
+  "updatedAt": "2026-09-13T15:46:50+03:00",
+  "finishedAt": "2026-09-13T15:46:50+03:00",
   "stages": [
     { "id": "preflight", "status": "done", "startedAt": "2026-09-13T15:14:14+03:00", "finishedAt": "2026-09-13T15:15:00+03:00" },
     { "id": "manifest",  "status": "done", "startedAt": "2026-09-13T15:15:00+03:00", "finishedAt": "2026-09-13T15:19:00+03:00" },
@@ -21,7 +21,7 @@ window.STATE =
     { "id": "plan",      "status": "skipped", "note": "ярус T0 — без разбивки на таски", "startedAt": "2026-09-13T15:25:06+03:00", "finishedAt": "2026-09-13T15:26:02+03:00" },
     { "id": "build",     "status": "done", "startedAt": "2026-09-13T15:26:02+03:00", "note": "T0 — один проход", "finishedAt": "2026-09-13T15:39:41+03:00" },
     { "id": "review",    "status": "done", "startedAt": "2026-09-13T15:39:41+03:00", "note": "все три оси — сам, T0", "finishedAt": "2026-09-13T15:39:41+03:00" },
-    { "id": "final",     "status": "active", "startedAt": "2026-09-13T15:39:41+03:00" }
+    { "id": "final",     "status": "done", "startedAt": "2026-09-13T15:39:41+03:00", "note": "слепая приёмка: расхождений нет", "finishedAt": "2026-09-13T15:46:50+03:00" }
   ],
   "requirements": {
     "total": 6, "done": 6, "inTicket": 0, "inSpec": 0,
@@ -56,5 +56,16 @@ window.STATE =
     "dashboard/app.js — computeColumnWidths/applyTableBorder/MEDIUM_BORDER/THIN_BORDER дублируют bl-registry/app.js (и грубее — grand-total/app.js): осознанное дублирование, тот же приём, что уже принят на сайте для DOM-слоя каждого инструмента (см. CLAUDE.md); не выносил в lib/, т.к. это первый повтор именно печатной вёрстки, а не логики подсчёта"
   ],
   "reviewers": { "manifestSpec": null, "craft": null },
-  "blind": null
+  "blind": {
+    "checkedAt": "2026-09-13T15:46:50+03:00",
+    "agreed": true,
+    "drift": [],
+    "ranScenario": true,
+    "notes": "все 5 пунктов брифа независимо подтверждены живым запуском (дев-сервер, синтетический манифест, скачанный Excel разобран через exceljs) — переименование везде, перенос в Экспорт, порожние подсвечены и на странице, и в Excel (заливка FFEAF1F2), последняя позиция в Экспорте, печатная разметка (landscape, fitToWidth/fitToHeight, printArea/printTitlesRow, рамка, ширины колонок). Расхождений с манифестом нет",
+    "commands": [
+      "npm install",
+      "npm test → 275 passed, 0 failed",
+      "python3 -m http.server 8000"
+    ]
+  }
 }
