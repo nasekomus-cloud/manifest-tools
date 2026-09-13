@@ -16,6 +16,7 @@ import { parseLoadingOrder } from '../lib/loading-order.js?v=202609130013';
 import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202609130013';
 
 const YELLOW_ARGB = 'FFFFFF00';
+const BLUE_ARGB = 'FFADD8E6'; // предупреждение — светло-голубой, отличим от жёлтого ошибок
 const TOLERANCE = 0.01; // допуск при сравнении весов и чисел
 const HEADER_SEARCH_ROWS = 30;
 const MIN_RECOGNIZED_HEADERS = 5; // столько заголовков делают строку строкой заголовков
@@ -1107,23 +1108,29 @@ function noteLine(f) {
 function buildMarkedWorkbook(workbook, model, findings, ctx) {
   const notes = new Map();
   const painted = new Set();
+  const warned = new Set();
   for (const f of findings) {
     if (!f.cell) continue;
     if (!notes.has(f.cell)) notes.set(f.cell, []);
     notes.get(f.cell).push(noteLine(f));
     if (f.level === 'error') painted.add(f.cell);
+    else if (f.level === 'warning') warned.add(f.cell);
   }
   for (const [address, lines] of notes) {
     const cell = model.sheet.getCell(address);
     const previous = noteTextOf(cell);
     cell.note = previous ? `${previous}\n${lines.join('\n')}` : lines.join('\n');
   }
-  for (const address of painted) {
+  const paint = (address, argb) => {
     const cell = model.sheet.getCell(address);
     const style = cloneStyle(cell.style);
-    style.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: YELLOW_ARGB } };
+    style.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
     cell.style = style;
-  }
+  };
+  for (const address of painted) paint(address, YELLOW_ARGB);
+  // Предупреждение — голубым; ошибка на той же ячейке (по другому правилу) важнее
+  // и уже покрашена жёлтым выше — не перекрашиваем её обратно.
+  for (const address of warned) if (!painted.has(address)) paint(address, BLUE_ARGB);
   for (const sheet of ctx.yellowTabs) sheet.properties.tabColor = { argb: YELLOW_ARGB };
   // ExcelJS 4.4.0 не умеет записать часть правил условного форматирования и
   // делает файл нечитаемым для Excel (CLAUDE.md) — убираем такие правила.

@@ -573,7 +573,7 @@ function noteText(cell) {
   return String(note);
 }
 
-test('шаблон с пометками: жёлтые только ячейки ошибок, примечания у ошибок и предупреждений, ярлыки жёлтые', async () => {
+test('шаблон с пометками: ошибки жёлтые, предупреждения голубые, примечания у обоих, ярлыки жёлтые', async () => {
   const template = await roundTrip(buildTemplate({
     sheetName: 'Лист1', sheets: ['Лист2'], rows: [{ ...ROW1, L: 28000, J: 'PALLETS' }, { ...ROW2, J: 'PALLETS' }],
   }));
@@ -583,7 +583,7 @@ test('шаблон с пометками: жёлтые только ячейки
   const fillOf = (address) => sheet.getCell(address).fill?.fgColor?.argb ?? null;
   assert.equal(fillOf('L9'), 'FFFFFF00');
   assert.equal(fillOf('L10'), null); // соседняя ячейка с тем же исходным стилем
-  assert.equal(fillOf('J9'), null); // предупреждение — без заливки
+  assert.equal(fillOf('J9'), 'FFADD8E6'); // предупреждение (A04 — код упаковки) — голубым
   assert.match(noteText(sheet.getCell('L9')), /28120/);
   assert.ok(noteText(sheet.getCell('J9')));
   assert.equal(sheet.properties.tabColor?.argb, 'FFFFFF00');
