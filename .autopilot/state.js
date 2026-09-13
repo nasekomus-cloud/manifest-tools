@@ -11,7 +11,7 @@ window.STATE =
   "memoryFile": "CLAUDE.md",
   "skillDir": "/Users/nasekomus/.claude/skills/autopilot",
   "startedAt": "2026-09-13T15:14:14+03:00",
-  "updatedAt": "2026-09-13T15:26:02+03:00",
+  "updatedAt": "2026-09-13T15:39:41+03:00",
   "finishedAt": null,
   "stages": [
     { "id": "preflight", "status": "done", "startedAt": "2026-09-13T15:14:14+03:00", "finishedAt": "2026-09-13T15:15:00+03:00" },
@@ -28,8 +28,21 @@ window.STATE =
     "placeholder": 0, "deferred": 0, "dropped": 0
   },
   "tickets": [],
-  "singlePass": null,
-  "tests": null,
+  "singlePass": {
+    "startedAt": "2026-09-13T15:26:02+03:00",
+    "finishedAt": "2026-09-13T15:39:41+03:00",
+    "files": [
+      "lib/port-breakdown.js", "lib/port-breakdown.test.js",
+      "dashboard/core.js", "dashboard/core.test.js", "dashboard/app.js", "dashboard/index.html",
+      "dashboard-departure/core.js", "dashboard-departure/app.js", "dashboard-departure/index.html",
+      "tools.js", "assets/style.css",
+      "index.html", "merge/index.html", "dg-check/index.html", "bl-split/index.html",
+      "grand-total/index.html", "order-check/index.html", "bl-registry/index.html", "template-check/index.html"
+    ],
+    "tests": { "passed": 275, "failed": 0 },
+    "commit": "bdb7e6f"
+  },
+  "tests": { "passed": 275, "failed": 0 },
   "debt": { "placeholders": [], "assumptions": [], "emptyEnv": [] },
   "additions": [],
   "coverage": {
