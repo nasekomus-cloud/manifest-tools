@@ -1045,6 +1045,15 @@ h3 {
   background: var(--water);
 }
 
+/* Порожние контейнеры того же типа — отдельная строка, заметно другая на
+ * вид, но не как жёлтый/голубой у расхождений в других инструментах
+ * (dg-check, order-check, template-check): тут не ошибка, а факт. */
+.dashboard-row--empty td {
+  background: var(--water);
+  color: var(--muted);
+  font-style: italic;
+}
+
 .port-bar {
   height: 6px;
   width: 100%;

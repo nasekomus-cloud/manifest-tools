@@ -3,7 +3,7 @@
 // dashboard-departure/ (та же логика, другая колонка-порт). Подробности —
 // в lib/port-breakdown.js.
 
-import { buildPortBreakdownDashboard } from '../lib/port-breakdown.js?v=202609111500';
+import { buildPortBreakdownDashboard } from '../lib/port-breakdown.js?v=202609131530';
 
 /**
  * @param {Array<{fileName: string, workbook: import('exceljs').Workbook}>} workbooks
@@ -14,5 +14,9 @@ export function buildPortDashboard(workbooks) {
   return buildPortBreakdownDashboard(workbooks, {
     portKeyword: 'назначения',
     portLabel: '«Порт назначения»',
+    // Порожние контейнеры (вес груза 0) отдельной строкой от гружёных того
+    // же типа — только для этого инструмента, dashboard-departure/core.js
+    // параметр не передаёт (см. spec.md, «Разбивка порожних»).
+    splitEmpty: true,
   });
 }

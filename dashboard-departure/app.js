@@ -7,7 +7,7 @@
 // каркас assets/shell.js (window.Shell); список файлов, плитки и полоса
 // повторяют образец merge/app.js.
 
-import { buildPortDashboard } from './core.js?v=202609111500';
+import { buildPortDashboard } from './core.js?v=202609131530';
 import { countDataRows } from '../lib/manifest-format.js?v=202609121930';
 
 const Shell = window.Shell;

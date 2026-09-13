@@ -60,6 +60,20 @@ test('buildPortDashboard: группирует по «Порт назначен�
   assert.equal(result.combined.ports[0].totals.cargoWeight, 30);
 });
 
+test('buildPortDashboard: включает splitEmpty — порожние того же типа отдельной строкой', () => {
+  const wb = buildWorkbook([
+    { destinationPort: 'KALININGRAD', type: '40HC', cargo: 10 },
+    { destinationPort: 'KALININGRAD', type: '40HC', cargo: 0 },
+  ]);
+
+  const result = buildPortDashboard([{ fileName: 'a.xlsx', workbook: wb }]);
+  assert.equal(result.ok, true);
+  const types = result.combined.ports[0].types;
+  assert.equal(types.length, 2);
+  assert.ok(types.some((t) => t.type === '40HC' && t.isEmpty === true));
+  assert.ok(types.some((t) => t.type === '40HC' && t.isEmpty === false));
+});
+
 test('buildPortDashboard: без файлов — понятная ошибка, а не падение', () => {
   const result = buildPortDashboard([]);
   assert.equal(result.ok, false);

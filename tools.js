@@ -43,15 +43,6 @@ window.TOOLS = [
     output: 'xlsx',
   },
   {
-    title: 'Дашборд по портам назначения',
-    navTitle: 'Дашборд по портам назначения',
-    description:
-      'Разбивка по портам назначения: сколько контейнеров каждого типа и сколько это весит.',
-    href: 'dashboard/index.html',
-    category: 'import',
-    output: 'xlsx',
-  },
-  {
     title: 'Дашборд по портам отправления',
     navTitle: 'Дашборд по портам отправления',
     description:
@@ -106,5 +97,14 @@ window.TOOLS = [
     href: 'bl-split/index.html',
     category: 'export',
     output: 'zip',
+  },
+  {
+    title: 'Информация по портам назначения',
+    navTitle: 'Информация по портам назначения',
+    description:
+      'Разбивка по портам назначения: сколько контейнеров каждого типа и сколько это весит, порожние — отдельной строкой.',
+    href: 'dashboard/index.html',
+    category: 'export',
+    output: 'xlsx',
   },
 ];

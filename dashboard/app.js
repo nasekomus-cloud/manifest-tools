@@ -1,11 +1,12 @@
-// Состояние страницы «Дашборд по портам назначения»: выбранные файлы,
+// Состояние страницы «Информация по портам назначения»: выбранные файлы,
 // рендер таблиц на странице и сборка/скачивание Excel-отчёта. Подсчёт
-// разбивки — дело core.js (buildPortDashboard), сюда импортируется как
-// обычный модуль (см. interfaces.md). Панель, шаги и полоса действия — общий
-// каркас assets/shell.js (window.Shell); список файлов, плитки и полоса
-// повторяют образец merge/app.js.
+// разбивки — дело core.js (buildPortDashboard, с splitEmpty: true — порожние
+// контейнеры отдельной строкой от гружёных того же типа), сюда
+// импортируется как обычный модуль (см. interfaces.md). Панель, шаги и
+// полоса действия — общий каркас assets/shell.js (window.Shell); список
+// файлов, плитки и полоса повторяют образец merge/app.js.
 
-import { buildPortDashboard } from './core.js?v=202609111500';
+import { buildPortDashboard } from './core.js?v=202609131530';
 import { countDataRows } from '../lib/manifest-format.js?v=202609121930';
 
 const Shell = window.Shell;
@@ -41,6 +42,12 @@ function fmt(n) {
 
 function rowsLabel(n) {
   return `${n} ${Shell.plural(n, 'строка', 'строки', 'строк')}`;
+}
+
+// Подпись строки порожних — не только цвет отличает её от гружёной того же
+// типа: печать часто чёрно-белая, а текст «— порожние» читается и без цвета.
+function typeLabel(type) {
+  return type.isEmpty ? `${type.type} — порожние` : type.type;
 }
 
 // numFrom — индекс ячейки (в cells), с которой начинаются числа.
@@ -230,8 +237,8 @@ function renderBreakdownTable(breakdown) {
     port.types.forEach((type) => {
       addRow(
         table,
-        [port.port, type.type, type.count, fmt(type.cargoWeight), fmt(type.tareWeight), fmt(type.totalWeight)],
-        { numFrom: FIRST_NUMERIC_COLUMN },
+        [port.port, typeLabel(type), type.count, fmt(type.cargoWeight), fmt(type.tareWeight), fmt(type.totalWeight)],
+        { className: type.isEmpty ? 'dashboard-row--empty' : undefined, numFrom: FIRST_NUMERIC_COLUMN },
       );
     });
 
@@ -307,29 +314,135 @@ function sanitizeSheetName(name, used) {
   return candidate;
 }
 
+// Пишет разбивку на лист и возвращает, что потом нужно печатному
+// форматированию: строки данных (для ширины колонок), номера строк порожних
+// (заливка) и номера итоговых строк (жирный шрифт) — чтобы не искать их
+// повторным проходом по уже записанному листу.
 function writeBreakdownToSheet(sheet, breakdown) {
   sheet.addRow(TABLE_COLUMNS);
+  const dataRows = [];
+  const emptyRowNumbers = [];
+  const totalRowNumbers = [];
+
   breakdown.ports.forEach((port) => {
     port.types.forEach((type) => {
-      sheet.addRow([port.port, type.type, type.count, type.cargoWeight, type.tareWeight, type.totalWeight]);
+      const cells = [port.port, typeLabel(type), type.count, type.cargoWeight, type.tareWeight, type.totalWeight];
+      const row = sheet.addRow(cells);
+      dataRows.push(cells);
+      if (type.isEmpty) emptyRowNumbers.push(row.number);
     });
-    sheet.addRow([
+    const totalCells = [
       `Итого по порту «${port.port}»`,
       '',
       port.totals.count,
       port.totals.cargoWeight,
       port.totals.tareWeight,
       port.totals.totalWeight,
-    ]);
+    ];
+    const totalRow = sheet.addRow(totalCells);
+    dataRows.push(totalCells);
+    totalRowNumbers.push(totalRow.number);
   });
-  sheet.addRow([
+
+  const grandCells = [
     'Итого',
     '',
     breakdown.grandTotal.count,
     breakdown.grandTotal.cargoWeight,
     breakdown.grandTotal.tareWeight,
     breakdown.grandTotal.totalWeight,
-  ]);
+  ];
+  const grandRow = sheet.addRow(grandCells);
+  dataRows.push(grandCells);
+  totalRowNumbers.push(grandRow.number);
+
+  return { dataRows, emptyRowNumbers, totalRowNumbers };
+}
+
+// Ширина колонок — по самому широкому значению в колонке (включая итоговые
+// строки: «Итого по порту «…»» часто длиннее любого названия порта) — тот же
+// приём, что уже в bl-registry/app.js и grand-total/app.js.
+function computeColumnWidths(header, dataRows) {
+  return header.map((headText, i) => {
+    let width = headText.length;
+    dataRows.forEach((row) => {
+      width = Math.max(width, String(row[i] ?? '').length);
+    });
+    return width + 4;
+  });
+}
+
+const MEDIUM_BORDER = { style: 'medium' };
+const THIN_BORDER = { style: 'thin' };
+
+// Рамка вокруг шапки и данных — тот же приём, что в bl-registry/app.js:
+// medium по внешнему периметру, thin между остальными ячейками внутри.
+function applyTableBorder(sheet, firstRow, lastRow, firstCol, lastCol) {
+  for (let r = firstRow; r <= lastRow; r++) {
+    for (let c = firstCol; c <= lastCol; c++) {
+      const cell = sheet.getRow(r).getCell(c);
+      cell.border = {
+        top: r === firstRow ? MEDIUM_BORDER : THIN_BORDER,
+        bottom: r === lastRow ? MEDIUM_BORDER : THIN_BORDER,
+        left: c === firstCol ? MEDIUM_BORDER : THIN_BORDER,
+        right: c === lastCol ? MEDIUM_BORDER : THIN_BORDER,
+      };
+    }
+  }
+}
+
+// A, B, C… — таблица дашборда не превышает шести колонок (TABLE_COLUMNS),
+// более широкого алфавита не нужно.
+function columnLetter(n) {
+  return String.fromCharCode(64 + n);
+}
+
+const EMPTY_ROW_FILL = {
+  type: 'pattern',
+  pattern: 'solid',
+  // Тот же тон, что --water на странице (фон рабочей области) — визуально
+  // «ничего внутри», а не «ошибка»: жёлтым/голубым сайт уже красит
+  // расхождения в других инструментах (dg-check, order-check, template-check).
+  fgColor: { argb: 'FFEAF1F2' },
+};
+const WEIGHT_COLUMNS = [4, 5, 6]; // D/E/F — Вес груза/Вес тары/Общий вес
+
+// Готовит уже записанный лист к печати: ширины колонок, рамка, заливка
+// порожних строк, разделитель тысяч у весов, жирный шрифт у итоговых строк,
+// разметка страницы (альбомная, по ширине одной страницы, шапка таблицы
+// повторяется на каждой печатной странице).
+function formatSheetForPrint(sheet, { dataRows, emptyRowNumbers, totalRowNumbers }) {
+  const lastRow = sheet.rowCount;
+  const lastCol = TABLE_COLUMNS.length;
+
+  sheet.columns = computeColumnWidths(TABLE_COLUMNS, dataRows).map((width) => ({ width }));
+  applyTableBorder(sheet, 1, lastRow, 1, lastCol);
+
+  emptyRowNumbers.forEach((r) => {
+    for (let c = 1; c <= lastCol; c++) {
+      sheet.getRow(r).getCell(c).fill = EMPTY_ROW_FILL;
+    }
+  });
+
+  totalRowNumbers.forEach((r) => {
+    sheet.getRow(r).font = { bold: true };
+  });
+
+  for (let r = 2; r <= lastRow; r++) {
+    WEIGHT_COLUMNS.forEach((c) => {
+      sheet.getRow(r).getCell(c).numFmt = '#,##0';
+    });
+  }
+
+  sheet.pageSetup = {
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    printArea: `A1:${columnLetter(lastCol)}${lastRow}`,
+    printTitlesRow: '1:1',
+  };
 }
 
 function buildReportWorkbook(dashboard) {
@@ -338,11 +451,11 @@ function buildReportWorkbook(dashboard) {
 
   dashboard.perFile.forEach(({ fileName, breakdown }) => {
     const sheet = workbook.addWorksheet(sanitizeSheetName(fileName, usedNames));
-    writeBreakdownToSheet(sheet, breakdown);
+    formatSheetForPrint(sheet, writeBreakdownToSheet(sheet, breakdown));
   });
 
   const totalSheet = workbook.addWorksheet(sanitizeSheetName('Итого', usedNames));
-  writeBreakdownToSheet(totalSheet, dashboard.combined);
+  formatSheetForPrint(totalSheet, writeBreakdownToSheet(totalSheet, dashboard.combined));
 
   return workbook;
 }
@@ -354,7 +467,7 @@ async function handleBuildClick() {
   const version = setVersion;
   const buildLabel = buildBtn.textContent;
   busy = true;
-  buildBtn.textContent = 'Строю дашборд…';
+  buildBtn.textContent = 'Строю разбивку…';
   updateUi();
   try {
     const workbooks = [];
@@ -393,7 +506,7 @@ async function handleDownloadClick() {
 
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'дашборд-по-портам.xlsx';
+  link.download = 'информация-по-портам-назначения.xlsx';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
