@@ -11,8 +11,8 @@ window.STATE =
   "memoryFile": "CLAUDE.md",
   "skillDir": "/Users/nasekomus/.claude/skills/autopilot",
   "startedAt": "2026-09-12T22:39:57+03:00",
-  "updatedAt": "2026-09-13T02:25:38+03:00",
-  "finishedAt": "2026-09-13T02:25:38+03:00",
+  "updatedAt": "2026-09-13T03:07:06+03:00",
+  "finishedAt": "2026-09-13T03:07:06+03:00",
   "stages": [
     {
       "id": "preflight",
@@ -49,27 +49,27 @@ window.STATE =
       "id": "build",
       "status": "done",
       "startedAt": "2026-09-12T23:56:00+03:00",
-      "note": "3 из 3 тасков готовы",
-      "finishedAt": "2026-09-13T02:05:30+03:00"
+      "note": "4 из 4 тасков готовы (доп. таск 04 — после сдачи, G03)",
+      "finishedAt": "2026-09-13T02:58:43+03:00"
     },
     {
       "id": "review",
       "status": "done",
       "startedAt": "2026-09-13T00:16:21+03:00",
-      "note": "проверено 3 из 3",
-      "finishedAt": "2026-09-13T02:25:38+03:00"
+      "note": "проверено 4 из 4",
+      "finishedAt": "2026-09-13T02:58:43+03:00"
     },
     {
       "id": "final",
       "status": "done",
       "startedAt": "2026-09-13T02:05:30+03:00",
-      "note": "слепая приёмка: всё реализовано, расхождений нет",
-      "finishedAt": "2026-09-13T02:25:38+03:00"
+      "note": "слепая приёмка дважды (до и после G03): всё реализовано, расхождений нет",
+      "finishedAt": "2026-09-13T03:07:06+03:00"
     }
   ],
   "requirements": {
-    "total": 21,
-    "done": 21,
+    "total": 22,
+    "done": 22,
     "inTicket": 0,
     "inSpec": 0,
     "placeholder": 0,
@@ -188,10 +188,28 @@ window.STATE =
       "tests": { "passed": 265, "failed": 0 },
       "commit": "3aba5d6",
       "concerns": []
+    },
+    {
+      "id": "04",
+      "title": "Расхождение общих полей коносамента: предупреждение → ошибка",
+      "requirements": ["G03"],
+      "blockedBy": ["02"],
+      "wave": 4,
+      "zone": ["template-check/core.js", "template-check/core.test.js"],
+      "status": "done",
+      "startedAt": "2026-09-13T02:40:00+03:00",
+      "finishedAt": "2026-09-13T02:58:43+03:00",
+      "retries": 0,
+      "repairs": 0,
+      "handoffs": 0,
+      "files": ["template-check/core.js", "template-check/core.test.js"],
+      "tests": { "passed": 268, "failed": 0 },
+      "commit": "8cf10e1",
+      "concerns": []
     }
   ],
   "singlePass": null,
-  "tests": { "passed": 265, "failed": 0 },
+  "tests": { "passed": 268, "failed": 0 },
   "debt": {
     "placeholders": [],
     "assumptions": [],
@@ -234,14 +252,14 @@ window.STATE =
     "craft": "ad254f5c887029d8c"
   },
   "blind": {
-    "checkedAt": "2026-09-13T02:25:07+03:00",
+    "checkedAt": "2026-09-13T03:07:06+03:00",
     "agreed": true,
     "drift": [],
     "ranScenario": true,
-    "notes": "все пункты брифа и все 4 «Дополнения» подтверждены живым прогоном на обеих настоящих парах и на 5 намеренно испорченных копиях (Chromium, дев-сервер 8000); расхождений с manifest.md не найдено",
+    "notes": "два прохода. Первый (02:25) — все пункты брифа и первые 4 «Дополнения» подтверждены живым прогоном на обеих настоящих парах и на 5 намеренно испорченных копиях. Второй (03:07), после таска 04 — пятое «Дополнение» (G03, общие поля коносамента теперь ошибка, не предупреждение) подтверждено синтетическим тестом в браузере (жёлтая заливка на байтовом уровне файла, находка на расходящейся строке, не на первой) плюс регрессия на обеих настоящих парах — числа ошибок/предупреждений не изменились. Расхождений с manifest.md не найдено ни разу",
     "commands": [
       "npm install",
-      "npm test → 265 passed, 0 failed",
+      "npm test → 268 passed, 0 failed",
       "python3 -m http.server 8000 (launch.json: manifest-tools)"
     ]
   }
