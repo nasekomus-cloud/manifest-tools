@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Обновить сайт на втором VPS (nginx отдаёт статику из /var/www/manifest-tools,
-# домен em.nasekomuspro.ru). Первый сервер обновляется отдельно — ./deploy.sh.
+# Обновить сайт на VPS (nginx отдаёт статику из /var/www/manifest-tools,
+# домен em.nasekomuspro.ru).
 # Пароль root@VPS спрашивается один раз (ssh-мастер-соединение), вводите
 # сами — этот скрипт его нигде не хранит и не запрашивает программно.
 #
@@ -32,7 +32,6 @@ rsync -avz --delete \
   --exclude '*.test.js' \
   --exclude '.DS_Store' \
   --exclude 'skills-lock.json' \
-  --exclude 'deploy.sh' \
   --exclude 'deploy-em.sh' \
   ./ "$HOST:$TARGET_DIR/"
 
