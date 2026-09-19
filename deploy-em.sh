@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Обновить сайт на VPS (nginx отдаёт статику из /var/www/manifest-tools).
+# Обновить сайт на втором VPS (nginx отдаёт статику из /var/www/manifest-tools,
+# домен em.nasekomuspro.ru). Первый сервер обновляется отдельно — ./deploy.sh.
 # Пароль root@VPS спрашивается один раз (ssh-мастер-соединение), вводите
 # сами — этот скрипт его нигде не хранит и не запрашивает программно.
 #
-# Использование: ./deploy.sh
+# Использование: ./deploy-em.sh
 
 set -euo pipefail
 
-HOST="root@130.49.213.189"
+HOST="root@147.45.211.193"
 TARGET_DIR="/var/www/manifest-tools"
-CONTROL_PATH="/tmp/manifest-tools-deploy-ssh-%r@%h:%p"
+CONTROL_PATH="/tmp/manifest-tools-deploy-em-ssh-%r@%h:%p"
 
 cd "$(dirname "$0")"
 
@@ -35,4 +36,4 @@ rsync -avz --delete \
   --exclude 'deploy-em.sh' \
   ./ "$HOST:$TARGET_DIR/"
 
-echo "Готово — https://manifest.nasekomuspro.ru обновлён."
+echo "Готово — https://em.nasekomuspro.ru обновлён."
