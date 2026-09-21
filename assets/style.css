@@ -1069,6 +1069,23 @@ h3 {
   border-radius: 3px;
 }
 
+/* Печать дашборда: веса с тремя знаками («8 654 284,665») на листе A4
+ * (~718 px) не влезали в ширину — .table-scroll обрезал колонку «Общий вес»
+ * (прокрутки на бумаге нет). Мельче шрифт и отступы — и таблица помещается
+ * даже с итогом в десятки миллионов кг (проверено на 718 px). */
+@media print {
+  .dashboard-block .table-scroll {
+    overflow: visible;
+  }
+
+  .dashboard-block .data-table th,
+  .dashboard-block .data-table td,
+  .dashboard-block .data-table .num {
+    padding: 5px 6px;
+    font-size: 12px;
+  }
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

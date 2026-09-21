@@ -37,8 +37,15 @@ let lastDashboard = null;
 let busy = false;
 let setVersion = 0; // растёт при каждом изменении набора — результат старого набора не показываем
 
+// Вес — с тремя знаками после запятой, без округления до целых килограммов:
+// каждая цифра, округлённая отдельно, давала строки таблицы, которые не
+// сходились с «Итого» на 1–2 кг. Приём тот же, что у formatWeight в
+// grand-total/app.js, только без « KGS» (единица — в заголовках) и с
+// неразрывным пробелом между разрядами, как раньше у toLocaleString.
 function fmt(n) {
-  return Math.round(n).toLocaleString('ru-RU');
+  const [intPart, fracPart] = Math.abs(n).toFixed(3).split('.');
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+  return `${n < 0 ? '-' : ''}${grouped},${fracPart}`;
 }
 
 function rowsLabel(n) {
@@ -334,6 +341,36 @@ function writeBreakdownToSheet(sheet, breakdown) {
   ]);
 }
 
+const WEIGHT_COLUMNS = [4, 5, 6]; // D/E/F — Вес груза/Вес тары/Общий вес
+// Три знака после запятой — как на странице (fmt): округлённые до целых
+// строки на листе не сходились бы с «Итого» на 1–2 кг.
+const WEIGHT_NUMFMT = '#,##0.000';
+
+// Веса с тремя знаками — и на экране, и на печати. Ширина колонки — по
+// тексту, каким его покажет Excel (fmt), а не по длине числа: у «1000000»
+// 7 знаков, а на листе «1 000 000,000» — 13, и в колонке ширины по
+// умолчанию вместо веса был бы «#####». Раз колонки стали шире, лист при
+// печати ужимается до одной страницы в ширину (альбомная — как в
+// dashboard/app.js), чтобы «Общий вес» не уезжал на отдельную страницу.
+function formatWeightsForPrint(sheet) {
+  const widths = TABLE_COLUMNS.map((text) => text.length);
+  sheet.eachRow((row, rowNumber) => {
+    row.eachCell((cell, col) => {
+      const isWeight = rowNumber > 1 && WEIGHT_COLUMNS.includes(col) && typeof cell.value === 'number';
+      if (isWeight) cell.numFmt = WEIGHT_NUMFMT;
+      const text = isWeight ? fmt(cell.value) : String(cell.value ?? '');
+      widths[col - 1] = Math.max(widths[col - 1], text.length);
+    });
+  });
+  sheet.columns = widths.map((width) => ({ width: width + 4 }));
+  Object.assign(sheet.pageSetup, {
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+  });
+}
+
 function buildReportWorkbook(dashboard) {
   const workbook = new ExcelJS.Workbook();
   const usedNames = new Set();
@@ -341,10 +378,12 @@ function buildReportWorkbook(dashboard) {
   dashboard.perFile.forEach(({ fileName, breakdown }) => {
     const sheet = workbook.addWorksheet(sanitizeSheetName(fileName, usedNames));
     writeBreakdownToSheet(sheet, breakdown);
+    formatWeightsForPrint(sheet);
   });
 
   const totalSheet = workbook.addWorksheet(sanitizeSheetName('Итого', usedNames));
   writeBreakdownToSheet(totalSheet, dashboard.combined);
+  formatWeightsForPrint(totalSheet);
 
   return workbook;
 }

@@ -36,8 +36,15 @@ let lastDashboard = null;
 let busy = false;
 let setVersion = 0; // растёт при каждом изменении набора — результат старого набора не показываем
 
+// Вес — с тремя знаками после запятой, без округления до целых килограммов:
+// каждая цифра, округлённая отдельно, давала строки таблицы, которые не
+// сходились с «Итого» на 1–2 кг. Приём тот же, что у formatWeight в
+// grand-total/app.js, только без « KGS» (единица — в заголовках) и с
+// неразрывным пробелом между разрядами, как раньше у toLocaleString.
 function fmt(n) {
-  return Math.round(n).toLocaleString('ru-RU');
+  const [intPart, fracPart] = Math.abs(n).toFixed(3).split('.');
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+  return `${n < 0 ? '-' : ''}${grouped},${fracPart}`;
 }
 
 function rowsLabel(n) {
@@ -361,12 +368,17 @@ function writeBreakdownToSheet(sheet, breakdown) {
 
 // Ширина колонок — по самому широкому значению в колонке (включая итоговые
 // строки: «Итого по порту «…»» часто длиннее любого названия порта) — тот же
-// приём, что уже в bl-registry/app.js и grand-total/app.js.
+// приём, что уже в bl-registry/app.js и grand-total/app.js. Вес меряется по
+// тексту, каким его покажет Excel (разряды и три знака после запятой — fmt),
+// а не по длине самого числа: у «1000000» 7 знаков, а на листе «1 000 000,000»
+// — 13, и колонка по числу вышла бы узкой, с «#####» вместо веса.
 function computeColumnWidths(header, dataRows) {
   return header.map((headText, i) => {
     let width = headText.length;
     dataRows.forEach((row) => {
-      width = Math.max(width, String(row[i] ?? '').length);
+      const value = row[i];
+      const text = typeof value === 'number' && WEIGHT_COLUMNS.includes(i + 1) ? fmt(value) : String(value ?? '');
+      width = Math.max(width, text.length);
     });
     return width + 4;
   });
@@ -406,9 +418,13 @@ const EMPTY_ROW_FILL = {
   fgColor: { argb: 'FFEAF1F2' },
 };
 const WEIGHT_COLUMNS = [4, 5, 6]; // D/E/F — Вес груза/Вес тары/Общий вес
+// Три знака после запятой — как на странице (fmt): округлённые до целых
+// строки на листе не сходились бы с «Итого» на 1–2 кг.
+const WEIGHT_NUMFMT = '#,##0.000';
 
 // Готовит уже записанный лист к печати: ширины колонок, рамка, заливка
-// порожних строк, разделитель тысяч у весов, жирный шрифт у итоговых строк,
+// порожних строк, разделитель тысяч и три знака после запятой у весов,
+// жирный шрифт у итоговых строк,
 // разметка страницы (альбомная, по ширине одной страницы, шапка таблицы
 // повторяется на каждой печатной странице).
 function formatSheetForPrint(sheet, { dataRows, emptyRowNumbers, totalRowNumbers }) {
@@ -430,7 +446,7 @@ function formatSheetForPrint(sheet, { dataRows, emptyRowNumbers, totalRowNumbers
 
   for (let r = 2; r <= lastRow; r++) {
     WEIGHT_COLUMNS.forEach((c) => {
-      sheet.getRow(r).getCell(c).numFmt = '#,##0';
+      sheet.getRow(r).getCell(c).numFmt = WEIGHT_NUMFMT;
     });
   }
 
