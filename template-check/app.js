@@ -10,7 +10,7 @@
 // самой проверки файлы читаются заново из исходных байтов (spec §6) — объект,
 // прочитанный при распознавании, для этого не переиспользуется.
 
-import { detectFileKind, checkTemplate } from './core.js?v=202609281900';
+import { detectFileKind, checkTemplate } from './core.js?v=202609282000';
 
 const Shell = window.Shell;
 
@@ -294,7 +294,7 @@ function addStat(value, label) {
 
 function actionLabel(f) {
   if (f.level === 'warning') return 'Проверьте';
-  return f.fix === 'auto' ? 'Исправлено автоматически' : 'Уточнить у заказчика';
+  return f.fix === 'auto' ? 'Может быть заменено автоматически' : 'Уточнить у заказчика';
 }
 
 function appendRow(table, cells, { header = false } = {}) {
@@ -347,12 +347,11 @@ function renderTopWarnings(topWarnings) {
   warningsBox.hidden = false;
 }
 
-// История 22: сколько исправлено само, сколько осталось уточнить у заказчика.
+// История 22: сколько может быть заменено автоматически, сколько осталось уточнить у заказчика.
 function correctedCaptionText(summary) {
-  if (summary.needsCustomer === 0) {
-    return `Исправлено ${summary.autoFixable} из ${summary.errors} ошибок — шаблон готов к загрузке`;
-  }
-  return `Исправлено ${summary.autoFixable} из ${summary.errors} ошибок; ещё ${summary.needsCustomer} — уточнить у заказчика`;
+  const auto = `Может быть заменено автоматически: ${summary.autoFixable} из ${summary.errors} ошибок`;
+  if (summary.needsCustomer === 0) return `${auto} — исправленный шаблон готов к загрузке`;
+  return `${auto}; ещё ${summary.needsCustomer} — уточнить у заказчика`;
 }
 
 function renderActions(result) {
@@ -368,7 +367,7 @@ function renderResult(result) {
   resultStats.innerHTML = '';
   addStat(result.summary.containers, 'Контейнеров');
   addStat(result.summary.errors, 'Ошибок');
-  addStat(result.summary.autoFixable, 'Исправлено автоматически');
+  addStat(result.summary.autoFixable, 'Может быть заменено автоматически');
   addStat(result.summary.needsCustomer, 'Уточнить у заказчика');
   addStat(result.summary.warnings, 'Предупреждений');
 

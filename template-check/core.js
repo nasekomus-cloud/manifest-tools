@@ -1377,7 +1377,7 @@ function buildReportText({ model, ctx, findings, summary, fileNames, templateFil
     lines.push('Ошибок и предупреждений нет — шаблон соответствует форме и поручению.', '');
     return lines.join('\r\n');
   }
-  lines.push(`ИТОГ: ошибок — ${summary.errors} (исправлено автоматически — ${summary.autoFixable},`
+  lines.push(`ИТОГ: ошибок — ${summary.errors} (может быть заменено автоматически — ${summary.autoFixable},`
     + ` уточнить у заказчика — ${summary.needsCustomer}), предупреждений — ${summary.warnings}.`);
   const section = (title, items) => {
     if (items.length === 0) return;
@@ -1385,7 +1385,7 @@ function buildReportText({ model, ctx, findings, summary, fileNames, templateFil
   };
   const errorsWith = (fix) => findings.filter((f) => f.level === 'error' && f.fix === fix).map(reportLine);
   section(`УТОЧНИТЬ У ЗАКАЗЧИКА — ${summary.needsCustomer}`, errorsWith('customer'));
-  section(`ИСПРАВЛЕНО АВТОМАТИЧЕСКИ — ${summary.autoFixable} (уже внесено в «${fileNames.corrected}»)`, errorsWith('auto'));
+  section(`МОЖЕТ БЫТЬ ЗАМЕНЕНО АВТОМАТИЧЕСКИ — ${summary.autoFixable} (уже внесено в «${fileNames.corrected}»)`, errorsWith('auto'));
   // Предупреждения «вверху» — первыми: они про весь файл, а не про ячейку.
   section(`ПРЕДУПРЕЖДЕНИЯ — ПРОВЕРЬТЕ САМИ — ${summary.warnings}`,
     [...ctx.topWarnings, ...findings.filter((f) => f.level === 'warning').map(reportLine)]);
