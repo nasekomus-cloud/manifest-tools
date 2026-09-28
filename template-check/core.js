@@ -12,7 +12,7 @@ import {
   HEADER_VALUE_COLUMN, NOTES, COLUMN_HEADER_ROW, DATA_START_ROW, COLUMNS, HEADER_ROW_HEIGHT,
   COLUMN_HEADER_ROW_HEIGHT, DATA_ROW_HEIGHT, TEXT_FORMAT, REQUIRED_FILL_ARGB, COLUMN_HEADER_FILL_ARGB, FONTS,
   normalizeHeader,
-} from './template-form.js?v=202609281900';
+} from './template-form.js?v=202609282100';
 import { parseLoadingOrder } from '../lib/loading-order.js?v=202609130013';
 import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202609130013';
 
@@ -1022,6 +1022,7 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
       case 'tareWeight': weightCheck('tareWeight', match.container ? match.container.tareWeight : null); break;
       case 'volume': {
         const num = readNumber(valueOf('volume'));
+        if (num.empty && !def.required) break; // пустым система объём принимает
         if (!num.ok) error('volume', 'customer', num.empty ? 'не заполнено' : `«${textOfKey('volume')}» не читается как число`);
         else if (num.number <= 0) error('volume', 'customer', `объём ${formatNumber(num.number)} — должен быть больше нуля`);
         else if (num.asText) kindError('volume', 'customer', num);
@@ -1081,16 +1082,18 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
       }
       case 'temperature': {
         const text = textOfKey('temperature');
-        if (!text) { error('temperature', 'customer', 'не заполнено'); break; }
+        if (!text && def.required) { error('temperature', 'customer', 'не заполнено'); break; }
         const iso = textOfKey('iso') || (match.container ? match.container.isoCode : '');
-        if (NONE_MARK.test(text) && isReefer(iso)) warn('temperature', `контейнер рефрижераторный («${iso}»), а температура не указана («${text}»)`);
+        if ((!text || NONE_MARK.test(text)) && isReefer(iso)) {
+          warn('temperature', `контейнер рефрижераторный («${iso}»), а температура не указана${text ? ` («${text}»)` : ''}`);
+        }
         break;
       }
       case 'dangerClasses': {
         const text = textOfKey('dangerClasses');
         const dangerous = match.container ? [...match.container.dangerousGoods] : [];
         if (dangerous.length === 0) {
-          if (!text) error('dangerClasses', 'customer', 'не заполнено');
+          if (!text) { if (def.required) error('dangerClasses', 'customer', 'не заполнено'); }
           // «NOT IMO», «-», «нет» — так в графе пишут «опасного груза нет».
           else if (match.container && !NONE_MARK.test(text)) warn('dangerClasses', `в поручении опасных грузов нет, а здесь написано «${text}» — проверьте`);
           break;
@@ -1108,7 +1111,7 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
       }
       case 'forwarder': {
         const text = textOfKey('forwarder');
-        if (!text) { error('forwarder', 'customer', 'не заполнено'); break; }
+        if (!text) { if (def.required) error('forwarder', 'customer', 'не заполнено'); break; }
         // ИНН в графе (10 или 12 цифр) — сверяем с ИНН поручения; наименование не сверяется.
         const inns = text.match(/\b\d{10}(?:\d{2})?\b/g) || [];
         const orderInn = order ? String(order.inn ?? '').replace(/\D/g, '') : '';
@@ -1119,7 +1122,7 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
       }
       case 'locSoc': {
         const owner = match.container ? trimmedOf(match.container.owner).toUpperCase() : '';
-        if (owner !== 'SOC' && owner !== 'LOC') { requireFilled('locSoc'); break; }
+        if (owner !== 'SOC' && owner !== 'LOC') { if (def.required) requireFilled('locSoc'); break; }
         const text = textOfKey('locSoc').toUpperCase();
         if (text !== owner) {
           error('locSoc', 'auto', text ? `в шаблоне «${textOfKey('locSoc')}», по поручению «${owner}»` : `не заполнено, по поручению «${owner}»`, owner);

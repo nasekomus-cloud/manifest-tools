@@ -46,8 +46,10 @@ export const DATA_START_ROW = 10;
 // Вид значения: 'text' — текст; 'number' — числовая ячейка; 'date' — текст
 // ДД.ММ.ГГГГ; 'seal' — число, если это одни цифры без ведущего нуля, иначе текст
 // («0012345» числом потерял бы нули); 'list' — одно из значений values (лист
-// Reference). required — ячейка данных залита жёлтым в образце: всё, кроме
-// «МЕСТО ИЗДАНИЯ». aliases — прежние написания заголовка, по которым колонка
+// Reference). required — заполнено в шаблоне, который система приняла
+// (2026-09-28, решение пользователя: «всё, что заполнено»); пустыми система
+// приняла D, J, K, T, AB–AF — они необязательны, но заполненные проверяются
+// (объём > 0, SOC/LOC по поручению, класс при опасном грузе). aliases — прежние написания заголовка, по которым колонка
 // ещё узнаётся (и заголовок исправляется на эталонный). width — ширина как в
 // образце; wrap — перенос текста в ячейках данных.
 export const COLUMNS = [
@@ -60,8 +62,8 @@ export const COLUMNS = [
   { letter: 'G', key: 'dischargeTerminal', header: 'ТЕРМИНАЛ ВЫГРУЗКИ (коносамент)', kind: 'text', required: true, width: 21.55, wrap: false },
   { letter: 'H', key: 'cargoNameEn', header: 'НАИМЕНОВАНИЕ ГРУЗА АНГЛ.', kind: 'text', required: true, width: 20.55, wrap: true },
   { letter: 'I', key: 'cargoNameRu', header: 'НАИМЕНОВАНИЕ ГРУЗА РУС.', kind: 'text', required: true, width: 19.55, wrap: true },
-  { letter: 'J', key: 'preCarriage', header: 'PRE-CARRIAGE BY', kind: 'text', required: true, width: 16.66, wrap: false },
-  { letter: 'K', key: 'placeOfReceipt', header: 'PLACE OF RECEIPT', kind: 'text', required: true, width: 16.66, wrap: true },
+  { letter: 'J', key: 'preCarriage', header: 'PRE-CARRIAGE BY', kind: 'text', required: false, width: 16.66, wrap: false },
+  { letter: 'K', key: 'placeOfReceipt', header: 'PLACE OF RECEIPT', kind: 'text', required: false, width: 16.66, wrap: true },
   { letter: 'L', key: 'placeOfDelivery', header: 'PLACE OF DELIVERY', kind: 'text', required: true, width: 16.66, wrap: false },
   { letter: 'M', key: 'deliveryTerms', header: 'УСЛОВИЯ ПОСТАВКИ', kind: 'list', values: DELIVERY_TERMS, required: true, width: 11, wrap: false },
   // «MOVERMENT» — опечатка самой системы; заголовок должен совпадать с её формой.
@@ -71,7 +73,7 @@ export const COLUMNS = [
   { letter: 'Q', key: 'places', header: 'КОЛИЧЕСТВО МЕСТ', kind: 'number', required: true, width: 14.55, wrap: false },
   { letter: 'R', key: 'cargoWeight', header: 'ВЕС ГРУЗА', kind: 'number', required: true, width: 12, wrap: false },
   { letter: 'S', key: 'tareWeight', header: 'ВЕС ТАРЫ', kind: 'number', required: true, width: 12, wrap: false },
-  { letter: 'T', key: 'volume', header: 'ОБЪЕМ', kind: 'number', required: true, width: 12, wrap: false },
+  { letter: 'T', key: 'volume', header: 'ОБЪЕМ', kind: 'number', required: false, width: 12, wrap: false },
   { letter: 'U', key: 'vgm', header: 'ВГМ', kind: 'number', required: true, width: 12.43, wrap: false },
   { letter: 'V', key: 'shipper', header: 'SHIPPER', kind: 'text', required: true, width: 11.66, wrap: true },
   { letter: 'W', key: 'shipperAddress', header: 'SHIPPER_ADDRESS', kind: 'text', required: true, width: 15.11, wrap: true },
@@ -79,11 +81,11 @@ export const COLUMNS = [
   { letter: 'Y', key: 'consigneeAddress', header: 'CONSIGNEE_ADDRESS', kind: 'text', required: true, width: 16.11, wrap: true },
   { letter: 'Z', key: 'notify', header: 'NOTIFY', kind: 'text', required: true, width: 13.44, wrap: true },
   { letter: 'AA', key: 'notifyAddress', header: 'NOTIFY_ADDRESS', kind: 'text', required: true, width: 16.55, wrap: true },
-  { letter: 'AB', key: 'temperature', header: 'ТЕМПЕРАТУРА', kind: 'text', required: true, width: 15, wrap: false },
-  { letter: 'AC', key: 'dangerClasses', header: 'ОПИСАНИЕ КЛАССОВ ОПАСНОСТИ', kind: 'text', required: true, width: 17.11, wrap: false },
-  { letter: 'AD', key: 'empty', header: 'ПОРОЖНИЙ', kind: 'text', required: true, width: 12.66, wrap: false },
-  { letter: 'AE', key: 'forwarder', header: 'НАИМЕНОВАНИЕ или ИНН ЭКСПЕДИТОРА', aliases: ['ИНН ЭКСПЕДИТОРА'], kind: 'text', required: true, width: 16, wrap: true },
-  { letter: 'AF', key: 'locSoc', header: 'LOC_SOC', kind: 'text', required: true, width: 12.66, wrap: false },
+  { letter: 'AB', key: 'temperature', header: 'ТЕМПЕРАТУРА', kind: 'text', required: false, width: 15, wrap: false },
+  { letter: 'AC', key: 'dangerClasses', header: 'ОПИСАНИЕ КЛАССОВ ОПАСНОСТИ', kind: 'text', required: false, width: 17.11, wrap: false },
+  { letter: 'AD', key: 'empty', header: 'ПОРОЖНИЙ', kind: 'text', required: false, width: 12.66, wrap: false },
+  { letter: 'AE', key: 'forwarder', header: 'НАИМЕНОВАНИЕ или ИНН ЭКСПЕДИТОРА', aliases: ['ИНН ЭКСПЕДИТОРА'], kind: 'text', required: false, width: 16, wrap: true },
+  { letter: 'AF', key: 'locSoc', header: 'LOC_SOC', kind: 'text', required: false, width: 12.66, wrap: false },
 ];
 
 // Оформление исправленного шаблона — как в образце.

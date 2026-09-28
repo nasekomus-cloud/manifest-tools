@@ -403,13 +403,19 @@ test('I: пломбы — набор в любом порядке; расхож�
   assert.deepEqual(brief(only(check(buildTemplate(), orders(noSeal)), () => true)), ['O10', 'НОМЕРА ПЛОМБ', 'error', 'customer']);
 });
 
-test('обязательные текстовые поля пустые — «уточнить у заказчика»; H кириллицей — тоже; D необязательна', () => {
-  const cells = ['A', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'P', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF'];
-  const row = { ...ROW1, D: null, H: 'БУМАГА' };
+test('обязательные текстовые поля пустые — «уточнить у заказчика»; H кириллицей — тоже', () => {
+  const cells = ['A', 'G', 'H', 'I', 'L', 'M', 'N', 'P', 'V', 'W', 'X', 'Y', 'Z', 'AA'];
+  const row = { ...ROW1, H: 'БУМАГА' };
   for (const letter of cells) if (letter !== 'H') row[letter] = null;
   const result = check(buildTemplate({ rows: [row, ROW2] }));
   assert.deepEqual(result.findings.map(brief),
     cells.map((letter) => [`${letter}10`, STANDARD_HEADERS[letter], 'error', 'customer']));
+});
+
+test('необязательные D, J, K, T, AB–AF пустые — находок нет (так их приняла система)', () => {
+  const optional = ['D', 'J', 'K', 'T', 'AB', 'AC', 'AD', 'AE', 'AF'];
+  const clear = (row) => Object.fromEntries(Object.entries(row).filter(([letter]) => !optional.includes(letter)));
+  assert.deepEqual(check(buildTemplate({ rows: [clear(ROW1), clear(ROW2)] })).findings, []);
 });
 
 test('M, N: значение из списка Reference; другой регистр/пробелы — «исправлю сам», чужое — «уточнить у заказчика»', () => {
@@ -499,12 +505,12 @@ test('V: имя, которого нет в поручении — предуп�
   assert.deepEqual(check(buildTemplate({ rows: [{ ...ROW1, Z: 'same as consignee' }, { ...ROW2, Z: 'same as consignee' }] })).findings, []);
 });
 
-test('AB: у рефконтейнера температура «-» — предупреждение (A05), пустая — ошибка', () => {
+test('AB: у рефконтейнера температура «-» или пустая — предупреждение (A05)', () => {
   const reefer = buildOrder({ containers: [{ ...ORDER_CONTAINERS[0], iso: '45R1' }, ORDER_CONTAINERS[1]] });
   const f = only(check(buildTemplate({ rows: [{ ...ROW1, F: '45R1' }, ROW2] }), orders(reefer)), () => true);
   assert.deepEqual(brief(f), ['AB10', 'ТЕМПЕРАТУРА', 'warning', null]);
   const empty = only(check(buildTemplate({ rows: [{ ...ROW1, F: '45R1', AB: null }, ROW2] }), orders(reefer)), () => true);
-  assert.deepEqual(brief(empty), ['AB10', 'ТЕМПЕРАТУРА', 'error', 'customer']);
+  assert.deepEqual(brief(empty), ['AB10', 'ТЕМПЕРАТУРА', 'warning', null]);
 });
 
 test('AC: опасный груз в поручении, а в колонке «NOT IMO» — ошибка; текст без опасного груза — предупреждение (A06)', () => {
@@ -727,10 +733,10 @@ test('исправленный шаблон: эталонная форма, ис
   assert.equal(sheet.getCell('F6').value, 'Timber Port');
   assert.deepEqual(['H3', 'H4', 'H6'].map((a) => sheet.getCell(a).value), [HEAD.H3, HEAD.H4, HEAD.H6]);
   assert.deepEqual(LETTERS.map((l) => sheet.getCell(`${l}9`).value), LETTERS.map((l) => STANDARD_HEADERS[l]));
-  // Оформление формы: обязательные графы жёлтые (F1 ЛИНИЯ и D — нет), заголовки зелёные.
+  // Оформление формы: обязательные графы жёлтые (F1 ЛИНИЯ, D, AF — нет), заголовки зелёные.
   const fill = (a) => sheet.getCell(a).fill?.fgColor?.argb ?? null;
   assert.deepEqual(['F1', 'F2', 'F4', 'F7', 'A9', 'A10', 'D10', 'AF10'].map(fill),
-    [null, 'FFFFFF00', null, 'FFFFFF00', 'FF92D050', 'FFFFFF00', null, 'FFFFFF00']);
+    [null, 'FFFFFF00', null, 'FFFFFF00', 'FF92D050', 'FFFFFF00', null, null]);
   assert.equal(sheet.getCell('AG9').value, null); // лишняя колонка убрана
   assert.equal(sheet.getCell('R10').value, 28120); // «исправлю сам»: число из поручения
   assert.equal(sheet.getCell('Q10').value, '20'); // места — ровно как у заказчика, текстом

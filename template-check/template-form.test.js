@@ -23,7 +23,7 @@ test('template-form: листы, шапка рейса (E/F, строки 1–7)
   assert.equal(DATA_START_ROW, 10);
 });
 
-test('template-form: 32 колонки — буква, заголовок, вид, обязательность (всё, кроме D)', () => {
+test('template-form: 32 колонки — буква, заголовок, вид, обязательность (необязательны D, J, K, T, AB–AF)', () => {
   const expected = [
     ['A', 'НОМЕР КОНОСАМЕНТА', 'text', true],
     ['B', 'НОМЕР ПОРУЧЕНИЯ', 'text', true],
@@ -34,8 +34,8 @@ test('template-form: 32 колонки — буква, заголовок, ви�
     ['G', 'ТЕРМИНАЛ ВЫГРУЗКИ (коносамент)', 'text', true],
     ['H', 'НАИМЕНОВАНИЕ ГРУЗА АНГЛ.', 'text', true],
     ['I', 'НАИМЕНОВАНИЕ ГРУЗА РУС.', 'text', true],
-    ['J', 'PRE-CARRIAGE BY', 'text', true],
-    ['K', 'PLACE OF RECEIPT', 'text', true],
+    ['J', 'PRE-CARRIAGE BY', 'text', false],
+    ['K', 'PLACE OF RECEIPT', 'text', false],
     ['L', 'PLACE OF DELIVERY', 'text', true],
     ['M', 'УСЛОВИЯ ПОСТАВКИ', 'list', true],
     ['N', 'TYPE OF MOVERMENT', 'list', true],
@@ -44,7 +44,7 @@ test('template-form: 32 колонки — буква, заголовок, ви�
     ['Q', 'КОЛИЧЕСТВО МЕСТ', 'number', true],
     ['R', 'ВЕС ГРУЗА', 'number', true],
     ['S', 'ВЕС ТАРЫ', 'number', true],
-    ['T', 'ОБЪЕМ', 'number', true],
+    ['T', 'ОБЪЕМ', 'number', false],
     ['U', 'ВГМ', 'number', true],
     ['V', 'SHIPPER', 'text', true],
     ['W', 'SHIPPER_ADDRESS', 'text', true],
@@ -52,11 +52,11 @@ test('template-form: 32 колонки — буква, заголовок, ви�
     ['Y', 'CONSIGNEE_ADDRESS', 'text', true],
     ['Z', 'NOTIFY', 'text', true],
     ['AA', 'NOTIFY_ADDRESS', 'text', true],
-    ['AB', 'ТЕМПЕРАТУРА', 'text', true],
-    ['AC', 'ОПИСАНИЕ КЛАССОВ ОПАСНОСТИ', 'text', true],
-    ['AD', 'ПОРОЖНИЙ', 'text', true],
-    ['AE', 'НАИМЕНОВАНИЕ или ИНН ЭКСПЕДИТОРА', 'text', true],
-    ['AF', 'LOC_SOC', 'text', true],
+    ['AB', 'ТЕМПЕРАТУРА', 'text', false],
+    ['AC', 'ОПИСАНИЕ КЛАССОВ ОПАСНОСТИ', 'text', false],
+    ['AD', 'ПОРОЖНИЙ', 'text', false],
+    ['AE', 'НАИМЕНОВАНИЕ или ИНН ЭКСПЕДИТОРА', 'text', false],
+    ['AF', 'LOC_SOC', 'text', false],
   ];
   assert.deepEqual(COLUMNS.map((c) => [c.letter, c.header, c.kind, c.required]), expected);
 });

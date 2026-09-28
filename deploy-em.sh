@@ -28,7 +28,6 @@ rsync -avz --delete \
   --exclude '.DS_Store' \
   --exclude 'skills-lock.json' \
   --exclude 'deploy-em.sh' \
-  --exclude 'deploy-manifest.sh' \
   ./ "$HOST:$TARGET_DIR/"
 
 ssh "$HOST" "chown -R www-data:www-data $TARGET_DIR"
