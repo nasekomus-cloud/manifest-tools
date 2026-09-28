@@ -1197,7 +1197,7 @@ function noteTextOf(cell) {
 
 function noteLine(f) {
   if (f.level === 'warning') return `Проверьте: ${f.message}`;
-  if (f.fix === 'auto') return `Ошибка: ${f.message}${f.correction ? ` → ${f.correction}` : ''}. Исправлю сам.`;
+  if (f.fix === 'auto') return `Ошибка: ${f.message}${f.correction ? ` → ${f.correction}` : ''}. Может быть заменено автоматически.`;
   return `Ошибка: ${f.message}. Уточнить у заказчика.`;
 }
 

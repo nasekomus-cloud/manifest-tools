@@ -687,6 +687,7 @@ test('шаблон с пометками: ошибки жёлтые, преду�
   assert.equal(fillOf('R11'), null); // соседняя ячейка с тем же исходным стилем
   assert.equal(fillOf('P10'), 'FFADD8E6'); // предупреждение (A04 — код упаковки) — голубым
   assert.match(noteText(sheet.getCell('R10')), /28120/);
+  assert.match(noteText(sheet.getCell('R10')), /→ 28120\. Может быть заменено автоматически\.$/);
   assert.ok(noteText(sheet.getCell('P10')));
   assert.equal(sheet.properties.tabColor?.argb, 'FFFF9900');
   assert.equal(marked.getWorksheet('Лист2').properties.tabColor?.argb, 'FFFF9900');
