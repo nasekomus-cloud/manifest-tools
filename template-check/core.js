@@ -1,6 +1,6 @@
 // «Проверить шаблон эл. поручения»: проверка формы шаблона (template-form.js),
 // сверка каждой строки с поручением (lib/loading-order.js) и три результата —
-// книга заказчика с жёлтыми ячейками и примечаниями, исправленный шаблон по
+// книга заказчика с оранжевыми ячейками и примечаниями, исправленный шаблон по
 // эталонной форме и текст отчёта. Чистый модуль: ExcelJS не импортирует (книги
 // приходят снаружи, новую пустую даёт options.createWorkbook) и DOM не трогает.
 //
@@ -8,15 +8,19 @@
 // Наружу выходят только detectFileKind и checkTemplate.
 
 import {
-  SHEET_NAME, HEADER_FIELDS, HEADER_LABEL_COLUMN, HEADER_VALUE_COLUMN, NOTE_CELL, NOTE_TEXT,
-  COLUMN_HEADER_ROW, DATA_START_ROW, COLUMNS, HEADER_ROW_HEIGHT, DATA_ROW_HEIGHT, TEXT_FORMAT, FONTS,
+  SHEET_NAME, REFERENCE_SHEET_NAME, MOVEMENT_TYPES, DELIVERY_TERMS, HEADER_FIELDS, HEADER_LABEL_COLUMN,
+  HEADER_VALUE_COLUMN, NOTES, COLUMN_HEADER_ROW, DATA_START_ROW, COLUMNS, HEADER_ROW_HEIGHT,
+  COLUMN_HEADER_ROW_HEIGHT, DATA_ROW_HEIGHT, TEXT_FORMAT, REQUIRED_FILL_ARGB, COLUMN_HEADER_FILL_ARGB, FONTS,
   normalizeHeader,
-} from './template-form.js?v=202609131200';
+} from './template-form.js?v=202609281900';
 import { parseLoadingOrder } from '../lib/loading-order.js?v=202609130013';
 import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202609130013';
 
-const YELLOW_ARGB = 'FFFFFF00';
-const BLUE_ARGB = 'FFADD8E6'; // предупреждение — светло-голубой, отличим от жёлтого ошибок
+// Ошибка — оранжевым, не жёлтым: в новой форме заказчик сам заливает жёлтым
+// все обязательные графы, и жёлтая пометка на них не видна (решение
+// пользователя 2026-09-28).
+const ERROR_ARGB = 'FFFF9900';
+const BLUE_ARGB = 'FFADD8E6'; // предупреждение — светло-голубой, отличим от оранжевого ошибок
 const TOLERANCE = 0.01; // допуск при сравнении весов и чисел
 const HEADER_SEARCH_ROWS = 30;
 const MIN_RECOGNIZED_HEADERS = 5; // столько заголовков делают строку строкой заголовков
@@ -24,18 +28,23 @@ const EARLY_DAYS = 30; // раньше самой ранней даты пору
 const LATE_DAYS = 90; // позже самой поздней — тоже
 
 const COLUMN_BY_KEY = new Map(COLUMNS.map((c) => [c.key, c]));
-const COLUMN_BY_NORM = new Map(COLUMNS.map((c) => [normalizeHeader(c.header), c]));
+// Колонка узнаётся и по прежнему написанию заголовка (aliases) — тогда он
+// «неточный» и исправляется на эталонный.
+const COLUMN_BY_NORM = new Map(COLUMNS.flatMap((c) => [c.header, ...(c.aliases || [])]
+  .map((header) => [normalizeHeader(header), c])));
 const FIELD_BY_NORM = new Map(HEADER_FIELDS.map((f) => [normalizeHeader(f.label), f]));
 const HEADER_FIELD_BY_KEY = new Map(HEADER_FIELDS.map((f) => [f.key, f]));
-// Колонки, числа в которых образуют строку «итого» (K–O).
+// Колонки, числа в которых образуют строку «итого» (Q–U).
 const SUM_KEYS = ['places', 'cargoWeight', 'tareWeight', 'volume', 'vgm'];
 // Ячейки, которые исправленный шаблон переносит ровно такими, как их записал
-// заказчик: A, C, G, J, K, N (spec §4, «Что исправленный шаблон не меняет
+// заказчик: коносамент, даты, английское наименование, упаковка, места, объём и
+// графы, которых нет в поручении (spec §4, «Что исправленный шаблон не меняет
 // никогда»). Список — страховка на будущее: исправление для этих колонок не
 // регистрируется, даже если новое правило попробует его завести. Даты шапки
-// E3 и E4 в том же перечне — для них исправлений нет ни в одном правиле §5.1.
+// F4 и F5 в том же перечне — для них исправлений нет ни в одном правиле §5.1.
 const KEEP_AS_IS_KEYS = new Set(['billOfLading', 'billDate', 'cargoNameEn', 'packageType', 'places', 'volume',
-  'arrivalDate', 'departureDate']);
+  'arrivalDate', 'departureDate', 'placeOfIssue', 'preCarriage', 'placeOfReceipt', 'placeOfDelivery', 'empty',
+  'forwarder']);
 
 /* ——— мелкие помощники ——— */
 
@@ -229,13 +238,23 @@ const isReefer = (code) => parseIso(code)?.group === 'R';
 
 /* ——— нормализация значений при сравнении ——— */
 
-const normalizeContainer = (text) => String(text ?? '').toUpperCase().replace(/[\s-]/g, '');
+// Кириллические буквы, которые на вид не отличить от латинских: в номере
+// контейнера и пломбы они встречаются (реальный случай — пломба «Р0217711» с
+// русской «Р»). Для поиска контейнера в поручении они считаются латинскими,
+// но сама запись с ними — ошибка: система их не сопоставит.
+const CYRILLIC_LOOKALIKES = {
+  А: 'A', В: 'B', С: 'C', Е: 'E', Н: 'H', К: 'K', М: 'M', О: 'O', Р: 'P', Т: 'T', Х: 'X', У: 'Y',
+};
+const toLatin = (text) => String(text ?? '').toUpperCase().replace(/[АВСЕНКМОРТХУ]/g, (ch) => CYRILLIC_LOOKALIKES[ch]);
+const lookalikeHint = (text) => (/[А-Яа-яЁё]/.test(String(text ?? '')) ? ' (кириллические буквы вместо латинских)' : '');
+
+const normalizeContainer = (text) => toLatin(text).replace(/[\s-]/g, '');
 const normalizeOrderNumber = (text) => String(text ?? '').toUpperCase().replace(/\s/g, '');
 const normalizeLoose = (text) => String(text ?? '').trim().toUpperCase().replace(/\s+/g, ' ');
 // Имя стороны коносамента: только буквы и цифры, латиница-двойник → кириллица.
 const normalizeName = (text) => normalizeHeader(text);
 
-// Терминал выгрузки (шапка E6) и «Порт выгрузки» поручения часто называют одно
+// Терминал выгрузки (шапка F7) и «Порт выгрузки» поручения часто называют одно
 // и то же место по-разному: «El Dekheila(EGEDK)» в поручении и «El Dekheila
 // Alexandria Int. Container Terminal» в шапке (реальные образцы пользователя) —
 // сравниваем не текст целиком, а название порта без скобочного кода, вхождением
@@ -390,9 +409,9 @@ function readModel(sheet, headerRow) {
   };
 }
 
-// Строка «итого» — без номера контейнера, где заполнены только K–O числами
-// (spec §4.4, дословно). Любая непустая ячейка вне K–O — в том числе с меткой
-// «Итого»/«Всего»/«Total» — уже не «только K–O»: такая строка не итоговая и не
+// Строка «итого» — без номера контейнера, где заполнены только Q–U числами
+// (spec §4.4, дословно). Любая непустая ячейка вне Q–U — в том числе с меткой
+// «Итого»/«Всего»/«Total» — уже не «только Q–U»: такая строка не итоговая и не
 // удаляется молча, а идёт в правило «без контейнера, но с другими данными»
 // (уточнить у заказчика) — иначе строка с реальными, не итоговыми данными
 // потерялась бы без вопроса при авто-исправлении.
@@ -435,16 +454,17 @@ function checkSheets(workbook, model, ctx) {
       message: `лист называется «${model.sheetName}», а система принимает только «${SHEET_NAME}»`,
       correction: `переименован в «${SHEET_NAME}»`,
     }));
-    ctx.yellowTabs.add(model.sheet);
+    ctx.markedTabs.add(model.sheet);
   }
   for (const sheet of workbook.worksheets) {
-    if (sheet === model.sheet) continue;
+    // Справочник Reference — часть формы; его отсутствие не ошибка (template-form.js).
+    if (sheet === model.sheet || sheet.name === REFERENCE_SHEET_NAME) continue;
     ctx.form.push(finding({
       level: 'error', fix: 'auto', section: 'form', sheet: sheet.name, field: 'Лист',
-      message: `лишний лист «${sheet.name}» — в книге должен остаться только «${SHEET_NAME}»`,
+      message: `лишний лист «${sheet.name}» — в книге должны быть только «${SHEET_NAME}» и «${REFERENCE_SHEET_NAME}»`,
       correction: 'удалён',
     }));
-    ctx.yellowTabs.add(sheet);
+    ctx.markedTabs.add(sheet);
   }
 }
 
@@ -453,11 +473,15 @@ function checkHeaderLabels(model, ctx) {
     const expected = `${HEADER_LABEL_COLUMN}${field.row}`;
     const found = model.labels.get(field.key);
     if (!found) {
+      // Значение из поручения — «исправлю сам»; необязательное поле (ЛИНИЯ,
+      // даты) — тоже: строка добавится пустой. Обязательное без поручения — к заказчику.
       const auto = ctx.headerAutoValue(field.key);
+      const fixable = auto !== null || !field.required;
       ctx.form.push(finding({
-        level: 'error', fix: auto === null ? 'customer' : 'auto', section: 'form', sheet: model.sheetName,
+        level: 'error', fix: fixable ? 'auto' : 'customer', section: 'form', sheet: model.sheetName,
         field: field.label, message: `в шапке нет строки «${field.label}»`,
-        correction: auto === null ? null : `строка «${field.label}» в ${expected}, значение «${auto}» из поручения`,
+        correction: auto !== null ? `строка «${field.label}» в ${expected}, значение «${auto}» из поручения`
+          : (fixable ? `строка «${field.label}» в ${expected}` : null),
       }));
       if (auto !== null) ctx.fixes.set(`head:${field.key}`, auto);
       continue;
@@ -620,7 +644,7 @@ export function checkTemplate(templateWb, orderEntries, options = {}) {
   const orderInfo = buildOrderInfo(parsed);
   const ctx = {
     form: [], data: [], missing: [], warnings: [], topWarnings: [],
-    fixes: new Map(), yellowTabs: new Set(), orderInfo, model,
+    fixes: new Map(), markedTabs: new Set(), orderInfo, model,
     headerAutoValue: (key) => orderInfo.headerValue(key),
   };
 
@@ -776,11 +800,12 @@ function checkHeaderValues(model, ctx) {
     if (field.kind === 'date') {
       const date = readDate(info.value, info.numFmt);
       dates[field.key] = date.parts;
-      if (date.status === 'empty') push({ level: 'error', fix: 'customer', cell: info.address, field: field.label, message: 'не заполнено' });
-      else if (date.status !== 'ok') ctx.form.push(dateKindFinding(model, info, field.label, date, null));
+      if (date.status === 'empty') {
+        if (field.required) push({ level: 'error', fix: 'customer', cell: info.address, field: field.label, message: 'не заполнено' });
+      } else if (date.status !== 'ok') ctx.form.push(dateKindFinding(model, info, field.label, date, null));
       continue;
     }
-    if (!text) push({ level: 'error', fix: 'customer', cell: info.address, field: field.label, message: 'не заполнено' });
+    if (!text && field.required) push({ level: 'error', fix: 'customer', cell: info.address, field: field.label, message: 'не заполнено' });
   }
   ctx.headerDates = dates;
   if (dates.arrivalDate && dates.departureDate && dayNumber(dates.arrivalDate) > dayNumber(dates.departureDate)) {
@@ -816,6 +841,8 @@ function matchRow(row, ctx, notLoaded) {
 }
 
 const CYRILLIC = /[А-Яа-яЁё]/;
+// Запись «ничего нет» в графах температуры и опасного груза.
+const NONE_MARK = /^(-+|—|нет|no|none|n\/a|not\s+imo|non[\s-]*imo|non[\s-]*dg|not\s+dg)$/i;
 const NOTIFY_SAME = /^(the\s+same|same\s+as\s+consignee)$/i;
 
 function checkDataRows(model, ctx) {
@@ -868,7 +895,7 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
     field: COLUMN_BY_KEY.get(key).header, container, message,
   }));
   const requireFilled = (key) => { if (!textOfKey(key)) error(key, 'customer', 'не заполнено'); };
-  // Числовая ячейка: 'auto' — вид правится сам (L, M, O), 'customer' — нет (K, N).
+  // Числовая ячейка: 'auto' — вид правится сам (R, S, U), 'customer' — нет (Q, T).
   const kindError = (key, fix, num) => ctx.form.push(finding({
     level: 'error', fix, section: 'form', sheet: model.sheetName, cell: info(key).address,
     field: COLUMN_BY_KEY.get(key).header, container,
@@ -927,7 +954,7 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
       case 'container': {
         if (match.container) {
           if (row.container !== match.container.containerNumber) {
-            error('container', 'auto', `номер записан как «${row.container}», в поручении — «${match.container.containerNumber}»`, match.container.containerNumber);
+            error('container', 'auto', `номер записан как «${row.container}»${lookalikeHint(row.container)}, в поручении — «${match.container.containerNumber}»`, match.container.containerNumber);
             setFix('container', match.container.containerNumber);
           }
         } else if (!match.skip && !match.ambiguous) {
@@ -964,7 +991,7 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
           if (expected.size === 0) {
             error('seals', 'customer', text ? `в шаблоне «${text}», а в поручении пломбы нет` : 'не заполнено, в поручении пломбы тоже нет');
           } else if (template.size !== expected.size || [...expected].some((seal) => !template.has(seal))) {
-            error('seals', 'auto', text ? `в шаблоне «${text}», по поручению «${match.container.sealNumber}»` : `не заполнено, по поручению «${match.container.sealNumber}»`, match.container.sealNumber);
+            error('seals', 'auto', text ? `в шаблоне «${text}»${lookalikeHint(text)}, по поручению «${match.container.sealNumber}»` : `не заполнено, по поручению «${match.container.sealNumber}»`, match.container.sealNumber);
             setFix('seals', sealValue(match.container.sealNumber));
           }
         } else requireFilled('seals');
@@ -1037,19 +1064,41 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
         }
         break;
       }
+      case 'deliveryTerms': case 'movementType': {
+        const text = textOfKey(def.key);
+        if (!text) { error(def.key, 'customer', 'не заполнено'); break; }
+        if (def.values.includes(text)) break;
+        // Тот же вариант, записанный с другим регистром или пробелами, — «исправлю сам».
+        const same = def.values.find((value) => value === text.toUpperCase().replace(/\s/g, ''));
+        const allowed = def.values.join(', ');
+        if (same) {
+          error(def.key, 'auto', `записано как «${text}», а в списке формы — «${same}»`, same);
+          setFix(def.key, same);
+        } else {
+          error(def.key, 'customer', `«${text}» нет в списке формы (лист «${REFERENCE_SHEET_NAME}»): ${allowed}`);
+        }
+        break;
+      }
       case 'temperature': {
+        const text = textOfKey('temperature');
+        if (!text) { error('temperature', 'customer', 'не заполнено'); break; }
         const iso = textOfKey('iso') || (match.container ? match.container.isoCode : '');
-        if (!textOfKey('temperature') && isReefer(iso)) warn('temperature', `контейнер рефрижераторный («${iso}»), а температура не указана`);
+        if (NONE_MARK.test(text) && isReefer(iso)) warn('temperature', `контейнер рефрижераторный («${iso}»), а температура не указана («${text}»)`);
         break;
       }
       case 'dangerClasses': {
         const text = textOfKey('dangerClasses');
         const dangerous = match.container ? [...match.container.dangerousGoods] : [];
         if (dangerous.length === 0) {
-          if (text && match.container) warn('dangerClasses', `в поручении опасных грузов нет, а здесь написано «${text}» — проверьте`);
+          if (!text) error('dangerClasses', 'customer', 'не заполнено');
+          // «NOT IMO», «-», «нет» — так в графе пишут «опасного груза нет».
+          else if (match.container && !NONE_MARK.test(text)) warn('dangerClasses', `в поручении опасных грузов нет, а здесь написано «${text}» — проверьте`);
           break;
         }
-        if (!text) { error('dangerClasses', 'customer', `в поручении есть опасный груз (${dangerous.join(', ')}), а колонка не заполнена`); break; }
+        if (!text || NONE_MARK.test(text)) {
+          error('dangerClasses', 'customer', `в поручении есть опасный груз (${dangerous.join(', ')}), а ${text ? `в колонке «${text}»` : 'колонка не заполнена'}`);
+          break;
+        }
         const numbers = new Set((text.match(/\d+(?:[.,]\d+)?/g) || []).map((n) => n.replace(',', '.')));
         const missing = dangerous.filter((pair) => pair.split('|').some((part) => !numbers.has(part.trim())));
         if (missing.length) {
@@ -1057,9 +1106,20 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
         }
         break;
       }
+      case 'forwarder': {
+        const text = textOfKey('forwarder');
+        if (!text) { error('forwarder', 'customer', 'не заполнено'); break; }
+        // ИНН в графе (10 или 12 цифр) — сверяем с ИНН поручения; наименование не сверяется.
+        const inns = text.match(/\b\d{10}(?:\d{2})?\b/g) || [];
+        const orderInn = order ? String(order.inn ?? '').replace(/\D/g, '') : '';
+        if (inns.length && orderInn && !inns.includes(orderInn)) {
+          warn('forwarder', `ИНН ${inns.join(', ')} не совпадает с ИНН поручения ${orderInn} — проверьте`);
+        }
+        break;
+      }
       case 'locSoc': {
         const owner = match.container ? trimmedOf(match.container.owner).toUpperCase() : '';
-        if (owner !== 'SOC' && owner !== 'LOC') break;
+        if (owner !== 'SOC' && owner !== 'LOC') { requireFilled('locSoc'); break; }
         const text = textOfKey('locSoc').toUpperCase();
         if (text !== owner) {
           error('locSoc', 'auto', text ? `в шаблоне «${textOfKey('locSoc')}», по поручению «${owner}»` : `не заполнено, по поручению «${owner}»`, owner);
@@ -1067,8 +1127,8 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
         }
         break;
       }
-      // A, F, H, Q, S, U: с поручением не сравниваются (spec «Вне рамок») —
-      // проверяется только, что поле заполнено. X, Y не проверяются вообще.
+      // A, D, G, I, J, K, L, W, Y, AA, AD: с поручением не сравниваются (spec
+      // «Вне рамок») — проверяется только, что обязательное поле заполнено.
       default:
         if (def.required) requireFilled(def.key);
         break;
@@ -1084,7 +1144,8 @@ const sealValue = (text) => (/^[1-9]\d*$/.test(String(text ?? '').trim()) ? Numb
 // испорчена, например протянута в Excel формулой или копированием строки).
 // Находка — на каждой расходящейся строке, не только на первой встреченной.
 function checkBillGroups(model, ctx, dataRows) {
-  const keys = ['billDate', 'dischargeTerminal', 'shipper', 'shipperAddress', 'consignee', 'consigneeAddress', 'notify', 'notifyAddress'];
+  const keys = ['billDate', 'placeOfIssue', 'dischargeTerminal', 'preCarriage', 'placeOfReceipt', 'placeOfDelivery',
+    'deliveryTerms', 'movementType', 'shipper', 'shipperAddress', 'consignee', 'consigneeAddress', 'notify', 'notifyAddress'];
   const firstByBill = new Map();
   for (const row of dataRows) {
     const bill = normalizeLoose(trimmedOf(row.cells.billOfLading ? row.cells.billOfLading.value : null));
@@ -1140,7 +1201,7 @@ function noteLine(f) {
   return `Ошибка: ${f.message}. Уточнить у заказчика.`;
 }
 
-// Красит на листе ячейки найденных находок (жёлтым — ошибки, голубым —
+// Красит на листе ячейки найденных находок (оранжевым — ошибки, голубым —
 // предупреждения; ошибка на той же ячейке важнее и не перекрашивается обратно
 // голубым) и пишет примечания. `resolve(f)` — адрес находки НА ЭТОМ листе: на
 // листе с пометками это f.cell как есть, на исправленном шаблоне — адрес после
@@ -1168,13 +1229,13 @@ function paintFindings(sheet, findings, resolve) {
     style.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
     cell.style = style;
   };
-  for (const address of painted) paint(address, YELLOW_ARGB);
+  for (const address of painted) paint(address, ERROR_ARGB);
   for (const address of warned) if (!painted.has(address)) paint(address, BLUE_ARGB);
 }
 
 function buildMarkedWorkbook(workbook, model, findings, ctx) {
   paintFindings(model.sheet, findings, (f) => f.cell);
-  for (const sheet of ctx.yellowTabs) sheet.properties.tabColor = { argb: YELLOW_ARGB };
+  for (const sheet of ctx.markedTabs) sheet.properties.tabColor = { argb: ERROR_ARGB };
   // ExcelJS 4.4.0 не умеет записать часть правил условного форматирования и
   // делает файл нечитаемым для Excel (CLAUDE.md) — убираем такие правила.
   for (const sheet of workbook.worksheets) dropUnwritableConditionalFormatting(sheet);
@@ -1186,6 +1247,17 @@ function buildMarkedWorkbook(workbook, model, findings, ctx) {
 const thinBorder = () => ({
   top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' },
 });
+const solidFill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+
+// Справочник значений — как лист Reference образца: типы перевозки в A,
+// условия поставки в B.
+function addReferenceSheet(workbook) {
+  const sheet = workbook.addWorksheet(REFERENCE_SHEET_NAME);
+  MOVEMENT_TYPES.forEach((value, i) => { sheet.getCell(`A${i + 1}`).value = value; });
+  DELIVERY_TERMS.forEach((value, i) => { sheet.getCell(`B${i + 1}`).value = value; });
+  sheet.getColumn(1).width = 12.33;
+  sheet.getColumn(2).width = 14.89;
+}
 
 function buildCorrectedWorkbook(model, ctx, createWorkbook, findings) {
   const workbook = createWorkbook();
@@ -1209,19 +1281,25 @@ function buildCorrectedWorkbook(model, ctx, createWorkbook, findings) {
     else if (source && source.value.value !== null) valueCell.value = source.value.value;
     valueCell.font = { ...FONTS.headerValue };
     valueCell.alignment = { horizontal: 'left', vertical: 'middle' };
-    applyFormat(valueCell, field.kind === 'date', source ? source.value.numFmt : null);
+    if (field.required) valueCell.fill = solidFill(REQUIRED_FILL_ARGB);
+    applyFormat(valueCell, true, source ? source.value.numFmt : null);
     if (source) addressMap.set(source.value.address, valueCell.address);
   }
-  const noteCell = sheet.getCell(NOTE_CELL);
-  noteCell.value = NOTE_TEXT;
-  noteCell.font = { ...FONTS.note };
+  for (const note of NOTES) {
+    const cell = sheet.getCell(note.cell);
+    cell.value = note.text;
+    cell.font = { ...FONTS[note.font] };
+    if (note.fill) cell.fill = solidFill(REQUIRED_FILL_ARGB);
+  }
 
+  sheet.getRow(COLUMN_HEADER_ROW).height = COLUMN_HEADER_ROW_HEIGHT;
   COLUMNS.forEach((def, index) => {
     const cell = sheet.getRow(COLUMN_HEADER_ROW).getCell(index + 1);
     cell.value = def.header;
     cell.font = { ...FONTS.columnHeader };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     cell.border = thinBorder();
+    cell.fill = solidFill(COLUMN_HEADER_FILL_ARGB);
   });
 
   let target = DATA_START_ROW;
@@ -1240,7 +1318,8 @@ function buildCorrectedWorkbook(model, ctx, createWorkbook, findings) {
       cell.font = { ...FONTS.data };
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: def.wrap };
       cell.border = thinBorder();
-      applyFormat(cell, def.kind === 'text' || def.kind === 'date', source ? source.numFmt : null);
+      if (def.required) cell.fill = solidFill(REQUIRED_FILL_ARGB);
+      applyFormat(cell, def.kind !== 'number' && def.kind !== 'seal', source ? source.numFmt : null);
       if (source) addressMap.set(source.address, cell.address);
     });
     target += 1;
@@ -1250,6 +1329,7 @@ function buildCorrectedWorkbook(model, ctx, createWorkbook, findings) {
   // только из отдельного отчёта, а не из самого исправленного файла.
   const remaining = findings.filter((f) => f.cell && f.fix !== 'auto');
   paintFindings(sheet, remaining, (f) => addressMap.get(f.cell) || null);
+  addReferenceSheet(workbook);
   return workbook;
 }
 

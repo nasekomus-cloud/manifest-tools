@@ -1,54 +1,64 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  SHEET_NAME, HEADER_FIELDS, NOTE_CELL, NOTE_TEXT, COLUMN_HEADER_ROW, DATA_START_ROW, COLUMNS, normalizeHeader,
+  SHEET_NAME, REFERENCE_SHEET_NAME, MOVEMENT_TYPES, DELIVERY_TERMS, HEADER_FIELDS, NOTES, COLUMN_HEADER_ROW,
+  DATA_START_ROW, COLUMNS, normalizeHeader,
 } from './template-form.js';
 
-// Ожидаемые значения переписаны вручную из spec.md §3 и reference.md
-// («Форма шаблона») — не из модуля под тестом.
+// Ожидаемые значения переписаны вручную из шаблона первой реальной заявки
+// («Шаблон эл. поручения серпентинит.xlsx», 2026-09-28) — не из модуля под тестом.
 
-test('template-form: лист, шапка рейса, памятка G3 и строки таблицы', () => {
+test('template-form: листы, шапка рейса (E/F, строки 1–7), памятки и строки таблицы', () => {
   assert.equal(SHEET_NAME, 'EXPORT_MANIFEST');
+  assert.equal(REFERENCE_SHEET_NAME, 'Reference');
+  assert.deepEqual(MOVEMENT_TYPES, ['FCL/FCL', 'FCL/LCL', 'LCL/LCL', 'LCL/FCL']);
+  assert.deepEqual(DELIVERY_TERMS, ['CY/CY', 'CY/DOOR', 'DOOR/DOOR', 'DOOR/CY', 'GATE/GATE']);
   assert.deepEqual(
-    HEADER_FIELDS.map((f) => [f.label, f.row]),
-    [['СУДНО', 1], ['РЕЙС', 2], ['ДАТА ПРИХОДА', 3], ['ДАТА ВЫХОДА', 4], ['ТЕРМИНАЛ ПОГРУЗКИ', 5], ['ТЕРМИНАЛ ВЫГРУЗКИ', 6]],
+    HEADER_FIELDS.map((f) => [f.label, f.row, f.required]),
+    [['ЛИНИЯ', 1, false], ['СУДНО', 2, true], ['РЕЙС', 3, true], ['ДАТА ПРИХОДА', 4, false],
+      ['ДАТА ВЫХОДА', 5, false], ['ТЕРМИНАЛ ПОГРУЗКИ', 6, true], ['ТЕРМИНАЛ ВЫГРУЗКИ', 7, true]],
   );
-  assert.equal(NOTE_CELL, 'G3');
-  assert.equal(NOTE_TEXT, 'Таблицу заполнять строго в соответствии с п/поручением и ДТ!');
-  assert.equal(COLUMN_HEADER_ROW, 8);
-  assert.equal(DATA_START_ROW, 9);
+  assert.deepEqual(NOTES.map((n) => n.cell), ['H3', 'H4', 'H6']);
+  assert.equal(COLUMN_HEADER_ROW, 9);
+  assert.equal(DATA_START_ROW, 10);
 });
 
-test('template-form: 26 колонок — буква, заголовок, вид, обязательность, ширина', () => {
+test('template-form: 32 колонки — буква, заголовок, вид, обязательность (всё, кроме D)', () => {
   const expected = [
-    ['A', 'НОМЕР КОНОСАМЕНТА', 'text', true, 18.57],
-    ['B', 'НОМЕР ПОРУЧЕНИЯ', 'text', true, 18.57],
-    ['C', 'ДАТА КОНОСАМЕНТА', 'date', true, 14.71],
-    ['D', 'НОМЕР КОНТЕЙНЕРА', 'text', true, 22.43],
-    ['E', 'ISO КОД', 'text', true, 12],
-    ['F', 'ТЕРМИНАЛ ВЫГРУЗКИ (коносамент)', 'text', true, 16.71],
-    ['G', 'НАИМЕНОВАНИЕ ГРУЗА АНГЛ.', 'text', true, 26.14],
-    ['H', 'НАИМЕНОВАНИЕ ГРУЗА РУС.', 'text', true, 22.43],
-    ['I', 'НОМЕРА ПЛОМБ', 'seal', true, 15.14],
-    ['J', 'ТИП УПАКОВКИ', 'text', true, 13.29],
-    ['K', 'КОЛИЧЕСТВО МЕСТ', 'number', true, 14.57],
-    ['L', 'ВЕС ГРУЗА', 'number', true, 12],
-    ['M', 'ВЕС ТАРЫ', 'number', true, 12],
-    ['N', 'ОБЪЕМ', 'number', true, 12],
-    ['O', 'ВГМ', 'number', true, 12.43],
-    ['P', 'SHIPPER', 'text', true, 20],
-    ['Q', 'SHIPPER_ADDRESS', 'text', true, 27.71],
-    ['R', 'CONSIGNEE', 'text', true, 13.43],
-    ['S', 'CONSIGNEE_ADDRESS', 'text', true, 13.43],
-    ['T', 'NOTIFY', 'text', true, 13.43],
-    ['U', 'NOTIFY_ADDRESS', 'text', true, 16.57],
-    ['V', 'ТЕМПЕРАТУРА', 'text', false, 15],
-    ['W', 'ОПИСАНИЕ КЛАССОВ ОПАСНОСТИ', 'text', false, 17.14],
-    ['X', 'ПОРОЖНИЙ', 'text', false, 12.71],
-    ['Y', 'ИНН ЭКСПЕДИТОРА', 'text', false, 16],
-    ['Z', 'LOC_SOC', 'text', false, 12.71],
+    ['A', 'НОМЕР КОНОСАМЕНТА', 'text', true],
+    ['B', 'НОМЕР ПОРУЧЕНИЯ', 'text', true],
+    ['C', 'ДАТА КОНОСАМЕНТА', 'date', true],
+    ['D', 'МЕСТО ИЗДАНИЯ', 'text', false],
+    ['E', 'НОМЕР КОНТЕЙНЕРА', 'text', true],
+    ['F', 'ISO КОД', 'text', true],
+    ['G', 'ТЕРМИНАЛ ВЫГРУЗКИ (коносамент)', 'text', true],
+    ['H', 'НАИМЕНОВАНИЕ ГРУЗА АНГЛ.', 'text', true],
+    ['I', 'НАИМЕНОВАНИЕ ГРУЗА РУС.', 'text', true],
+    ['J', 'PRE-CARRIAGE BY', 'text', true],
+    ['K', 'PLACE OF RECEIPT', 'text', true],
+    ['L', 'PLACE OF DELIVERY', 'text', true],
+    ['M', 'УСЛОВИЯ ПОСТАВКИ', 'list', true],
+    ['N', 'TYPE OF MOVERMENT', 'list', true],
+    ['O', 'НОМЕРА ПЛОМБ', 'seal', true],
+    ['P', 'ТИП УПАКОВКИ', 'text', true],
+    ['Q', 'КОЛИЧЕСТВО МЕСТ', 'number', true],
+    ['R', 'ВЕС ГРУЗА', 'number', true],
+    ['S', 'ВЕС ТАРЫ', 'number', true],
+    ['T', 'ОБЪЕМ', 'number', true],
+    ['U', 'ВГМ', 'number', true],
+    ['V', 'SHIPPER', 'text', true],
+    ['W', 'SHIPPER_ADDRESS', 'text', true],
+    ['X', 'CONSIGNEE', 'text', true],
+    ['Y', 'CONSIGNEE_ADDRESS', 'text', true],
+    ['Z', 'NOTIFY', 'text', true],
+    ['AA', 'NOTIFY_ADDRESS', 'text', true],
+    ['AB', 'ТЕМПЕРАТУРА', 'text', true],
+    ['AC', 'ОПИСАНИЕ КЛАССОВ ОПАСНОСТИ', 'text', true],
+    ['AD', 'ПОРОЖНИЙ', 'text', true],
+    ['AE', 'НАИМЕНОВАНИЕ или ИНН ЭКСПЕДИТОРА', 'text', true],
+    ['AF', 'LOC_SOC', 'text', true],
   ];
-  assert.deepEqual(COLUMNS.map((c) => [c.letter, c.header, c.kind, c.required, c.width]), expected);
+  assert.deepEqual(COLUMNS.map((c) => [c.letter, c.header, c.kind, c.required]), expected);
 });
 
 test('normalizeHeader: регистр, латиница-двойник → кириллица, только буквы и цифры', () => {
