@@ -26,6 +26,14 @@ const resultsBox = document.getElementById('results-box');
 const downloadBtn = document.getElementById('download-btn');
 const downloadExcelBtn = document.getElementById('download-excel-btn');
 
+// Одна и та же страница на обе вкладки: grand-total-import/index.html грузит
+// этот же app.js с <body data-report-mode="import">, и в шапке отчёта (PDF и
+// Excel) у импорта другие подписи даты и порта. Остальное не отличается.
+const HEADER_LABELS =
+  document.body.dataset.reportMode === 'import'
+    ? { date: 'ARRIVAL DATE:', port: 'PORT OF DISCHARGE:' }
+    : { date: 'SAILING DATE:', port: 'PORT OF LOADING:' };
+
 const TABLE_COLUMNS = [
   'TOTAL CONTAINER NUMBER',
   'TOTAL GROSS CARGO WEIGHT',
@@ -420,9 +428,9 @@ async function buildPdf(report, manualFields) {
   let x = MARGIN;
   x = drawHeaderField(x, 'VESSEL: ', report.vessel || '');
   x = drawHeaderField(x, 'VOYAGE: ', report.voyage || '');
-  x = drawHeaderField(x, 'SAILING DATE: ', manualFields.arrivalDate);
+  x = drawHeaderField(x, `${HEADER_LABELS.date} `, manualFields.arrivalDate);
   x = drawHeaderField(x, 'CALL SIGN: ', manualFields.callSign);
-  drawHeaderField(x, 'PORT OF LOADING: ', manualFields.terminal);
+  drawHeaderField(x, `${HEADER_LABELS.port} `, manualFields.terminal);
 
   const { header, dataRows, totalRow } = buildTableRows(report);
   const columnWidths = computeColumnWidths(font, bold, header, dataRows, totalRow);
@@ -586,8 +594,8 @@ function buildExcelRows(report) {
 }
 
 // Пять полей шапки — как в PDF, одной строкой в исходном порядке
-// (VESSEL/VOYAGE/SAILING DATE/CALL SIGN/PORT OF LOADING) — расхождение с
-// формой PDF и эталона (reference.md) было реальной жалобой пользователя на
+// (VESSEL/VOYAGE/SAILING DATE/CALL SIGN/PORT OF LOADING; у импорта подписи
+// даты и порта другие — HEADER_LABELS) — расхождение с формой PDF и эталона (reference.md) было реальной жалобой пользователя на
 // прошлую версию (тогда — пять отдельных строк). Здесь эта строка — не ряд
 // из 10 колонок (по label+value на поле), а одна ячейка, объединённая по
 // ширине самой таблицы (см. buildExcelWorkbook) с переносом по словам: ряд
@@ -597,9 +605,9 @@ function buildHeaderFields(report, manualFields) {
   return [
     ['VESSEL:', report.vessel || ''],
     ['VOYAGE:', report.voyage || ''],
-    ['SAILING DATE:', manualFields.arrivalDate],
+    [HEADER_LABELS.date, manualFields.arrivalDate],
     ['CALL SIGN:', manualFields.callSign],
-    ['PORT OF LOADING:', manualFields.terminal],
+    [HEADER_LABELS.port, manualFields.terminal],
   ];
 }
 

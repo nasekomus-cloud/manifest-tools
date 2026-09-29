@@ -70,6 +70,17 @@ window.TOOLS = [
     output: 'pdf',
   },
   {
+    // Тот же отчёт в «Импорте»: своя страница только ради других подписей в
+    // шапке (ARRIVAL DATE / PORT OF DISCHARGE), код — общий grand-total/app.js.
+    title: 'Итоговый PDF-отчёт по манифесту',
+    navTitle: 'Итоговый отчёт',
+    description:
+      'Сводная таблица «GRAND TOTAL» по типам контейнеров в PDF. Позывной, дату прибытия и порт выгрузки — впишите вручную.',
+    href: 'grand-total-import/index.html',
+    category: 'import',
+    output: 'pdf',
+  },
+  {
     title: 'Сводный реестр поручений и коносаментов',
     navTitle: 'Реестр поручений и коносаментов',
     description:
