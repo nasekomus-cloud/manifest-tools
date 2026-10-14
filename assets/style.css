@@ -598,6 +598,22 @@ h3 {
   color: var(--error);
 }
 
+/* Список готовых файлов со своей кнопкой «Скачать» (arm-upload): на узком
+   экране имя файла — отдельной строкой над числом строк и кнопкой, иначе
+   длинное имя сжимается в столбик по букве. */
+@media (max-width: 699.98px) {
+  .file-list--results li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 4px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .file-list--results .file-list__name {
+    grid-column: 1 / -1;
+  }
+}
+
 .file-list__remove {
   display: grid;
   place-items: center;

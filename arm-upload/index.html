@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Файлы для загрузки в АРМ</title>
+  <link rel="stylesheet" href="../assets/fonts.css?v=202609121900" />
+  <link rel="stylesheet" href="../assets/style.css?v=202610142330" />
+</head>
+<body class="app">
+  <aside class="app__side" id="app-side"></aside>
+
+  <main class="app__main">
+    <h1 class="page__title">Файлы для загрузки в АРМ</h1>
+    <p class="page__subtitle">
+      Загрузите исходный файл от линии — он разделится по портам погрузки на файлы
+      «for ARM uploading …» в формате для АРМ. Всё считается в браузере, файл никуда не отправляется.
+    </p>
+
+    <ol class="steps" id="steps">
+      <li>Исходный файл</li>
+      <li>Даты и терминалы</li>
+      <li>Файлы для АРМ</li>
+    </ol>
+
+    <section aria-labelledby="source-heading">
+      <h2 id="source-heading">Исходный файл</h2>
+      <p class="hint">
+        Строки и данные переносятся как есть — ошибки исходного файла перейдут и в файлы для АРМ.
+        Сначала стоит прогнать его через «<a href="../source-audit/index.html">Проверить исходный файл</a>».
+      </p>
+      <ul class="file-list" id="source-file-list" aria-label="Исходный файл"></ul>
+      <div class="dropzone" id="source-dropzone">
+        <p class="dropzone__text">Перетащите файл сюда или</p>
+        <button type="button" id="source-pick-btn" class="btn btn--secondary">Выбрать файл</button>
+        <p class="dropzone__hint">.xlsx, один файл</p>
+        <input type="file" id="source-input" accept=".xlsx" hidden />
+      </div>
+    </section>
+
+    <section class="options" aria-labelledby="voyage-heading">
+      <h2 id="voyage-heading">Рейс</h2>
+      <div class="field-grid">
+        <label class="field">
+          <span>Судно</span>
+          <input type="text" id="vessel-input" placeholder="OVP ZENITH" />
+        </label>
+        <label class="field">
+          <span>Рейс</span>
+          <input type="text" id="voyage-input" placeholder="2602W" />
+        </label>
+        <label class="field">
+          <span>Дата прихода</span>
+          <input type="date" id="arrival-input" />
+        </label>
+        <label class="field">
+          <span>Терминал выгрузки</span>
+          <input type="text" id="discharge-terminal-input" value="Timber Port" />
+        </label>
+        <label class="field">
+          <span>Порт выгрузки в имени файла</span>
+          <input type="text" id="discharge-code-input" value="RUPLP" />
+        </label>
+      </div>
+    </section>
+
+    <section class="options" aria-labelledby="ports-heading" id="ports-section" hidden>
+      <h2 id="ports-heading">Порты погрузки</h2>
+      <p class="hint">По файлу на каждый порт (PlaceOfReceipt). Дата коносамента ставится всем строкам файла.</p>
+      <div id="ports-box"></div>
+    </section>
+
+    <div class="action-bar" id="action-bar">
+      <p class="action-bar__info" id="action-info">Файл не выбран</p>
+      <span class="action-bar__hint" id="action-hint">Добавьте исходный файл</span>
+      <button type="button" id="build-btn" class="btn" disabled>Сформировать файлы</button>
+    </div>
+
+    <div id="error-box" class="error-message" role="alert" hidden></div>
+
+    <section id="summary-box" class="result" aria-label="Файлы для АРМ" hidden>
+      <div class="result__head">
+        <div class="result__stats" id="result-stats"></div>
+        <div class="result__actions">
+          <button type="button" id="download-zip-btn" class="btn">Скачать все (.zip)</button>
+        </div>
+      </div>
+      <ul class="file-list file-list--results" id="result-file-list" aria-label="Файлы для АРМ"></ul>
+    </section>
+  </main>
+
+  <script src="../tools.js?v=202610142330"></script>
+  <script src="../assets/shell.js?v=202609131500"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script type="module" src="app.js?v=202610142330"></script>
+</body>
+</html>

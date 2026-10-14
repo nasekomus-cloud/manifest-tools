@@ -43,6 +43,15 @@ window.TOOLS = [
     output: 'xlsx',
   },
   {
+    title: 'Файлы для загрузки в АРМ',
+    navTitle: 'Файлы для АРМ',
+    description:
+      'Разделить исходный файл линии по портам погрузки на файлы «for ARM uploading …»: названия портов и терминалов, пломбы, класс опасности и даты — в формате АРМ.',
+    href: 'arm-upload/index.html',
+    category: 'import',
+    output: 'zip',
+  },
+  {
     title: 'Сверить манифест с исходным файлом',
     navTitle: 'Сверить с исходным файлом',
     description:
