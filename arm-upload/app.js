@@ -7,6 +7,12 @@
 //
 // Шаг 1 — пока нет файла, 2 — пока нет результата, 3 — файлы собраны; смена
 // файла или любого поля прячет собранные файлы, чтобы не скачать устаревшие.
+//
+// Введённое запоминается в localStorage этого браузера (с одним судном работают
+// много раз подряд): даты прихода и коносаментов — по паре «судно + рейс»
+// (другой рейс — пустые даты, чтобы не подставить чужие), терминал выгрузки,
+// код в имени файла и поля портов погрузки (терминал, POL, код) — последние
+// введённые, общие для всех рейсов.
 
 import { readSource, buildArmFiles, validateOptions } from './core.js?v=202610142330';
 
@@ -48,6 +54,95 @@ const state = {
 };
 let busy = false;
 let setVersion = 0; // растёт при каждой смене файла — результат старого файла не показываем
+
+/* ——— Запоминание введённого ———
+   { last: {vessel, voyage}, dischargeTerminal, dischargeCode,
+     voyages: { "судно|рейс": {arrivalDate, billDates: {код порта: дата}, savedAt} },
+     ports: { код порта: {terminal, pol, fileCode} } }
+   Хранилище может быть недоступно (приватное окно, запрет сайта) — тогда всё
+   работает как раньше, просто без памяти. */
+
+const STORAGE_KEY = 'manifest-tools:arm-upload';
+const MAX_VOYAGES = 30;
+
+function loadStore() {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    return data && typeof data === 'object' ? data : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStore(data) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // нет хранилища — без памяти
+  }
+}
+
+function voyageKey(vessel, voyage) {
+  const norm = (text) => text.trim().toUpperCase().replace(/\s+/g, ' ');
+  return vessel.trim() && voyage.trim() ? `${norm(vessel)}|${norm(voyage)}` : '';
+}
+
+function savedVoyage(store = loadStore()) {
+  const key = voyageKey(vesselInput.value, voyageInput.value);
+  return (key && store.voyages && store.voyages[key]) || null;
+}
+
+function saveCurrent() {
+  const store = loadStore();
+  store.dischargeTerminal = dischargeTerminalInput.value.trim();
+  store.dischargeCode = dischargeCodeInput.value.trim();
+  store.last = { vessel: vesselInput.value.trim(), voyage: voyageInput.value.trim() };
+  // Поля порта запоминаются, только если отличаются от справочника core.js:
+  // иначе поправка справочника в коде не дошла бы до того, кто уже работал.
+  store.ports ??= {};
+  for (const { code, inputs } of state.portInputs) {
+    const defaults = state.source?.ok ? state.source.loadingPorts.find((p) => p.code === code) : null;
+    const entry = {};
+    for (const field of ['terminal', 'pol', 'fileCode']) {
+      const value = inputs[field].value.trim();
+      if (!defaults || value !== defaults[field]) entry[field] = value;
+    }
+    if (Object.keys(entry).length) store.ports[code] = entry;
+    else delete store.ports[code];
+  }
+  const key = voyageKey(vesselInput.value, voyageInput.value);
+  if (key) {
+    store.voyages ??= {};
+    const record = store.voyages[key] ?? { billDates: {} };
+    record.arrivalDate = arrivalInput.value;
+    record.billDates ??= {};
+    for (const { code, inputs } of state.portInputs) record.billDates[code] = inputs.billDate.value;
+    record.savedAt = Date.now();
+    store.voyages[key] = record;
+    // Старые рейсы вытесняются — хранилище не растёт без конца.
+    const keys = Object.keys(store.voyages).sort((a, b) => (store.voyages[b].savedAt || 0) - (store.voyages[a].savedAt || 0));
+    for (const old of keys.slice(MAX_VOYAGES)) delete store.voyages[old];
+  }
+  saveStore(store);
+}
+
+// Даты сохранённого рейса — в поля; рейса нет в памяти — даты пустые.
+function applySavedVoyage() {
+  const record = savedVoyage();
+  arrivalInput.value = record?.arrivalDate ?? '';
+  for (const { code, inputs } of state.portInputs) inputs.billDate.value = record?.billDates?.[code] ?? '';
+}
+
+function restoreOnStart() {
+  const store = loadStore();
+  if (store.dischargeTerminal) dischargeTerminalInput.value = store.dischargeTerminal;
+  if (store.dischargeCode) dischargeCodeInput.value = store.dischargeCode;
+  if (store.last) {
+    vesselInput.value = store.last.vessel ?? '';
+    voyageInput.value = store.last.voyage ?? '';
+  }
+  applySavedVoyage();
+}
 
 function currentOptions() {
   const ports = {};
@@ -152,10 +247,12 @@ function textInput(value, placeholder = '') {
   return input;
 }
 
-// Поля портов погрузки строятся по файлу заново; уже введённые даты и терминалы
-// того же порта сохраняются (тот же исходный файл, загруженный повторно).
+// Поля портов погрузки строятся по файлу заново: терминал, POL и код — из
+// запомненного (иначе из справочника core.js), дата коносамента — из
+// запомненного рейса.
 function renderPorts() {
-  const previous = new Map(state.portInputs.map(({ code, inputs }) => [code, inputs]));
+  const store = loadStore();
+  const record = savedVoyage(store);
   portsBox.innerHTML = '';
   state.portInputs = [];
   if (!state.source || !state.source.ok) {
@@ -163,7 +260,7 @@ function renderPorts() {
     return;
   }
   for (const port of state.source.loadingPorts) {
-    const old = previous.get(port.code);
+    const saved = store.ports?.[port.code];
     const heading = document.createElement('h3');
     const containers = `${port.containers} ${Shell.plural(port.containers, 'контейнер', 'контейнера', 'контейнеров')}`;
     heading.textContent = `${port.code || 'без кода'} — ${rowsLabel(port.rows)}, ${containers}${port.known ? '' : ' (порта нет в справочнике — впишите POL и терминал)'}`;
@@ -171,13 +268,13 @@ function renderPorts() {
 
     const billDate = document.createElement('input');
     billDate.type = 'date';
-    billDate.value = old ? old.billDate.value : '';
+    billDate.value = record?.billDates?.[port.code] ?? '';
     billDate.addEventListener('input', onFieldChange);
     const inputs = {
       billDate,
-      terminal: textInput(old ? old.terminal.value : port.terminal, 'Терминал погрузки'),
-      pol: textInput(old ? old.pol.value : port.pol),
-      fileCode: textInput(old ? old.fileCode.value : port.fileCode),
+      terminal: textInput(saved?.terminal || port.terminal, 'Терминал погрузки'),
+      pol: textInput(saved?.pol || port.pol),
+      fileCode: textInput(saved?.fileCode || port.fileCode),
     };
     const grid = document.createElement('div');
     grid.className = 'field-grid';
@@ -193,11 +290,21 @@ function renderPorts() {
 
 function onFieldChange() {
   hideSummary();
+  saveCurrent();
   updateUi();
 }
 
-[vesselInput, voyageInput, arrivalInput, dischargeTerminalInput, dischargeCodeInput].forEach((input) => {
+[arrivalInput, dischargeTerminalInput, dischargeCodeInput].forEach((input) => {
   input.addEventListener('input', onFieldChange);
+});
+
+// Сменили судно или рейс — подставляем даты этого рейса из памяти (или пустые),
+// а не сохраняем даты прошлого рейса под новым именем.
+[vesselInput, voyageInput].forEach((input) => {
+  input.addEventListener('input', () => {
+    applySavedVoyage();
+    onFieldChange();
+  });
 });
 
 async function readFile(file, version) {
@@ -217,6 +324,10 @@ async function readFile(file, version) {
   }
   renderFileList();
   renderPorts();
+  if (source && source.ok) {
+    applySavedVoyage();
+    saveCurrent();
+  }
   updateUi();
 }
 
@@ -368,5 +479,6 @@ downloadZipBtn.addEventListener('click', async () => {
   saveBlob(blob, `for ARM uploading ${vessel} ${voyage}.zip`.replace(/[\\/:*?"<>|]+/g, '_'));
 });
 
+restoreOnStart();
 renderFileList();
 updateUi();
