@@ -1,5 +1,8 @@
 // Главная портала (вариант G1): приветствие, переключатель «Экспорт / Импорт»
 // с «N из M», карточки инструментов и три последние записи журнала.
+// Кто не видит закрытых инструментов (show_locked выключено — так по умолчанию),
+// получает в /api/me только доступные: у него на переключателе просто «N», а пустая
+// вкладка — «Здесь вам пока ничего не выдано».
 //
 // Вкладку ведёт каркас (assets/shell.js): он помнит её в localStorage
 // (manifest-tools:tab) и прячет/показывает блоки [data-tab-panel]. Пилюля
@@ -7,7 +10,7 @@
 // (#side-tab-<вкладка>, та же, что в меню «Инструменты») и смотрит, какой
 // блок сейчас виден. Так меню и пилюля всегда показывают одно и то же.
 import {
-  api, el, greeting, tabCounts, journalLine, toolNumber, showMessage,
+  api, el, greeting, tabCounts, tabCountText, journalLine, toolNumber, showMessage,
   CATEGORIES, TAB_LABELS, TAB_KEY,
 } from './portal.js';
 
@@ -48,7 +51,7 @@ function selectTab(key) {
   syncSwitcher();
 }
 
-function buildSwitcher(counts) {
+function buildSwitcher(counts, seesLocked) {
   switcher.textContent = '';
   for (const key of CATEGORIES) {
     const button = el('button', 'home-switch__tab');
@@ -57,10 +60,9 @@ function buildSwitcher(counts) {
     button.setAttribute('role', 'tab');
     button.setAttribute('aria-controls', panels[key].id);
     button.append(TAB_LABELS[key]);
-    const c = counts[key];
-    const count = el('span', 'home-switch__count', `${c.allowed} из ${c.total}`);
-    button.append(count);
-    button.setAttribute('aria-label', `${TAB_LABELS[key]}: доступно ${c.allowed} из ${c.total}`);
+    const c = tabCountText(counts[key], seesLocked);
+    button.append(el('span', 'home-switch__count', c.text));
+    button.setAttribute('aria-label', `${TAB_LABELS[key]}: ${c.label}`);
     button.addEventListener('click', () => selectTab(key));
     tabButtons[key] = button;
     switcher.append(button);
@@ -136,13 +138,14 @@ function card(tool) {
   return item;
 }
 
-function renderCards(tools) {
+function renderCards(tools, seesLocked) {
   for (const key of CATEGORIES) {
     const grid = grids[key];
     grid.textContent = '';
     const inTab = tools.filter((tool) => tool.category === key); // порядок — как в /api/me
     if (inTab.length === 0) {
-      grid.replaceWith(el('p', 'home-empty', 'В этой вкладке пока нет инструментов.'));
+      const text = seesLocked ? 'В этой вкладке пока нет инструментов.' : 'Здесь вам пока ничего не выдано';
+      grid.replaceWith(el('p', 'home-empty', text));
       continue;
     }
     for (const tool of inTab) grid.append(card(tool));
@@ -182,8 +185,9 @@ async function start() {
   document.getElementById('greeting').textContent = name ? `${hello}, ${name}` : hello;
 
   const tools = Array.isArray(me.tools) ? me.tools : [];
-  buildSwitcher(tabCounts(tools));
-  renderCards(tools);
+  const seesLocked = Boolean(me.user.isAdmin || me.user.showLocked);
+  buildSwitcher(tabCounts(tools), seesLocked);
+  renderCards(tools, seesLocked);
   renderLog(me);
 }
 

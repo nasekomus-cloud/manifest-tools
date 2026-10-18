@@ -1,7 +1,7 @@
 // Журнал: «Когда / Кто (только администраторам) / Инструмент / Файлы / Итог».
 // Коллеге сервер отдаёт только его записи; администратору — всех, с фильтрами
 // по человеку и инструменту.
-import { api, el, formatDateTime, toolNumber, showMessage } from './portal.js';
+import { api, el, formatDateTime, toolNumber, showMessage, contactText } from './portal.js';
 
 const LIMIT = 500; // столько сервер отдаёт за раз (MAX_LIMIT в routes-journal.js)
 
@@ -75,7 +75,7 @@ async function setupFilters(me) {
   }
   try {
     const users = await api('/api/admin/users');
-    for (const user of users) userSelect.append(option(String(user.id), `${user.name} (${user.email})`));
+    for (const user of users) userSelect.append(option(String(user.id), `${user.name} (${contactText(user)})`));
   } catch (err) {
     showMessage(errorBox, err.message);
   }

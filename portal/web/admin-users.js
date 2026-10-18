@@ -1,13 +1,15 @@
-// Пользователи (только администраторам): список, «Пригласить», права,
-// «Новая ссылка для входа», «Отключить» / «Включить».
+// Пользователи (только администраторам): список, «Пригласить», «Тестовая ссылка», права,
+// галочка «Показывать недоступные инструменты…», «Новая ссылка для входа», «Отключить» / «Включить».
+// У тестового (вход по ссылке без пароля, на срок) почты не показываем, вместо «Включить» —
+// «Продлить», в имени — пометка «тест до ДД.ММ ЧЧ:ММ» / «тест истёк».
 //
 // Галочки прав — по одной на ключ инструмента, двумя группами «Экспорт» / «Импорт»;
 // «Разделить коносаменты» (две записи в tools.js, один ключ bl-split) — одна
 // галочка в группе, где запись встретилась первой («Импорт»), см. checkboxGroups.
 // У администраторов вместо галочек — «Все инструменты».
 import {
-  api, el, formatDateTime, statusLabel, checkboxGroups, toolNumber, linkBlock,
-  showMessage, setRequestCount,
+  api, el, formatDateTime, formatUntil, statusLabel, checkboxGroups, toolNumber, linkBlock,
+  showMessage, setRequestCount, guestLabel, guestLinkHint,
 } from './portal.js';
 
 const rowsBox = document.getElementById('users-rows');
@@ -20,6 +22,7 @@ const invite = {
   email: document.getElementById('invite-email'),
   name: document.getElementById('invite-name'),
   tools: document.getElementById('invite-tools'),
+  showLocked: document.getElementById('invite-show-locked'),
   submit: document.getElementById('invite-submit'),
   cancel: document.getElementById('invite-cancel'),
   msg: document.getElementById('invite-msg'),
@@ -29,10 +32,30 @@ const invite = {
   again: document.getElementById('invite-again'),
 };
 
+const guest = {
+  open: document.getElementById('guest-open'),
+  panel: document.getElementById('guest-panel'),
+  form: document.getElementById('guest-form'),
+  name: document.getElementById('guest-name'),
+  hours: document.getElementById('guest-hours'),
+  tools: document.getElementById('guest-tools'),
+  showLocked: document.getElementById('guest-show-locked'),
+  submit: document.getElementById('guest-submit'),
+  cancel: document.getElementById('guest-cancel'),
+  msg: document.getElementById('guest-msg'),
+  result: document.getElementById('guest-result'),
+  done: document.getElementById('guest-done'),
+  link: document.getElementById('guest-link'),
+  again: document.getElementById('guest-again'),
+};
+
+const GUEST_DEFAULT_HOURS = 24;
+const GUEST_MAX_HOURS = 720;
+
 let me = null;
 let users = [];
 let groups = [];
-// Что раскрыто под строкой: {id, kind: 'tools' | 'link' | 'message', link?, text?}
+// Что раскрыто под строкой: {id, kind: 'tools' | 'extend' | 'link' | 'message', link?, hint?, text?, ok?}
 let panel = null;
 
 // ── Галочки ──────────────────────────────────────────────────────────────
@@ -127,12 +150,99 @@ function toolsPanel(user) {
   return box;
 }
 
+/** Целое число часов 1–720 из поля; иначе null. */
+function readHours(input) {
+  const text = input.value.trim();
+  if (!/^\d{1,3}$/.test(text)) return null;
+  const hours = Number(text);
+  return hours >= 1 && hours <= GUEST_MAX_HOURS ? hours : null;
+}
+
+function hoursInput(id) {
+  const input = el('input');
+  input.type = 'number';
+  input.id = id;
+  input.min = '1';
+  input.max = String(GUEST_MAX_HOURS);
+  input.step = '1';
+  input.inputMode = 'numeric';
+  input.value = String(GUEST_DEFAULT_HOURS);
+  return input;
+}
+
+// «Продлить»: новый срок от текущего момента. Если прежние ссылки погашены (срок истёк или
+// доступ отключали), сервер выдаёт новую — её и показываем
+function extendPanel(user) {
+  const box = el('div');
+  const form = el('form', 'portal-form extend-form');
+  form.noValidate = true;
+  const label = el('label', 'field', 'Срок, часов (от текущего момента)');
+  const input = hoursInput(`extend-${user.id}`);
+  label.append(input);
+  const actions = el('div', 'portal-form__actions');
+  const save = el('button', 'btn btn--small', 'Продлить');
+  save.type = 'submit';
+  actions.append(save);
+  const msg = el('p', 'portal-msg');
+  msg.setAttribute('role', 'alert');
+  msg.hidden = true;
+  form.append(label, actions, msg);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const hours = readHours(input);
+    if (hours === null) return showMessage(msg, `Срок — целое число часов от 1 до ${GUEST_MAX_HOURS}`);
+    save.disabled = true;
+    showMessage(msg, '');
+    try {
+      const data = await api(`/api/admin/users/${user.id}/extend`, { method: 'POST', body: { hours } });
+      replaceUser(data.user);
+      panel = data.link
+        ? { id: user.id, kind: 'link', link: data.link, hint: `Прежняя ссылка больше не действует — передайте эту. ${guestLinkHint(data.user.expiresAt)}` }
+        : { id: user.id, kind: 'message', ok: true, text: `Продлено до ${formatUntil(data.user.expiresAt)}. Прежняя ссылка продолжает работать.` };
+      render();
+    } catch (err) {
+      showMessage(msg, err.message);
+      save.disabled = false;
+    }
+  });
+  box.append(form);
+  return box;
+}
+
 function panelContent(user) {
   if (panel.kind === 'tools') return toolsPanel(user);
-  if (panel.kind === 'link') return linkBlock(panel.link);
-  const msg = el('p', 'portal-msg portal-msg--error', panel.text);
-  msg.setAttribute('role', 'alert');
+  if (panel.kind === 'extend') return extendPanel(user);
+  if (panel.kind === 'link') return linkBlock(panel.link, panel.hint);
+  const msg = el('p', `portal-msg ${panel.ok ? 'portal-msg--ok' : 'portal-msg--error'}`, panel.text);
+  msg.setAttribute('role', panel.ok ? 'status' : 'alert');
   return msg;
+}
+
+// Галочка «Показывать недоступные…» в строке: сохраняется сразу; не вышло — возвращается назад
+function showLockedCheck(user) {
+  const label = el('label', 'tool-check users-setting');
+  const input = el('input');
+  input.type = 'checkbox';
+  input.checked = Boolean(user.showLocked);
+  input.id = `show-locked-${user.id}`;
+  label.append(input, el('span', null, 'Показывать недоступные инструменты и разрешить запрашивать доступ'));
+  input.addEventListener('change', async () => {
+    const wanted = input.checked;
+    input.disabled = true;
+    try {
+      const data = await api(`/api/admin/users/${user.id}/settings`, { method: 'PUT', body: { showLocked: wanted } });
+      replaceUser(data.user);
+      user.showLocked = data.user.showLocked;
+    } catch (err) {
+      input.checked = !wanted;
+      panel = { id: user.id, kind: 'message', text: err.message };
+      render();
+      return;
+    } finally {
+      input.disabled = false;
+    }
+  });
+  return label;
 }
 
 function togglePanel(user, kind) {
@@ -148,24 +258,44 @@ function userRow(user) {
   const name = el('span', 'users-table__name', user.name || '—');
   const nameCell = cell('Имя', name);
   if (user.isAdmin) nameCell.append(el('span', 'users-badge', 'администратор'));
+  if (user.guest) {
+    const label = guestLabel(user);
+    nameCell.append(el('span', `users-badge${label === 'тест истёк' ? ' users-badge--muted' : ''}`, label));
+  }
   if (isSelf) nameCell.append(el('span', 'portal-muted', ' (это вы)'));
+  if (!user.isAdmin) nameCell.append(showLockedCheck(user));
   tr.append(nameCell);
-  tr.append(cell('Почта', user.email, 'users-table__email'));
+  // Почта тестового — служебная, её не показываем
+  tr.append(cell('Почта', user.guest ? '—' : user.email, 'users-table__email'));
   tr.append(cell('Состояние', el('span', `users-state--${user.status}`, statusLabel(user.status))));
   tr.append(cell('Последний вход', user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'ещё не входил'));
 
   const actions = el('div', 'portal-actions');
   const open = panel && panel.id === user.id ? panel.kind : null;
   actions.append(actionButton('Инструменты', () => togglePanel(user, 'tools'), { 'aria-expanded': String(open === 'tools') }));
+  if (user.guest) {
+    actions.append(actionButton('Продлить', () => togglePanel(user, 'extend'), { 'aria-expanded': String(open === 'extend') }));
+  }
   if (user.status !== 'disabled') {
-    actions.append(actionButton('Новая ссылка для входа', (event) => {
+    actions.append(actionButton(user.guest ? 'Новая ссылка' : 'Новая ссылка для входа', (event) => {
       event.currentTarget.disabled = true;
       userAction(user, 'link', (data) => {
-        panel = { id: user.id, kind: 'link', link: data.link };
+        panel = { id: user.id, kind: 'link', link: data.link, hint: user.guest ? guestLinkHint(user.expiresAt) : undefined };
       });
     }));
   }
-  if (user.status === 'disabled') {
+  if (user.guest) {
+    // У тестового «Включить» нет — его продлевают
+    if (user.status !== 'disabled') {
+      actions.append(actionButton('Отключить', (event) => {
+        event.currentTarget.disabled = true;
+        userAction(user, 'disable', (data) => {
+          replaceUser(data.user);
+          panel = null;
+        });
+      }));
+    }
+  } else if (user.status === 'disabled') {
     actions.append(actionButton('Включить', (event) => {
       event.currentTarget.disabled = true;
       userAction(user, 'enable', (data) => {
@@ -227,6 +357,7 @@ function setInviteOpen(open) {
   invite.panel.hidden = !open;
   invite.open.setAttribute('aria-expanded', String(open));
   if (open) {
+    setGuestOpen(false);
     resetInviteForm();
     invite.email.focus();
   }
@@ -248,7 +379,10 @@ invite.form.addEventListener('submit', async (event) => {
   showMessage(invite.msg, '');
   invite.submit.disabled = true;
   try {
-    const data = await api('/api/admin/users', { method: 'POST', body: { email, name, tools: checkedKeys(invite.tools) } });
+    const data = await api('/api/admin/users', {
+      method: 'POST',
+      body: { email, name, tools: checkedKeys(invite.tools), showLocked: invite.showLocked.checked },
+    });
     users.push(data.user);
     render();
     invite.form.hidden = true;
@@ -260,6 +394,62 @@ invite.form.addEventListener('submit', async (event) => {
     showMessage(invite.msg, err.message);
   } finally {
     invite.submit.disabled = false;
+  }
+});
+
+// ── Тестовая ссылка ──────────────────────────────────────────────────────
+
+function resetGuestForm() {
+  guest.form.reset();
+  guest.hours.value = String(GUEST_DEFAULT_HOURS);
+  guest.tools.textContent = '';
+  guest.tools.append(toolChecks(new Set(), 'guest'));
+  showMessage(guest.msg, '');
+  guest.form.hidden = false;
+  guest.result.hidden = true;
+}
+
+function setGuestOpen(open) {
+  guest.panel.hidden = !open;
+  guest.open.setAttribute('aria-expanded', String(open));
+  if (open) {
+    setInviteOpen(false);
+    resetGuestForm();
+    guest.name.focus();
+  }
+}
+
+guest.open.addEventListener('click', () => setGuestOpen(guest.panel.hidden));
+guest.cancel.addEventListener('click', () => setGuestOpen(false));
+guest.again.addEventListener('click', () => {
+  resetGuestForm();
+  guest.name.focus();
+});
+
+guest.form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const name = guest.name.value.trim();
+  if (!name) return showMessage(guest.msg, 'Укажите название');
+  const hours = readHours(guest.hours);
+  if (hours === null) return showMessage(guest.msg, `Срок — целое число часов от 1 до ${GUEST_MAX_HOURS}`);
+  showMessage(guest.msg, '');
+  guest.submit.disabled = true;
+  try {
+    const data = await api('/api/admin/guests', {
+      method: 'POST',
+      body: { name, tools: checkedKeys(guest.tools), showLocked: guest.showLocked.checked, hours },
+    });
+    users.push(data.user);
+    render();
+    guest.form.hidden = true;
+    guest.done.textContent = `Тестовая ссылка «${data.user.name}» готова.`;
+    guest.link.textContent = '';
+    guest.link.append(linkBlock(data.link, guestLinkHint(data.user.expiresAt)));
+    guest.result.hidden = false;
+  } catch (err) {
+    showMessage(guest.msg, err.message);
+  } finally {
+    guest.submit.disabled = false;
   }
 });
 

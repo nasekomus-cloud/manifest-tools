@@ -17,11 +17,13 @@
   <section class="portal-panel">
     <dl class="portal-form account-info" id="account-info">
       <div class="field"><dt>Имя</dt><dd id="account-name">—</dd></div>
-      <div class="field"><dt>Почта</dt><dd id="account-email">—</dd></div>
+      <div class="field" id="account-email-row"><dt>Почта</dt><dd id="account-email">—</dd></div>
+      <div class="field" id="account-until-row" hidden><dt>Доступ до</dt><dd id="account-until">—</dd></div>
     </dl>
   </section>
 
-  <section class="portal-panel">
+  <!-- Показывается после /api/me, если это не тестовый доступ -->
+  <section class="portal-panel" id="password-panel" hidden>
     <h2>Сменить пароль</h2>
     <form class="portal-form" id="password-form" novalidate>
       <label class="field">Текущий пароль
@@ -45,7 +47,9 @@
 <script src="/assets/shell.js"></script>
 <script type="module">
 // Мой профиль: имя и почта (из /api/me) и смена пароля (POST /api/password).
-import { api, showMessage } from '/portal/portal.js';
+// Тестовому (вход по ссылке без пароля) — только название и срок «Доступ до …»: почта у него
+// служебная, пароля нет.
+import { api, showMessage, formatDateTime } from '/portal/portal.js';
 
 const msg = document.getElementById('password-msg');
 const form = document.getElementById('password-form');
@@ -53,8 +57,18 @@ const submit = document.getElementById('password-submit');
 
 api('/api/me').then((me) => {
   document.getElementById('account-name').textContent = me.user.name || '—';
+  if (me.user.guest) {
+    document.getElementById('account-email-row').hidden = true;
+    document.getElementById('account-until').textContent = me.user.expiresAt ? formatDateTime(me.user.expiresAt) : '—';
+    document.getElementById('account-until-row').hidden = false;
+    return;
+  }
   document.getElementById('account-email').textContent = me.user.email || '—';
-}).catch((err) => showMessage(msg, err.message));
+  document.getElementById('password-panel').hidden = false;
+}).catch((err) => {
+  document.getElementById('password-panel').hidden = false; // сообщение об ошибке — внутри этого блока
+  showMessage(msg, err.message);
+});
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   greeting, formatWhen, formatDateTime, tabCounts, checkboxGroups, linkHint, LINK_HINTS,
   statusLabel, requestText, journalLine, toolNumber, loginUrl,
+  formatUntil, guestLabel, guestLinkHint, tabCountText, contactText,
 } from './portal.js';
 
 test('greeting: до 12 — утро, с 18 — вечер, между — день', () => {
@@ -77,4 +78,31 @@ test('toolNumber и loginUrl', () => {
   assert.equal(toolNumber({}), '');
   assert.equal(loginUrl('/'), '/login');
   assert.equal(loginUrl('/admin/users'), '/login?next=%2Fadmin%2Fusers');
+});
+
+test('formatUntil: «ДД.ММ ЧЧ:ММ»', () => {
+  assert.equal(formatUntil(new Date(2026, 9, 19, 9, 5).getTime()), '19.10 09:05');
+  assert.equal(formatUntil(new Date(2027, 0, 2, 23, 0).getTime()), '02.01 23:00');
+});
+
+test('guestLabel: «тест до …» и «тест истёк» (в момент срока — уже истёк)', () => {
+  const until = new Date(2026, 9, 19, 14, 30).getTime();
+  assert.equal(guestLabel({ guest: true, expiresAt: until }, until - 1), 'тест до 19.10 14:30');
+  assert.equal(guestLabel({ guest: true, expiresAt: until }, until), 'тест истёк');
+  assert.equal(guestLabel({ guest: false, expiresAt: null }, until), '');
+});
+
+test('guestLinkHint: до какого времени ссылка открывает портал', () => {
+  const until = new Date(2026, 9, 19, 14, 30).getTime();
+  assert.equal(guestLinkHint(until), 'Ссылка открывает портал без пароля до 19.10 14:30. Передайте её только тому, кому нужно.');
+});
+
+test('tabCountText: «N из M» с недоступными, просто «N» без них', () => {
+  assert.deepEqual(tabCountText({ allowed: 3, total: 7 }, true), { text: '3 из 7', label: 'доступно 3 из 7' });
+  assert.deepEqual(tabCountText({ allowed: 3, total: 3 }, false), { text: '3', label: 'доступно 3' });
+});
+
+test('contactText: у тестового вместо служебной почты — «тестовая ссылка»', () => {
+  assert.equal(contactText({ email: 'ira@x.ru', guest: false }), 'ira@x.ru');
+  assert.equal(contactText({ email: 'guest-ab@guest.invalid', guest: true }), 'тестовая ссылка');
 });

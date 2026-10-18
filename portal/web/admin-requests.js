@@ -3,7 +3,7 @@
 // Разобранный запрос остаётся на странице с итогом до перезагрузки, чтобы
 // ссылку можно было скопировать.
 import {
-  api, el, formatDateTime, requestText, linkBlock, showMessage, setRequestCount,
+  api, el, formatDateTime, requestText, linkBlock, showMessage, setRequestCount, contactText,
 } from './portal.js';
 
 const list = document.getElementById('requests-list');
@@ -24,7 +24,7 @@ function finish(item, text, link) {
 function requestItem(request) {
   const item = el('li', 'request-item');
   item.append(el('p', 'request-item__text', requestText(request)));
-  item.append(el('p', 'request-item__meta', `${request.email} · ${formatDateTime(request.at)}`));
+  item.append(el('p', 'request-item__meta', `${contactText(request)} · ${formatDateTime(request.at)}`));
 
   const loginHelp = request.tool === null;
   const actions = el('div', 'portal-actions');

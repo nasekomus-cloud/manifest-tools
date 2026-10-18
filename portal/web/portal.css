@@ -535,6 +535,36 @@
     color: var(--accent);
     font-size: 13px;
     font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .users-badge--muted {
+    border-color: var(--line);
+    color: var(--muted);
+  }
+
+  /* Галочка «Показывать недоступные инструменты…» в строке человека и в формах */
+  .users-table .users-setting {
+    margin-top: 4px;
+    padding: 2px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 320px;
+  }
+
+  .users-table .users-setting input {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+  }
+
+  .users-setting-check {
+    padding: 0;
+  }
+
+  .extend-form {
+    max-width: 280px;
+    padding-top: 10px;
   }
 
   .users-state--invited {

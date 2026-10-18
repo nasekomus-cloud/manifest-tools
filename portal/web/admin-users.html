@@ -21,6 +21,7 @@
 
   <div class="portal-actions">
     <button class="btn" type="button" id="invite-open" aria-expanded="false" aria-controls="invite-panel">Пригласить</button>
+    <button class="btn btn--secondary" type="button" id="guest-open" aria-expanded="false" aria-controls="guest-panel">Тестовая ссылка</button>
   </div>
 
   <section class="portal-panel invite-panel" id="invite-panel" hidden>
@@ -35,6 +36,10 @@
         </label>
       </div>
       <div id="invite-tools"></div>
+      <label class="tool-check users-setting-check">
+        <input type="checkbox" id="invite-show-locked">
+        <span>Показывать недоступные инструменты и разрешить запрашивать доступ</span>
+      </label>
       <div class="portal-form__actions">
         <button class="btn" type="submit" id="invite-submit">Отправить приглашение</button>
         <button class="btn btn--secondary" type="button" id="invite-cancel">Отмена</button>
@@ -46,6 +51,38 @@
       <div id="invite-link"></div>
       <div class="portal-actions invite-again">
         <button class="btn btn--secondary" type="button" id="invite-again">Пригласить ещё</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="portal-panel invite-panel" id="guest-panel" hidden>
+    <h2>Тестовая ссылка</h2>
+    <p class="portal-muted">Ссылка сразу открывает портал с выбранными инструментами — без почты и пароля, до конца срока.</p>
+    <form class="portal-form portal-form--wide" id="guest-form" novalidate>
+      <div class="field-grid invite-fields">
+        <label class="field">Название
+          <input type="text" id="guest-name" autocomplete="off" placeholder="Например, «Тест для ООО Ромашка»" required>
+        </label>
+        <label class="field">Срок, часов
+          <input type="number" id="guest-hours" min="1" max="720" step="1" value="24" inputmode="numeric" required>
+        </label>
+      </div>
+      <div id="guest-tools"></div>
+      <label class="tool-check users-setting-check">
+        <input type="checkbox" id="guest-show-locked">
+        <span>Показывать недоступные инструменты</span>
+      </label>
+      <div class="portal-form__actions">
+        <button class="btn" type="submit" id="guest-submit">Создать ссылку</button>
+        <button class="btn btn--secondary" type="button" id="guest-cancel">Отмена</button>
+      </div>
+      <p class="portal-msg" id="guest-msg" role="alert" hidden></p>
+    </form>
+    <div id="guest-result" hidden>
+      <p id="guest-done"></p>
+      <div id="guest-link"></div>
+      <div class="portal-actions invite-again">
+        <button class="btn btn--secondary" type="button" id="guest-again">Ещё одна ссылка</button>
       </div>
     </div>
   </section>

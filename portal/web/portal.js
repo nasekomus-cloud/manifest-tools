@@ -109,6 +109,38 @@ export function formatDateTime(at) {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}, ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/** Короткий срок: «19.10 14:30» (тестовый доступ — не дольше 30 дней, год не нужен). */
+export function formatUntil(at) {
+  const date = new Date(at);
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** Пометка тестового в списке людей: «тест до 19.10 14:30» / «тест истёк»; не тестовому — ''. */
+export function guestLabel(user, now = Date.now()) {
+  if (!user.guest) return '';
+  return now >= user.expiresAt ? 'тест истёк' : `тест до ${formatUntil(user.expiresAt)}`;
+}
+
+/** Подсказка под тестовой ссылкой. */
+export function guestLinkHint(expiresAt) {
+  return `Ссылка открывает портал без пароля до ${formatUntil(expiresAt)}. Передайте её только тому, кому нужно.`;
+}
+
+/**
+ * Счётчик на переключателе вкладок главной: кто видит закрытые — «3 из 7», остальные —
+ * просто «3» (о закрытых им знать незачем). → {text, label} (label — для aria-label).
+ */
+export function tabCountText(count, showLocked) {
+  return showLocked
+    ? { text: `${count.allowed} из ${count.total}`, label: `доступно ${count.allowed} из ${count.total}` }
+    : { text: String(count.allowed), label: `доступно ${count.allowed}` };
+}
+
+/** Почта человека для показа; у тестового почта служебная — её не показываем. */
+export function contactText(person) {
+  return person.guest ? 'тестовая ссылка' : person.email;
+}
+
 /** «№ 5» — как Shell.toolNumber (неразрывный пробел). */
 export function toolNumber(tool) {
   return tool && tool.num ? `№${NBSP}${tool.num}` : '';
@@ -202,8 +234,11 @@ export async function copyText(text, input) {
   }
 }
 
-/** Блок «ссылка + Скопировать + подсказка» — после приглашения, новой ссылки и «Дать новую ссылку». */
-export function linkBlock(link) {
+/**
+ * Блок «ссылка + Скопировать + подсказка» — после приглашения, новой ссылки и «Дать новую ссылку».
+ * hint — своя подсказка (тестовой ссылке — до какого времени она действует), иначе по виду ссылки.
+ */
+export function linkBlock(link, hint) {
   const block = el('div', 'link-block');
   const row = el('div', 'link-block__row');
   const input = el('input', 'link-block__url');
@@ -224,7 +259,7 @@ export function linkBlock(link) {
     }, 2500);
   });
   row.append(input, copy);
-  block.append(row, el('p', 'link-block__hint', linkHint(link)));
+  block.append(row, el('p', 'link-block__hint', hint || linkHint(link)));
   return block;
 }
 
