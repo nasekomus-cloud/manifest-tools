@@ -1,7 +1,10 @@
 // Пользователи (только администраторам): список, «Пригласить», «Тестовая ссылка», права,
 // галочка «Показывать недоступные инструменты…», «Новая ссылка для входа», «Отключить» / «Включить».
 // У тестового (вход по ссылке без пароля, на срок) почты не показываем, вместо «Включить» —
-// «Продлить», в имени — пометка «тест до ДД.ММ ЧЧ:ММ» / «тест истёк».
+// «Продлить», в имени — пометка «тест до ДД.ММ ЧЧ:ММ» / «тест истёк». Ещё у тестового —
+// «Скопировать ссылку» (сервер отдаёт действующую ссылку в user.link; у ссылок, выданных до
+// того, как токен стал храниться в базе, её нет — тогда только «Новая ссылка») и «Удалить»
+// (с подтверждением; записи журнала остаются).
 //
 // Галочки прав — по одной на ключ инструмента, двумя группами «Экспорт» / «Импорт»;
 // «Разделить коносаменты» (две записи в tools.js, один ключ bl-split) — одна
@@ -245,6 +248,20 @@ function showLockedCheck(user) {
   return label;
 }
 
+// «Удалить» тестовый доступ: после подтверждения — DELETE, строка исчезает
+async function deleteGuest(user, button) {
+  if (!window.confirm(`Удалить тестовый доступ «${user.name}»? Ссылка перестанет работать, человек выйдет.`)) return;
+  button.disabled = true;
+  try {
+    await api(`/api/admin/users/${user.id}`, { method: 'DELETE' });
+    users = users.filter((u) => u.id !== user.id);
+    if (panel && panel.id === user.id) panel = null;
+  } catch (err) {
+    panel = { id: user.id, kind: 'message', text: err.message };
+  }
+  render();
+}
+
 function togglePanel(user, kind) {
   panel = panel && panel.id === user.id && panel.kind === kind ? null : { id: user.id, kind };
   render();
@@ -273,6 +290,15 @@ function userRow(user) {
   const actions = el('div', 'portal-actions');
   const open = panel && panel.id === user.id ? panel.kind : null;
   actions.append(actionButton('Инструменты', () => togglePanel(user, 'tools'), { 'aria-expanded': String(open === 'tools') }));
+  if (user.guest && user.link && user.status !== 'disabled') {
+    // Тот же блок со ссылкой и «Скопировать», что после создания
+    actions.append(actionButton('Скопировать ссылку', () => {
+      panel = panel && panel.id === user.id && panel.kind === 'link' && panel.link === user.link
+        ? null
+        : { id: user.id, kind: 'link', link: user.link, hint: guestLinkHint(user.expiresAt) };
+      render();
+    }, { 'aria-expanded': String(open === 'link' && panel.link === user.link) }));
+  }
   if (user.guest) {
     actions.append(actionButton('Продлить', () => togglePanel(user, 'extend'), { 'aria-expanded': String(open === 'extend') }));
   }
@@ -280,6 +306,7 @@ function userRow(user) {
     actions.append(actionButton(user.guest ? 'Новая ссылка' : 'Новая ссылка для входа', (event) => {
       event.currentTarget.disabled = true;
       userAction(user, 'link', (data) => {
+        if (user.guest) replaceUser({ ...user, link: data.link }); // «Скопировать ссылку» — уже новая
         panel = {
           id: user.id,
           kind: 'link',
@@ -300,6 +327,7 @@ function userRow(user) {
         });
       }));
     }
+    actions.append(actionButton('Удалить', (event) => deleteGuest(user, event.currentTarget)));
   } else if (user.status === 'disabled') {
     actions.append(actionButton('Включить', (event) => {
       event.currentTarget.disabled = true;
