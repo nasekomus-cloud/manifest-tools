@@ -7,17 +7,22 @@
 //   SMTP_USER, SMTP_PASS  логин и пароль (без SMTP_USER — без авторизации)
 //   SMTP_FROM  адрес отправителя, например «Лоция <no-reply@example.ru>»
 
-import nodemailer from 'nodemailer';
+// nodemailer подгружается только когда SMTP_HOST задан (динамический import внутри
+// createMailer): без почты пакет не нужен и на сервере его может не быть вовсе.
 
 const SMTP_TIMEOUT_MS = 10_000;
 
 /**
  * @param {Record<string, string|undefined>} env
- * @param {{createTransport: Function}} [transports]  подмена nodemailer — для тестов без сети
- * @returns {{send: (message: {to: string, subject: string, text: string}) => Promise<void>} | null}
+ * @param {{createTransport?: Function}} [transports]  подмена nodemailer — для тестов без сети
+ * @returns {Promise<{send: (message: {to: string, subject: string, text: string}) => Promise<void>} | null>}
  */
-export function createMailer(env, { createTransport } = nodemailer) {
+export async function createMailer(env, { createTransport } = {}) {
   if (!env.SMTP_HOST) return null;
+  if (!createTransport) {
+    const nodemailer = (await import('nodemailer')).default;
+    createTransport = nodemailer.createTransport.bind(nodemailer);
+  }
   const port = Number(env.SMTP_PORT || 587);
   // Зависший SMTP не должен держать ничего дольше 10 секунд на каждом этапе (у nodemailer по умолчанию — минуты)
   const options = {

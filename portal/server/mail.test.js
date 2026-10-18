@@ -45,9 +45,9 @@ async function setup(mailer) {
 
 // --- createMailer --------------------------------------------------------
 
-test('createMailer: без SMTP_HOST почты нет', () => {
-  assert.equal(createMailer({}), null);
-  assert.equal(createMailer({ SMTP_HOST: '', SMTP_FROM: 'a@b.ru' }), null);
+test('createMailer: без SMTP_HOST почты нет', async () => {
+  assert.equal(await createMailer({}), null);
+  assert.equal(await createMailer({ SMTP_HOST: '', SMTP_FROM: 'a@b.ru' }), null);
 });
 
 test('createMailer: с SMTP_HOST отдаёт send и собирает транспорт из переменных окружения', async () => {
@@ -56,7 +56,7 @@ test('createMailer: с SMTP_HOST отдаёт send и собирает тран�
     calls.options = options;
     return { sendMail: async (mail) => { calls.mail = mail; } };
   };
-  const mailer = createMailer(
+  const mailer = await createMailer(
     { SMTP_HOST: 'smtp.x.ru', SMTP_PORT: '465', SMTP_USER: 'u', SMTP_PASS: 'p', SMTP_FROM: 'Лоция <no-reply@x.ru>' },
     { createTransport },
   );
@@ -70,13 +70,25 @@ test('createMailer: с SMTP_HOST отдаёт send и собирает тран�
   assert.deepEqual(calls.mail, { from: 'Лоция <no-reply@x.ru>', to: 'a@b.ru', subject: 'Тема', text: 'Текст' });
 });
 
-test('createMailer: порт по умолчанию 587 без TLS-обёртки; без SMTP_USER — без авторизации', () => {
+test('createMailer: порт по умолчанию 587 без TLS-обёртки; без SMTP_USER — без авторизации', async () => {
   let options;
-  createMailer({ SMTP_HOST: 'smtp.x.ru', SMTP_FROM: 'a@b.ru' }, { createTransport: (o) => { options = o; return {}; } });
+  await createMailer({ SMTP_HOST: 'smtp.x.ru', SMTP_FROM: 'a@b.ru' }, { createTransport: (o) => { options = o; return {}; } });
   assert.deepEqual(options, {
     host: 'smtp.x.ru', port: 587, secure: false,
     connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 10000,
   });
+});
+
+test('mail.js не подключает nodemailer при загрузке модуля (R12): только динамический import', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('./mail.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /^\s*import[^\n]*['"]nodemailer['"]/m, 'статического import нет');
+  assert.match(source, /await import\('nodemailer'\)/);
+});
+
+test('createMailer: без подменного createTransport подгружает настоящий nodemailer', async () => {
+  const mailer = await createMailer({ SMTP_HOST: 'smtp.invalid', SMTP_FROM: 'a@b.ru' });
+  assert.equal(typeof mailer.send, 'function'); // соединения нет — транспорт ленивый
 });
 
 // --- приглашение ---------------------------------------------------------
@@ -143,19 +155,59 @@ test('«Забыли пароль?» с почтой: письмо со ссыл
   } finally { await s.close(); }
 });
 
-test('«Забыли пароль?»: неизвестная и неактивная почта — письма нет, ответ тот же', async () => {
+test('«Забыли пароль?»: неизвестная и отключённая почта — письма нет, ответ тот же', async () => {
   const mailer = fakeMailer();
   const { s } = await setup(mailer);
   try {
-    s.db.createUser({ email: 'inv@x.ru', name: 'Приглашённый' });
+    const dis = await s.addUser({ email: 'dis@x.ru', name: 'Выключен', password: 'пароль-123' });
+    s.db.setStatus(dis.id, 'disabled');
     const message = { message: 'Если такой адрес есть, мы передали запрос администратору.' };
-    for (const email of ['nobody@x.ru', 'inv@x.ru']) {
+    for (const email of ['nobody@x.ru', 'dis@x.ru']) {
       const r = await s.fetch('/api/forgot', post({ email }));
       assert.equal(r.status, 200);
       assert.deepEqual(await r.json(), message);
     }
     await s.idle();
     assert.equal(mailer.sent.length, 0);
+    assert.equal(s.db.listRequests().length, 0);
+  } finally { await s.close(); }
+});
+
+test('«Забыли пароль?» с почтой у приглашённого (приглашение истекло): новое приглашение письмом, а не сброс', async () => {
+  const mailer = fakeMailer();
+  const { s } = await setup(mailer);
+  try {
+    const invited = s.db.createUser({ email: 'inv@x.ru', name: 'Приглашённый' });
+    const old = s.db.createToken({ userId: invited.id, kind: 'invite', expiresAt: Date.now() - 1000 });
+    const r = await s.fetch('/api/forgot', post({ email: 'inv@x.ru' }));
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { message: 'Если такой адрес есть, мы передали запрос администратору.' });
+    await s.idle();
+    assert.equal(mailer.sent.length, 1);
+    const [mail] = mailer.sent;
+    assert.equal(mail.to, 'inv@x.ru');
+    assert.equal(mail.subject, 'Приглашение в Лоцию');
+    const token = new RegExp(`${TEST_ORIGIN}/invite/(\\S+)`).exec(mail.text)?.[1];
+    assert.ok(token, 'в письме ссылка-приглашение');
+    assert.notEqual(token, old);
+    assert.equal(s.db.peekToken(token, 'invite', Date.now()), invited.id);
+    assert.equal(s.db.listRequests().length, 0, 'письмо ушло — администратору запрос не нужен');
+  } finally { await s.close(); }
+});
+
+test('«Забыли пароль?» с почтой у приглашённого: письмо не ушло → запрос администратору', async () => {
+  const mailer = fakeMailer({ failWith: new Error('smtp недоступен') });
+  const { s } = await setup(mailer);
+  try {
+    const invited = s.db.createUser({ email: 'inv@x.ru', name: 'Приглашённый' });
+    await quietErrors(async () => {
+      assert.equal((await s.fetch('/api/forgot', post({ email: 'inv@x.ru' }))).status, 200);
+      await s.idle();
+      const requests = s.db.listRequests();
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].userId, invited.id);
+      assert.equal(requests[0].tool, null);
+    });
   } finally { await s.close(); }
 });
 

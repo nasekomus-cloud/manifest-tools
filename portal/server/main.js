@@ -7,7 +7,8 @@
 //   PUBLIC_ORIGIN  https://tools.nasekomuspro.ru (обязательно; по нему проверяется Origin)
 //   COOKIE_SECURE  0 — выключить флаг Secure у cookie (только локальная разработка)
 //   SMTP_*         необязательная почта: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
-//                  (без SMTP_HOST писем нет, портал работает полностью — см. mail.js)
+//                  (без SMTP_HOST писем нет, портал работает полностью и пакет nodemailer
+//                  не загружается — см. mail.js)
 
 import http from 'node:http';
 import { mkdirSync } from 'node:fs';
@@ -52,7 +53,7 @@ function pruneJournal() {
 pruneJournal();
 setInterval(pruneJournal, DAY_MS).unref();
 
-const mailer = createMailer(env);
+const mailer = await createMailer(env);
 console.log(mailer ? `Почта: SMTP ${env.SMTP_HOST}` : 'Почта не настроена (SMTP_HOST не задан) — ссылки выдаёт администратор');
 
 const server = http.createServer(createApp({ db, siteRoot, publicOrigin, mailer, now: Date.now, cookieSecure }));

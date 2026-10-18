@@ -232,11 +232,11 @@ test('смена пароля проверяет текущий', async () => {
   } finally { await s.close(); }
 });
 
-test('«Забыли пароль?» без почты: одинаковый ответ, запрос администратору только для известного', async () => {
+test('«Забыли пароль?» без почты: одинаковый ответ, запрос администратору для активного и приглашённого, не для отключённого', async () => {
   const { s } = await clockServer();
   try {
     const user = await s.addUser({ email: 'f@x.ru', name: 'Ф', password: 'пароль-123' });
-    s.db.createUser({ email: 'inv@x.ru', name: 'Приглашённый' });
+    const invited = s.db.createUser({ email: 'inv@x.ru', name: 'Приглашённый' });
     const dis = await s.addUser({ email: 'dis@x.ru', name: 'Выключен', password: 'пароль-123' });
     s.db.setStatus(dis.id, 'disabled');
     const message = { message: 'Если такой адрес есть, мы передали запрос администратору.' };
@@ -254,11 +254,17 @@ test('«Забыли пароль?» без почты: одинаковый о�
       assert.equal(r.status, 200, email);
       assert.deepEqual(await r.json(), message, email);
     }
-    assert.equal(s.db.listRequests().length, 1);
+    // приглашённый (например, с истёкшим приглашением) тоже доходит до администратора;
+    // неизвестная и отключённая почта — нет
+    const after = s.db.listRequests();
+    assert.equal(after.length, 2);
+    assert.deepEqual(after.map((r) => r.userId).sort(), [user.id, invited.id].sort());
+    assert.ok(after.every((r) => r.tool === null));
 
     // повторный запрос не множит открытые
     await post(s, '/api/forgot', { email: 'f@x.ru' });
-    assert.equal(s.db.listRequests().length, 1);
+    await post(s, '/api/forgot', { email: 'inv@x.ru' });
+    assert.equal(s.db.listRequests().length, 2);
 
     assert.equal((await post(s, '/api/forgot', {})).status, 400);
     assert.equal((await post(s, '/api/forgot', { email: 5 })).status, 400);

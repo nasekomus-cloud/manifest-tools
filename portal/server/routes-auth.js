@@ -8,7 +8,7 @@ import { normalizeEmail } from './db.js';
 import { hashPassword, verifyPassword } from './passwords.js';
 import { createLimiter } from './ratelimit.js';
 import { HttpError, readJson, sendJson, sessionCookie } from './http-utils.js';
-import { sendSafely, resetMail } from './mail.js';
+import { sendSafely, resetMail, inviteMail } from './mail.js';
 
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const RESET_TTL_MS = 24 * 60 * 60 * 1000;
@@ -123,10 +123,15 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
     promise.finally(() => pending.delete(promise));
   }
 
-  /** Ссылка сброса письмом; письмо не ушло — запрос администратору, как без почты. Не бросает. */
-  async function mailResetLink(user) {
+  /**
+   * Новая ссылка письмом: активному — сброс пароля, приглашённому (кто так и не задал пароль,
+   * например, истёк срок приглашения) — свежее приглашение. Письмо не ушло — запрос
+   * администратору, как без почты. Не бросает.
+   */
+  async function mailLink(user) {
     try {
-      const mail = resetMail({ name: user.name, link: issueLink(db, user, { now: now(), publicOrigin }) });
+      const link = issueLink(db, user, { now: now(), publicOrigin });
+      const mail = user.status === 'invited' ? inviteMail({ name: user.name, link }) : resetMail({ name: user.name, link });
       if (await sendSafely(mailer, { to: user.email, ...mail })) return;
       db.addRequest({ userId: user.id, tool: null, at: now() });
     } catch (err) {
@@ -145,10 +150,11 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
     forgotLimiter.hit(ipKey);
 
     const user = db.getUserByEmail(normalizeEmail(body.email));
-    if (user && user.status === 'active') {
+    // Всем, кроме отключённых: приглашённый с истёкшей ссылкой тоже должен дойти до администратора
+    if (user && user.status !== 'disabled') {
       if (mailer) {
         // Ответ не ждёт SMTP: иначе зависшая почта давала бы 504, а время ответа выдавало бы, что адрес известен
-        track(mailResetLink(user));
+        track(mailLink(user));
       } else {
         db.addRequest({ userId: user.id, tool: null, at: now() });
       }
