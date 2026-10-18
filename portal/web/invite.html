@@ -6,13 +6,15 @@
 <link rel="icon" type="image/svg+xml" href="/portal/favicon.svg">
 <title>Пароль — Tallyman</title>
 <!-- Без входа /assets/style.css не отдаётся (401): палитра — /portal/theme.css, своё — /portal/portal.css -->
+<!-- Тема: без входа сервер её не ставит — берём последнюю тему этого браузера (её запоминают shell-addon.js и профиль) -->
+<script>(function(){try{var r=document.documentElement,t=localStorage.getItem('manifest-tools:theme');if(!r.hasAttribute('data-theme')&&t&&/^[a-z]{1,20}$/.test(t))r.setAttribute('data-theme',t)}catch(e){}})()</script>
 <link rel="stylesheet" href="/assets/fonts.css">
 <link rel="stylesheet" href="/portal/theme.css">
 <link rel="stylesheet" href="/portal/portal.css">
 </head>
 <body class="portal-public">
 <main class="auth">
-  <p class="auth__brand"><span class="tm-logo" role="img" aria-label="Tallyman"><img class="tm-logo__t" src="/portal/logo-t.svg" alt=""><span class="tm-logo__rest" aria-hidden="true">allyman</span></span></p>
+  <p class="auth__brand"><span class="tm-logo" role="img" aria-label="Tallyman"><span class="tm-logo__t"></span><span class="tm-logo__rest" aria-hidden="true">allyman</span></span></p>
   <section class="auth__card">
     <h1 id="title">Новый пароль</h1>
     <p class="auth__lead" id="who" hidden></p>

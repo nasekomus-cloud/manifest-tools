@@ -1,11 +1,28 @@
-/* «Глубина» — оформление портала поверх страниц инструментов.
+/* Темы оформления портала поверх страниц инструментов («Глубина» и ещё девять).
  *
  * Сервер отдаёт /assets/style.css как assets/style.css + этот файл, поэтому всё
  * здесь переопределяет старые правила той же специфичности просто тем, что идёт
  * позже. Старые файлы сайта не правятся.
  *
  * Весь файл — внутри @media screen: на печати остаётся старая светлая «Лоция»
- * (тёмный фон на бумаге не нужен, таблицы должны читаться).
+ * (тёмный фон на бумаге не нужен, таблицы должны читаться) — в любой теме.
+ *
+ * Темы. Тема — личная настройка человека (users.theme, список — portal/server/
+ * themes.js); сервер ставит её в <html data-theme="<id>"> любой HTML-страницы
+ * человека с сессией. Без атрибута (вход, приглашение) — «Глубина» с :root.
+ * Каждый цвет здесь и в portal.css — только через переменные --tm-*:
+ *   - палитра темы (блоки «palette:<id>»): bg, surface, line, ink, muted, accent,
+ *     primary/on-primary, warn/warn-bg, error/error-bg + RGB-тройки (-rgb) для
+ *     полупрозрачных оттенков: rgba(var(--tm-over-rgb), 0.12) — тонкая рамка/подложка
+ *     (в тёмных темах — белым, в светлых — цветом текста), rgba(var(--tm-accent-rgb), …) —
+ *     подсветка акцентом;
+ *   - производные (strong, ink-soft, accent-text, pill, page, bar-bg …): у «Глубины» —
+ *     её нынешние значения, у остальных — общие правила «derived:dark» / «derived:light»,
+ *     выведенные из палитры (color-mix).
+ * Новый цвет — новой переменной во всех темах, а не числом в правиле.
+ * Старые переменные assets/style.css (--water, --surface, --ink, --accent …)
+ * пересчитываются из --tm-* — страницы инструментов перекрашиваются сами.
+ * Блоки палитр сверяет со списком тем portal/web/theme.test.js.
  *
  * Добавки каркаса (portal/web/shell-addon.js) — .portal-bar, .portal-menu,
  * .portal-help — создаются с атрибутом hidden и показываются только здесь, на
@@ -20,48 +37,380 @@
  * (вариант G1) и g-results.html. */
 
 @media screen {
-  :root {
+  /* ───────────── «Глубина» — тема по умолчанию ─────────────
+   * .tm-swatch[data-theme] — плитки-образцы в «Моём профиле»: каждая берёт палитру
+   * своей темы (только палитру — производные цвета им не нужны). */
+
+  /* palette:depth */
+  :root,
+  .tm-swatch[data-theme="depth"] {
     color-scheme: dark;
+    --tm-bg: #0b2236;
+    --tm-surface: rgba(255, 255, 255, 0.09);   /* «стекло» поверх перелива, на вид ≈ #163448 */
+    --tm-line: rgba(255, 255, 255, 0.16);
+    --tm-ink: #eef5fa;
+    --tm-ink-rgb: 238, 245, 250;
+    --tm-muted: #a9c3d3;
+    --tm-muted-rgb: 169, 195, 211;
+    --tm-accent: #7fe3f0;
+    --tm-accent-rgb: 127, 227, 240;
+    --tm-primary: #7fe3f0;
+    --tm-on-primary: #072033;
+    --tm-warn: #ffd28a;
+    --tm-warn-rgb: 255, 210, 138;
+    --tm-warn-bg: rgba(255, 210, 138, 0.1);
+    --tm-error: #ffb4a8;
+    --tm-error-rgb: 255, 180, 168;
+    --tm-error-bg: rgba(255, 107, 91, 0.14);
+    --tm-over-rgb: 255, 255, 255;
+  }
 
-    --water: rgba(255, 255, 255, 0.05);   /* подложка особых строк таблиц */
-    --surface: rgba(255, 255, 255, 0.09); /* «стеклянные» карточки */
-    --line: rgba(255, 255, 255, 0.16);    /* рамки */
-    --ink: #eef5fa;                       /* основной текст */
-    --muted: #a9c3d3;                     /* второстепенный текст */
-    --accent: #7fe3f0;                    /* акцент, ссылки, фокус */
-    --accent-h: #a5eef7;
-    --accent-t: rgba(127, 227, 240, 0.14);
-    --tint: rgba(255, 255, 255, 0.06);    /* шапки таблиц, итоговые строки */
-    --depth: #ffffff;                     /* заголовки (в старой теме — тёмные) */
-    --depth-2: rgba(255, 255, 255, 0.08);
-    --sea: #7fe3f0;                       /* полосы дашбордов, ссылки */
-    --warn: #ffd28a;                      /* «внимание» */
-    --warn-bg: rgba(255, 210, 138, 0.1);
-    --error: #ffb4a8;
-    --error-bg: rgba(255, 107, 91, 0.14);
-    --drop-line: rgba(127, 227, 240, 0.55);
-    --side-text: #eef5fa;
-    --side-muted: #a9c3d3;
+  /* Производные «Глубины» — её прежние значения как есть */
+  :root {
+    --tm-strong: #ffffff;                      /* заголовки, наведение */
+    --tm-ink-soft: #c4d6e1;                    /* текст между основным и второстепенным */
+    --tm-accent-text: #7fe3f0;                 /* акцент текстом: ссылки, номера */
+    --tm-accent-h: #a5eef7;
+    --tm-pill: linear-gradient(90deg, #7fe3f0, #4fb6e8);   /* главная кнопка, выбранная вкладка */
+    --tm-pill-h: linear-gradient(90deg, #9aeaf4, #6cc4ee);
+    --tm-switch-on: #4fb6e8;                   /* включённый тумблер, галочки */
+    --tm-warn-strong: #ffe2b0;                 /* текст предупреждения на его подложке */
+    --tm-on-warn: #072033;                     /* текст на заливке «внимание» (счётчик) */
+    --tm-error-line: #ff8a78;                  /* левая полоса сообщения об ошибке */
+    --tm-error-border: rgba(255, 140, 120, 0.4);
+    --tm-page: #071624 radial-gradient(120% 90% at 0% 0%, #1f5f86 0%, #0b2236 55%, #071624 100%) fixed;
+    --tm-bar-bg: rgba(7, 22, 36, 0.78);        /* верхняя полоса */
+    --tm-panel-bg: rgba(9, 30, 47, 0.97);      /* выпадающая панель — почти непрозрачная */
+    --tm-action-bg: rgba(11, 34, 54, 0.9);     /* полоса действия */
+    --tm-select-bg: #0e2b42;                   /* выпадающий список — сплошной, иначе пункты не читаются */
+    --tm-field-bg: rgba(var(--tm-over-rgb), 0.07);
+    --tm-table-bg: rgba(var(--tm-over-rgb), 0.05);
+    --tm-block-bg: rgba(var(--tm-over-rgb), 0.04);
+    --tm-step-bg: rgba(var(--tm-over-rgb), 0.07);
+    --tm-shadow-menu: 0 18px 48px rgba(0, 0, 0, 0.5);
+    --tm-shadow-bar: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
 
-    --deep-bg: #071624;
-    --panel-bg: rgba(9, 30, 47, 0.97);    /* выпадающая панель — почти непрозрачная */
-    --pill: linear-gradient(90deg, #7fe3f0, #4fb6e8);
-    --pill-h: linear-gradient(90deg, #9aeaf4, #6cc4ee);
-    --pill-ink: #072033;
+  /* Старые переменные assets/style.css — из текущей темы */
+  :root {
+    --water: rgba(var(--tm-over-rgb), 0.05);   /* подложка особых строк таблиц */
+    --surface: var(--tm-surface);              /* карточки */
+    --line: var(--tm-line);                    /* рамки */
+    --ink: var(--tm-ink);                      /* основной текст */
+    --muted: var(--tm-muted);                  /* второстепенный текст */
+    --accent: var(--tm-accent-text);           /* акцент, ссылки, фокус */
+    --accent-h: var(--tm-accent-h);
+    --accent-t: rgba(var(--tm-accent-rgb), 0.14);
+    --tint: rgba(var(--tm-over-rgb), 0.06);    /* шапки таблиц, итоговые строки */
+    --depth: var(--tm-strong);                 /* заголовки (в старой теме — тёмные) */
+    --depth-2: rgba(var(--tm-over-rgb), 0.08);
+    --sea: var(--tm-accent);                   /* полосы дашбордов */
+    --warn: var(--tm-warn);                    /* «внимание» */
+    --warn-bg: var(--tm-warn-bg);
+    --error: var(--tm-error);
+    --error-bg: var(--tm-error-bg);
+    --drop-line: rgba(var(--tm-accent-rgb), 0.55);
+    --side-text: var(--tm-ink);
+    --side-muted: var(--tm-muted);
+
     --radius: 12px;
     --radius-btn: 999px;
     --bar-pad: max(40px, calc((100% - 1240px) / 2 + 40px));
   }
 
+  /* ───────────── Производные остальных тем ───────────── */
+
+  /* derived:dark */
+  :root[data-theme="emerald"],
+  :root[data-theme="graphite"],
+  :root[data-theme="sunset"],
+  :root[data-theme="bordeaux"],
+  :root[data-theme="steel"] {
+    --tm-over-rgb: 255, 255, 255;
+    --tm-bg-deep: color-mix(in srgb, var(--tm-bg) 70%, #000000);
+    --tm-strong: #ffffff;
+    --tm-ink-soft: color-mix(in srgb, var(--tm-ink) 55%, var(--tm-muted));
+    --tm-accent-text: var(--tm-accent);
+    --tm-accent-h: color-mix(in srgb, var(--tm-accent) 70%, #ffffff);
+    --tm-pill: var(--tm-primary);
+    --tm-pill-h: color-mix(in srgb, var(--tm-primary) 80%, #ffffff);
+    --tm-switch-on: var(--tm-primary);
+    --tm-warn-strong: color-mix(in srgb, var(--tm-warn) 60%, #ffffff);
+    --tm-on-warn: var(--tm-bg-deep);
+    --tm-error-line: var(--tm-error);
+    --tm-error-border: rgba(var(--tm-error-rgb), 0.4);
+    --tm-page: var(--tm-bg-deep) radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--tm-accent) 18%, var(--tm-bg)) 0%, var(--tm-bg) 55%, var(--tm-bg-deep) 100%) fixed;
+    --tm-bar-bg: color-mix(in srgb, var(--tm-bg-deep) 80%, transparent);
+    --tm-panel-bg: color-mix(in srgb, var(--tm-surface) 97%, transparent);
+    --tm-action-bg: color-mix(in srgb, var(--tm-bg) 90%, transparent);
+    --tm-select-bg: var(--tm-surface);
+  }
+
+  /* derived:light */
+  :root[data-theme="day"],
+  :root[data-theme="mint"],
+  :root[data-theme="chart"],
+  :root[data-theme="arctic"] {
+    --tm-over-rgb: var(--tm-ink-rgb);          /* тонкие рамки и подложки — цветом текста */
+    --tm-strong: var(--tm-ink);
+    --tm-ink-soft: color-mix(in srgb, var(--tm-ink) 70%, var(--tm-muted));
+    --tm-accent-text: var(--tm-accent);
+    --tm-accent-h: color-mix(in srgb, var(--tm-accent-text) 80%, #000000);
+    --tm-pill: var(--tm-primary);
+    --tm-pill-h: color-mix(in srgb, var(--tm-pill) 85%, #000000);
+    --tm-switch-on: var(--tm-pill);
+    --tm-warn-strong: color-mix(in srgb, var(--tm-warn) 80%, #000000);
+    --tm-on-warn: #ffffff;
+    --tm-error-line: var(--tm-error);
+    --tm-error-border: rgba(var(--tm-error-rgb), 0.35);
+    --tm-page: var(--tm-bg) radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--tm-accent) 10%, var(--tm-surface)) 0%, var(--tm-bg) 55%) fixed;
+    --tm-bar-bg: color-mix(in srgb, var(--tm-surface) 88%, transparent);
+    --tm-panel-bg: var(--tm-surface);
+    --tm-action-bg: color-mix(in srgb, var(--tm-surface) 94%, transparent);
+    --tm-select-bg: var(--tm-surface);
+    --tm-field-bg: var(--tm-surface);
+    --tm-table-bg: var(--tm-surface);
+    --tm-block-bg: var(--tm-surface);
+    --tm-step-bg: var(--tm-surface);
+    --tm-shadow-menu: 0 18px 48px rgba(var(--tm-ink-rgb), 0.18);
+    --tm-shadow-bar: 0 10px 30px rgba(var(--tm-ink-rgb), 0.1);
+  }
+
+  /* ───────────── Палитры остальных тем (значения — из брифа, как есть) ─────────────
+   * Ошибка: в тёмных темах светло-красная, в светлых — тёмно-красная на розовом,
+   * как у старого сайта. Где акцент или главная кнопка с белым текстом не дотягивают
+   * до 4,5:1 к своему фону, текст/кнопка — тем же цветом, чуть темнее
+   * (--tm-accent-text, --tm-pill); сама палитра не меняется. */
+
+  /* palette:emerald */
+  :root[data-theme="emerald"],
+  .tm-swatch[data-theme="emerald"] {
+    color-scheme: dark;
+    --tm-bg: #0c2a1f;
+    --tm-surface: #143a2c;
+    --tm-line: #245540;
+    --tm-ink: #eaf7f0;
+    --tm-ink-rgb: 234, 247, 240;
+    --tm-muted: #9fc7b3;
+    --tm-muted-rgb: 159, 199, 179;
+    --tm-accent: #5fe0a5;
+    --tm-accent-rgb: 95, 224, 165;
+    --tm-primary: #5fe0a5;
+    --tm-on-primary: #062a1b;
+    --tm-warn: #f5d36b;
+    --tm-warn-rgb: 245, 211, 107;
+    --tm-warn-bg: #3b3518;
+    --tm-error: #ff8a80;
+    --tm-error-rgb: 255, 138, 128;
+    --tm-error-bg: rgba(255, 138, 128, 0.14);
+  }
+
+  /* palette:day */
+  :root[data-theme="day"],
+  .tm-swatch[data-theme="day"] {
+    color-scheme: light;
+    --tm-bg: #f3f6f8;
+    --tm-surface: #ffffff;
+    --tm-line: #d8e1e8;
+    --tm-ink: #14212b;
+    --tm-ink-rgb: 20, 33, 43;
+    --tm-muted: #5b6b78;
+    --tm-muted-rgb: 91, 107, 120;
+    --tm-accent: #1d6fb8;
+    --tm-accent-rgb: 29, 111, 184;
+    --tm-primary: #1d6fb8;
+    --tm-on-primary: #ffffff;
+    --tm-warn: #8a5a00;
+    --tm-warn-rgb: 138, 90, 0;
+    --tm-warn-bg: #fdf0d5;
+    --tm-error: #b42318;
+    --tm-error-rgb: 180, 35, 24;
+    --tm-error-bg: #fdecea;
+  }
+
+  /* palette:mint */
+  :root[data-theme="mint"],
+  .tm-swatch[data-theme="mint"] {
+    color-scheme: light;
+    --tm-bg: #e9f4ee;
+    --tm-surface: #ffffff;
+    --tm-line: #cfe3d7;
+    --tm-ink: #163326;
+    --tm-ink-rgb: 22, 51, 38;
+    --tm-muted: #55705f;
+    --tm-muted-rgb: 85, 112, 95;
+    --tm-accent: #1f8a5b;
+    --tm-accent-rgb: 31, 138, 91;
+    --tm-primary: #1f8a5b;
+    --tm-on-primary: #ffffff;
+    --tm-warn: #7a5200;
+    --tm-warn-rgb: 122, 82, 0;
+    --tm-warn-bg: #fbefcf;
+    --tm-error: #b42318;
+    --tm-error-rgb: 180, 35, 24;
+    --tm-error-bg: #fdecea;
+    /* #1f8a5b текстом на фоне — 3,9:1, белым по кнопке — 4,3:1: чуть темнее */
+    --tm-accent-text: color-mix(in srgb, var(--tm-accent) 85%, #000000);
+    --tm-pill: color-mix(in srgb, var(--tm-primary) 90%, #000000);
+  }
+
+  /* palette:graphite */
+  :root[data-theme="graphite"],
+  .tm-swatch[data-theme="graphite"] {
+    color-scheme: dark;
+    --tm-bg: #17191c;
+    --tm-surface: #22252a;
+    --tm-line: #363a40;
+    --tm-ink: #eceae6;
+    --tm-ink-rgb: 236, 234, 230;
+    --tm-muted: #a3a09a;
+    --tm-muted-rgb: 163, 160, 154;
+    --tm-accent: #ff9f43;
+    --tm-accent-rgb: 255, 159, 67;
+    --tm-primary: #ff9f43;
+    --tm-on-primary: #2a1500;
+    --tm-warn: #ff8a80;
+    --tm-warn-rgb: 255, 138, 128;
+    --tm-warn-bg: #402020;
+    /* «внимание» здесь уже светло-красное — ошибка ярче, чтобы их различать */
+    --tm-error: #ff6b6b;
+    --tm-error-rgb: 255, 107, 107;
+    --tm-error-bg: rgba(255, 107, 107, 0.14);
+  }
+
+  /* palette:chart */
+  :root[data-theme="chart"],
+  .tm-swatch[data-theme="chart"] {
+    color-scheme: light;
+    --tm-bg: #f5efe3;
+    --tm-surface: #fffaf1;
+    --tm-line: #e3d7c2;
+    --tm-ink: #1b2a3a;
+    --tm-ink-rgb: 27, 42, 58;
+    --tm-muted: #6b6458;
+    --tm-muted-rgb: 107, 100, 88;
+    --tm-accent: #c4532f;
+    --tm-accent-rgb: 196, 83, 47;
+    --tm-primary: #1b2a3a;
+    --tm-on-primary: #f5efe3;
+    --tm-warn: #8a3517;
+    --tm-warn-rgb: 138, 53, 23;
+    --tm-warn-bg: #f6dfd3;
+    --tm-error: #b42318;
+    --tm-error-rgb: 180, 35, 24;
+    --tm-error-bg: #fdecea;
+    /* #c4532f текстом на фоне — 4,0:1: чуть темнее */
+    --tm-accent-text: color-mix(in srgb, var(--tm-accent) 85%, #000000);
+    /* кнопка тёмная — при наведении светлеет, а не темнеет */
+    --tm-pill-h: color-mix(in srgb, var(--tm-primary) 85%, #ffffff);
+  }
+
+  /* palette:sunset */
+  :root[data-theme="sunset"],
+  .tm-swatch[data-theme="sunset"] {
+    color-scheme: dark;
+    --tm-bg: #1d1630;
+    --tm-surface: #2a2045;
+    --tm-line: #3e3260;
+    --tm-ink: #f1ecf8;
+    --tm-ink-rgb: 241, 236, 248;
+    --tm-muted: #b4a8c9;
+    --tm-muted-rgb: 180, 168, 201;
+    --tm-accent: #ff8a65;
+    --tm-accent-rgb: 255, 138, 101;
+    --tm-primary: #ff8a65;
+    --tm-on-primary: #2d0f05;
+    --tm-warn: #ffd27a;
+    --tm-warn-rgb: 255, 210, 122;
+    --tm-warn-bg: #3e3420;
+    --tm-error: #ff8a80;
+    --tm-error-rgb: 255, 138, 128;
+    --tm-error-bg: rgba(255, 138, 128, 0.14);
+  }
+
+  /* palette:arctic */
+  :root[data-theme="arctic"],
+  .tm-swatch[data-theme="arctic"] {
+    color-scheme: light;
+    --tm-bg: #eef6fa;
+    --tm-surface: #ffffff;
+    --tm-line: #cfe4ec;
+    --tm-ink: #10303d;
+    --tm-ink-rgb: 16, 48, 61;
+    --tm-muted: #56717d;
+    --tm-muted-rgb: 86, 113, 125;
+    --tm-accent: #0f8f9a;
+    --tm-accent-rgb: 15, 143, 154;
+    --tm-primary: #0f8f9a;
+    --tm-on-primary: #ffffff;
+    --tm-warn: #7d4f00;
+    --tm-warn-rgb: 125, 79, 0;
+    --tm-warn-bg: #fdeccf;
+    --tm-error: #b42318;
+    --tm-error-rgb: 180, 35, 24;
+    --tm-error-bg: #fdecea;
+    /* #0f8f9a текстом на фоне — 3,5:1, белым по кнопке — 3,9:1: чуть темнее */
+    --tm-accent-text: color-mix(in srgb, var(--tm-accent) 85%, #000000);
+    --tm-pill: color-mix(in srgb, var(--tm-primary) 88%, #000000);
+  }
+
+  /* palette:bordeaux */
+  :root[data-theme="bordeaux"],
+  .tm-swatch[data-theme="bordeaux"] {
+    color-scheme: dark;
+    --tm-bg: #2a0f17;
+    --tm-surface: #3a1822;
+    --tm-line: #552633;
+    --tm-ink: #f7ecee;
+    --tm-ink-rgb: 247, 236, 238;
+    --tm-muted: #c6a7ae;
+    --tm-muted-rgb: 198, 167, 174;
+    --tm-accent: #e2b860;
+    --tm-accent-rgb: 226, 184, 96;
+    --tm-primary: #e2b860;
+    --tm-on-primary: #2a1a00;
+    --tm-warn: #ffb37a;
+    --tm-warn-rgb: 255, 179, 122;
+    --tm-warn-bg: #4a2a14;
+    --tm-error: #ff8a80;
+    --tm-error-rgb: 255, 138, 128;
+    --tm-error-bg: rgba(255, 138, 128, 0.14);
+  }
+
+  /* palette:steel */
+  :root[data-theme="steel"],
+  .tm-swatch[data-theme="steel"] {
+    color-scheme: dark;
+    --tm-bg: #26303a;
+    --tm-surface: #323e4a;
+    --tm-line: #465462;
+    --tm-ink: #eef2f5;
+    --tm-ink-rgb: 238, 242, 245;
+    --tm-muted: #a7b3bd;
+    --tm-muted-rgb: 167, 179, 189;
+    --tm-accent: #c6e85a;
+    --tm-accent-rgb: 198, 232, 90;
+    --tm-primary: #c6e85a;
+    --tm-on-primary: #1f2a00;
+    --tm-warn: #ffc560;
+    --tm-warn-rgb: 255, 197, 96;
+    --tm-warn-bg: #4a3a1a;
+    --tm-error: #ff8a80;
+    --tm-error-rgb: 255, 138, 128;
+    --tm-error-bg: rgba(255, 138, 128, 0.14);
+  }
+
+  /* ───────────── Общее ───────────── */
+
   body {
     min-height: 100vh;
-    background: var(--deep-bg) radial-gradient(120% 90% at 0% 0%, #1f5f86 0%, #0b2236 55%, #071624 100%) fixed;
+    background: var(--tm-page);
     color: var(--ink);
   }
 
   ::selection {
-    background: rgba(127, 227, 240, 0.35);
-    color: #ffffff;
+    background: rgba(var(--tm-accent-rgb), 0.35);
+    color: var(--tm-strong);
   }
 
   a {
@@ -70,7 +419,7 @@
 
   h2,
   h3 {
-    color: #ffffff;
+    color: var(--tm-strong);
   }
 
   /* ───────────── Каркас: полоса сверху + рабочая область ───────────── */
@@ -92,10 +441,10 @@
     align-items: center;
     gap: 8px 16px;
     padding: 10px var(--bar-pad);
-    background: rgba(7, 22, 36, 0.78);
+    background: var(--tm-bar-bg);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(var(--tm-over-rgb), 0.1);
     color: var(--side-text);
     overflow: visible;
   }
@@ -112,7 +461,7 @@
   .side__brand {
     order: 1;
     padding: 4px 0;
-    color: #ffffff;
+    color: var(--tm-strong);
     font-size: 20px;
     font-weight: 700;
     letter-spacing: -0.01em;
@@ -124,18 +473,20 @@
   }
 
   .portal-dot {
-    color: #7fe3f0;
+    color: var(--tm-accent);
   }
 
-  /* Логотип Tallyman: кран вместо буквы T (portal/web/logo-t.svg), слово стоит
-   * на корпусе контейнеровоза (::after). Разметка — в shell-addon.js (полоса)
-   * и на страницах входа: <span class="tm-logo"><img class="tm-logo__t">
-   * <span class="tm-logo__rest">allyman</span></span> */
+  /* Логотип Tallyman: кран вместо буквы T, слово стоит на корпусе контейнеровоза
+   * (::after). Кран — portal/web/logo-t.svg как маска: сам знак — цветом акцента
+   * темы, трос (::before) — второстепенным, контейнер на тросе (::after) — цветом
+   * «внимание»; маска обрезает их по форме знака. Разметка — в shell-addon.js
+   * (полоса) и на страницах входа: <span class="tm-logo"><span class="tm-logo__t">
+   * </span><span class="tm-logo__rest">allyman</span></span> */
   .tm-logo {
     position: relative;
     display: inline-block;
     padding: 0 0.12em 0.38em 0.04em;
-    color: #ffffff;
+    color: var(--tm-strong);
     font-weight: 700;
     line-height: 1;
     letter-spacing: -0.01em;
@@ -143,10 +494,38 @@
   }
 
   .tm-logo__t {
+    position: relative;
+    display: inline-block;
     width: 0.98em;
     height: 1.08em;
     margin-right: -0.06em;
     vertical-align: -0.04em;
+    background: var(--tm-accent);
+    -webkit-mask: url("/portal/logo-t.svg") center / contain no-repeat;
+    mask: url("/portal/logo-t.svg") center / contain no-repeat;
+  }
+
+  /* Координаты — в долях поля знака 56×62 (viewBox logo-t.svg) с запасом: лишнее срежет маска */
+  .tm-logo__t::before,
+  .tm-logo__t::after {
+    content: "";
+    position: absolute;
+  }
+
+  .tm-logo__t::before {
+    left: 73%;
+    top: 18%;
+    width: 18%;
+    height: 15%;
+    background: var(--tm-muted);
+  }
+
+  .tm-logo__t::after {
+    left: 66%;
+    top: 31%;
+    width: 34%;
+    height: 21%;
+    background: var(--tm-warn);
   }
 
   .tm-logo::after {
@@ -156,7 +535,7 @@
     right: 0;
     bottom: 0;
     height: 0.2em;
-    background: #7fe3f0;
+    background: var(--tm-accent);
     clip-path: polygon(0 0, 100% 0, 95% 100%, 5% 100%);
   }
 
@@ -167,7 +546,7 @@
     gap: 8px;
     min-height: 40px;
     padding: 0 16px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(var(--tm-over-rgb), 0.3);
     border-radius: 999px;
     background: transparent;
     color: var(--ink);
@@ -189,13 +568,13 @@
   }
 
   .side__menu-btn:hover {
-    border-color: var(--accent);
+    border-color: var(--tm-accent);
   }
 
   .side__menu-btn[aria-expanded="true"] {
-    background: rgba(127, 227, 240, 0.16);
-    border-color: var(--accent);
-    color: #ffffff;
+    background: rgba(var(--tm-accent-rgb), 0.16);
+    border-color: var(--tm-accent);
+    color: var(--tm-strong);
   }
 
   .side__menu-btn[aria-expanded="true"]::after {
@@ -230,7 +609,7 @@
   }
 
   .portal-bar__link:hover {
-    color: #ffffff;
+    color: var(--tm-strong);
   }
 
   .portal-bar__count {
@@ -239,8 +618,8 @@
     margin-left: 6px;
     padding: 0 6px;
     border-radius: 999px;
-    background: var(--warn);
-    color: var(--pill-ink);
+    background: var(--tm-warn);
+    color: var(--tm-on-warn);
     font-family: var(--font-mono);
     font-size: 12px;
     font-weight: 700;
@@ -252,9 +631,9 @@
     display: inline-block;
     max-width: 220px;
     padding: 4px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(var(--tm-over-rgb), 0.2);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(var(--tm-over-rgb), 0.1);
     color: var(--ink);
     text-decoration: none;
     white-space: nowrap;
@@ -263,7 +642,7 @@
   }
 
   .portal-bar__user:hover {
-    border-color: var(--accent);
+    border-color: var(--tm-accent);
   }
 
   /* Выпадающая панель: вкладки «Экспорт / Импорт» и список инструментов */
@@ -278,10 +657,10 @@
     max-height: calc(100vh - 96px);
     overflow-y: auto;
     padding: 12px;
-    background: var(--panel-bg);
+    background: var(--tm-panel-bg);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--tm-shadow-menu);
   }
 
   /* Колонка, а не grid: старые правила узкого экрана дают .side__tabs и
@@ -298,7 +677,7 @@
 
   .side__tabs {
     padding: 3px;
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(var(--tm-over-rgb), 0.08);
     border: 1px solid var(--line);
     border-radius: 999px;
   }
@@ -311,16 +690,16 @@
   }
 
   .side__tab:hover {
-    color: #ffffff;
+    color: var(--tm-strong);
   }
 
   .side__tab[aria-selected="true"] {
-    background: var(--pill);
-    color: var(--pill-ink);
+    background: var(--tm-pill);
+    color: var(--tm-on-primary);
   }
 
   .side__tab[aria-selected="true"]:focus-visible {
-    outline-color: #ffffff;
+    outline-color: var(--tm-strong);
   }
 
   .portal-menu .side__nav {
@@ -338,17 +717,17 @@
   }
 
   .side__link:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #ffffff;
+    background: rgba(var(--tm-over-rgb), 0.08);
+    color: var(--tm-strong);
   }
 
   .side__link[aria-current="page"] {
-    background: rgba(127, 227, 240, 0.16);
-    color: #ffffff;
+    background: rgba(var(--tm-accent-rgb), 0.16);
+    color: var(--tm-strong);
   }
 
   .side__link[aria-current="page"]:focus-visible {
-    outline-color: #ffffff;
+    outline-color: var(--tm-strong);
   }
 
   .side__num,
@@ -377,16 +756,16 @@
   }
 
   .crumbs a:hover {
-    color: #ffffff;
+    color: var(--tm-strong);
   }
 
   .page__title {
-    color: #ffffff;
+    color: var(--tm-strong);
   }
 
   .page__num {
-    border-color: rgba(127, 227, 240, 0.4);
-    background: rgba(127, 227, 240, 0.12);
+    border-color: rgba(var(--tm-accent-rgb), 0.4);
+    background: rgba(var(--tm-accent-rgb), 0.12);
     color: var(--accent);
   }
 
@@ -406,7 +785,7 @@
   }
 
   .portal-help a:hover {
-    color: #ffffff;
+    color: var(--tm-strong);
   }
 
   /* ───────────── Шаги 1 → 2 → 3 — «пилюли» ───────────── */
@@ -421,9 +800,9 @@
     gap: 10px;
     min-height: 40px;
     padding: 5px 16px 5px 6px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(var(--tm-over-rgb), 0.12);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.07);
+    background: var(--tm-step-bg);
   }
 
   .steps li + li::before {
@@ -433,7 +812,7 @@
   .steps__num {
     width: 28px;
     height: 28px;
-    border: 1px solid rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(var(--tm-over-rgb), 0.25);
     background: transparent;
     color: var(--muted);
   }
@@ -443,75 +822,75 @@
   }
 
   .steps li.is-done .steps__num {
-    background: rgba(127, 227, 240, 0.16);
-    border-color: var(--accent);
+    background: rgba(var(--tm-accent-rgb), 0.16);
+    border-color: var(--tm-accent);
     color: var(--accent);
   }
 
   .steps li.is-current {
-    border-color: var(--accent);
-    background: rgba(127, 227, 240, 0.16);
-    color: #ffffff;
+    border-color: var(--tm-accent);
+    background: rgba(var(--tm-accent-rgb), 0.16);
+    color: var(--tm-strong);
   }
 
   .steps li.is-current .steps__num {
     border-color: transparent;
-    background: var(--pill);
-    color: var(--pill-ink);
+    background: var(--tm-pill);
+    color: var(--tm-on-primary);
   }
 
-  /* ───────────── Кнопки: главная — бирюзовая «пилюля», остальные — контур ───────────── */
+  /* ───────────── Кнопки: главная — «пилюля» цвета темы, остальные — контур ───────────── */
 
   .btn {
     border: 1px solid transparent;
     border-radius: 999px;
-    background: var(--pill);
-    color: var(--pill-ink);
+    background: var(--tm-pill);
+    color: var(--tm-on-primary);
     font-weight: 700;
   }
 
   .btn:hover:not(:disabled) {
-    background: var(--pill-h);
+    background: var(--tm-pill-h);
     border-color: transparent;
   }
 
   .btn:disabled {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.12);
-    color: rgba(238, 245, 250, 0.45);
+    background: rgba(var(--tm-over-rgb), 0.08);
+    border-color: rgba(var(--tm-over-rgb), 0.12);
+    color: rgba(var(--tm-ink-rgb), 0.45);
   }
 
   .btn--secondary {
     background: transparent;
-    border-color: rgba(255, 255, 255, 0.3);
+    border-color: rgba(var(--tm-over-rgb), 0.3);
     color: var(--ink);
     font-weight: 600;
   }
 
   .btn--secondary:hover:not(:disabled) {
-    background: rgba(127, 227, 240, 0.08);
-    border-color: var(--accent);
-    color: #ffffff;
+    background: rgba(var(--tm-accent-rgb), 0.08);
+    border-color: var(--tm-accent);
+    color: var(--tm-strong);
   }
 
   .btn--secondary:disabled {
     background: transparent;
-    border-color: rgba(255, 255, 255, 0.14);
-    color: rgba(238, 245, 250, 0.4);
+    border-color: rgba(var(--tm-over-rgb), 0.14);
+    color: rgba(var(--tm-ink-rgb), 0.4);
   }
 
   /* ───────────── Зона для файлов и список ───────────── */
 
   .dropzone {
     border-width: 1.5px;
-    background: rgba(127, 227, 240, 0.05);
-    color: #c4d6e1;
+    background: rgba(var(--tm-accent-rgb), 0.05);
+    color: var(--tm-ink-soft);
   }
 
   .dropzone.dropzone--active {
-    border-color: var(--accent);
+    border-color: var(--tm-accent);
     background: var(--accent-t);
-    color: #ffffff;
+    color: var(--tm-strong);
   }
 
   .file-list {
@@ -520,12 +899,12 @@
   }
 
   .file-list li {
-    border-bottom-color: rgba(255, 255, 255, 0.08);
+    border-bottom-color: rgba(var(--tm-over-rgb), 0.08);
   }
 
   .file-list__remove:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
+    background: rgba(var(--tm-over-rgb), 0.1);
+    color: var(--tm-strong);
   }
 
   /* ───────────── Поля и тумблер ───────────── */
@@ -533,44 +912,44 @@
   .field input,
   .field select,
   .field textarea {
-    border-color: rgba(255, 255, 255, 0.28);
+    border-color: rgba(var(--tm-over-rgb), 0.28);
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.07);
+    background: var(--tm-field-bg);
     color: var(--ink);
   }
 
   .field input::placeholder {
-    color: rgba(169, 195, 211, 0.6);
+    color: rgba(var(--tm-muted-rgb), 0.6);
   }
 
   .field input:hover {
-    border-color: rgba(255, 255, 255, 0.45);
+    border-color: rgba(var(--tm-over-rgb), 0.45);
   }
 
   .switch__track {
-    background: rgba(255, 255, 255, 0.22);
+    background: rgba(var(--tm-over-rgb), 0.22);
   }
 
   .switch__input:checked + .switch__track {
-    background: #4fb6e8;
+    background: var(--tm-switch-on);
   }
 
   /* ───────────── Полоса действия ───────────── */
 
   .action-bar {
-    background: rgba(11, 34, 54, 0.9);
+    background: var(--tm-action-bg);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     border-color: var(--line);
     border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    box-shadow: var(--tm-shadow-bar);
   }
 
   /* ───────────── Результат ───────────── */
 
   .result {
     padding-top: 24px;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(var(--tm-over-rgb), 0.12);
   }
 
   .stat {
@@ -579,7 +958,7 @@
   }
 
   .stat__value {
-    color: #ffffff;
+    color: var(--tm-strong);
   }
 
   .stat__label {
@@ -587,41 +966,41 @@
   }
 
   .data-table {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--tm-table-bg);
     border-color: var(--line);
   }
 
   .data-table th {
     background: var(--tint);
     color: var(--muted);
-    border-bottom-color: rgba(255, 255, 255, 0.18);
+    border-bottom-color: rgba(var(--tm-over-rgb), 0.18);
   }
 
   .data-table td {
-    border-bottom-color: rgba(255, 255, 255, 0.07);
+    border-bottom-color: rgba(var(--tm-over-rgb), 0.07);
   }
 
   .data-table tr.is-total td,
   .dashboard-row--port-total td {
     background: var(--tint);
-    color: #ffffff;
+    color: var(--tm-strong);
   }
 
   .dashboard-row--grand-total td {
-    background: rgba(255, 255, 255, 0.1);
-    border-top: 1px solid rgba(255, 255, 255, 0.25);
-    color: #ffffff;
+    background: rgba(var(--tm-over-rgb), 0.1);
+    border-top: 1px solid rgba(var(--tm-over-rgb), 0.25);
+    color: var(--tm-strong);
   }
 
   .dashboard-row--empty td {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--tm-over-rgb), 0.03);
     color: var(--muted);
   }
 
   .dashboard-block {
     padding: 16px 18px 4px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--tm-block-bg);
+    border: 1px solid rgba(var(--tm-over-rgb), 0.12);
     border-radius: var(--radius);
   }
 
@@ -634,7 +1013,7 @@
   }
 
   .port-bar {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(var(--tm-over-rgb), 0.1);
   }
 
   .port-bar__fill {
@@ -644,14 +1023,14 @@
   /* ───────────── Сообщения ───────────── */
 
   .error-message {
-    border-color: rgba(255, 140, 120, 0.4);
-    border-left-color: #ff8a78;
+    border-color: var(--tm-error-border);
+    border-left-color: var(--tm-error-line);
   }
 
   .warning-message {
-    border-color: rgba(255, 210, 138, 0.35);
+    border-color: rgba(var(--tm-warn-rgb), 0.35);
     border-left-color: var(--warn);
-    color: #ffe2b0;
+    color: var(--tm-warn-strong);
   }
 
   /* ───────────── Узкий экран ───────────── */

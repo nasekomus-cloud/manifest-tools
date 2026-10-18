@@ -6,7 +6,8 @@
 // ничего о портале не знают.
 //
 // Что делает:
-//   1. Бренд панели — «Tallyman.» (точка бирюзовая), подпись под ним убирается.
+//   1. Бренд панели — логотип Tallyman, подпись под ним убирается; тема страницы
+//      запоминается в localStorage для страниц без входа.
 //   2. Полоса сверху: «Журнал», для администраторов «Пользователи» со счётчиком
 //      открытых запросов, плашка с именем (ведёт в профиль) и «Выйти».
 //      Переключатель вкладок и список инструментов собираются в выпадающую
@@ -119,6 +120,15 @@
   var doc = window.document;
   var shell = window.Shell;
 
+  // Тему ставит сервер (<html data-theme>); запоминаем её в браузере — страницы без
+  // входа (вход, приглашение) покажут ту же тему, хотя сервер там человека не знает
+  try {
+    var theme = doc.documentElement.getAttribute('data-theme');
+    if (theme) window.localStorage.setItem('manifest-tools:theme', theme);
+  } catch (e) {
+    // без хранилища (приватный режим) — просто без памяти
+  }
+
   // Ключ инструмента — первый сегмент адреса: /grand-total-import/ → grand-total-import
   var toolKey = String(window.location.pathname || '').split('/').filter(Boolean)[0] || '';
   if (/\.html?$/i.test(toolKey)) toolKey = '';
@@ -147,11 +157,9 @@
     if (brand) {
       brand.textContent = '';
       brand.setAttribute('aria-label', 'Tallyman — на главную');
+      // Кран вместо T рисует CSS (маска logo-t.svg цветами темы) — см. .tm-logo__t в theme.css
       var logo = el('span', 'tm-logo');
-      var craneT = el('img', 'tm-logo__t');
-      craneT.src = '/portal/logo-t.svg';
-      craneT.alt = '';
-      logo.appendChild(craneT);
+      logo.appendChild(el('span', 'tm-logo__t'));
       logo.appendChild(el('span', 'tm-logo__rest', 'allyman'));
       brand.appendChild(logo);
     }
