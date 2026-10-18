@@ -181,6 +181,11 @@ export function openDb(path) {
       return row?.user_id ?? null;
     },
 
+    // Гасит все ещё не использованные ссылки человека (после смены пароля и перед выпуском новой)
+    revokeUserTokens(userId, at) {
+      return Number(q('UPDATE tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL').run(at, userId).changes);
+    },
+
     // --- сессии (бессрочные на сервере) ---
     createSession(userId, at) {
       const token = newToken();

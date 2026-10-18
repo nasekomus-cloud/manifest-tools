@@ -24,8 +24,11 @@ const RATE_LIMIT_MESSAGE = 'Слишком много попыток. Попро
 /**
  * Выпускает ссылку для человека: приглашённому, который ещё не задавал пароль, — приглашение
  * на 7 дней, остальным — сброс пароля на 24 часа. Возвращает полный адрес ссылки.
+ * Прежние неиспользованные ссылки этого человека перестают действовать.
  */
 export function issueLink(db, user, { now, publicOrigin }) {
+  // Работает только самая новая ссылка: прежние неиспользованные гасим
+  db.revokeUserTokens(user.id, now);
   const origin = publicOrigin.replace(/\/+$/, '');
   if (user.status === 'invited') {
     const token = db.createToken({ userId: user.id, kind: 'invite', expiresAt: now + INVITE_TTL_MS });
@@ -53,13 +56,17 @@ export function createAuthRoutes({ db, now, mailer, cookieOptions, clientIp }) {
   // Отдельный счётчик от входа: запросы «Забыли пароль?» не должны ни блокировать вход, ни зависеть от него
   const forgotLimiter = createLimiter({ max: 10, windowMs: 15 * 60 * 1000, now });
 
-  /** Человек, которому принадлежит действующая ссылка этого вида, иначе null (в том числе отключённый). */
+  /**
+   * Человек, которому принадлежит действующая ссылка этого вида, иначе null.
+   * Приглашение годится только тому, кто ещё не задавал пароль; сброс — только активному.
+   */
   function linkUser(kind, token) {
     if (typeof token !== 'string' || token.length === 0 || token.length > MAX_TOKEN_LENGTH) return null;
     const userId = db.peekToken(token, kind, now());
     if (userId === null) return null;
     const user = db.getUserById(userId);
-    return user && user.status !== 'disabled' ? user : null;
+    const wanted = kind === 'invite' ? 'invited' : 'active';
+    return user && user.status === wanted ? user : null;
   }
 
   /** Новая сессия вместо всех прежних; ответ с cookie. */
@@ -84,6 +91,7 @@ export function createAuthRoutes({ db, now, mailer, cookieOptions, clientIp }) {
     const userId = db.consumeToken(token, kind, now());
     if (userId === null) return sendJson(res, 410, GONE);
     db.setPassword(userId, hash);
+    db.revokeUserTokens(userId, now()); // остальные ссылки этого человека больше не нужны
     return startFreshSession(res, userId);
   }
 
@@ -100,6 +108,7 @@ export function createAuthRoutes({ db, now, mailer, cookieOptions, clientIp }) {
     }
     checkPassword(password);
     db.setPassword(ctx.user.id, await hashPassword(password));
+    db.revokeUserTokens(ctx.user.id, now()); // выданная ранее ссылка сброса после смены пароля не действует
     return startFreshSession(res, ctx.user.id);
   }
 

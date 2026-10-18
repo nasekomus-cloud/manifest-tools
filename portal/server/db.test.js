@@ -86,6 +86,23 @@ test('токен: одноразовый и со сроком', () => {
   assert.equal(db.peekToken('чужой', 'invite', 10), null);
 });
 
+test('revokeUserTokens гасит неиспользованные ссылки только этого человека', () => {
+  const db = openDb(':memory:');
+  const u = mkUser(db);
+  const other = db.createUser({ email: 'other@x.ru', name: 'Другой' });
+  const a = db.createToken({ userId: u.id, kind: 'invite', expiresAt: 1000 });
+  const b = db.createToken({ userId: u.id, kind: 'reset', expiresAt: 1000 });
+  const spent = db.createToken({ userId: u.id, kind: 'reset', expiresAt: 1000 });
+  db.consumeToken(spent, 'reset', 10);
+  const foreign = db.createToken({ userId: other.id, kind: 'invite', expiresAt: 1000 });
+
+  assert.equal(db.revokeUserTokens(u.id, 20), 2);
+  assert.equal(db.peekToken(a, 'invite', 20), null);
+  assert.equal(db.peekToken(b, 'reset', 20), null);
+  assert.equal(db.peekToken(foreign, 'invite', 20), other.id);
+  assert.equal(db.revokeUserTokens(u.id, 21), 0);
+});
+
 test('в базе лежит только хеш токена', () => {
   const db = openDb(':memory:');
   const u = mkUser(db);

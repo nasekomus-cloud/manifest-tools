@@ -305,3 +305,95 @@ test('cli add-admin печатает ссылку и работает повто
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+const expectGone = async (s, token, kind) => {
+  assert.equal((await s.fetch(`/api/${kind}/${token}`)).status, 410, `GET api ${kind}`);
+  assert.equal((await post(s, `/api/${kind}/${token}`, { password: 'захват-аккаунта' })).status, 410, `POST api ${kind}`);
+  const page = await s.fetch(`/${kind}/${token}`);
+  assert.equal(page.status, 410, `страница ${kind}`);
+  assert.ok((await page.text()).includes('Ссылка уже использована или устарела — попросите новую у администратора.'));
+};
+
+test('два приглашения: после принятия одного второе не действует', async () => {
+  const { s, clock } = await clockServer();
+  try {
+    const user = s.db.createUser({ email: 'two@x.ru', name: 'Два' });
+    const first = tokenOf(issueLink(s.db, user, { now: clock.t, publicOrigin: TEST_ORIGIN }));
+    // выпуск новой ссылки сразу гасит прежнюю
+    const second = tokenOf(issueLink(s.db, user, { now: clock.t, publicOrigin: TEST_ORIGIN }));
+    await expectGone(s, first, 'invite');
+    assert.equal((await post(s, `/api/invite/${second}`, { password: 'пароль-123' })).status, 200);
+    await expectGone(s, second, 'invite');
+    await s.login('two@x.ru', 'пароль-123'); // пароль не перезаписан
+  } finally { await s.close(); }
+});
+
+test('неиспользованные приглашения умирают при принятии другого (токены выданы в обход issueLink)', async () => {
+  const { s, clock } = await clockServer();
+  try {
+    const user = s.db.createUser({ email: 'ib@x.ru', name: 'И' });
+    const a = s.db.createToken({ userId: user.id, kind: 'invite', expiresAt: clock.t + DAY });
+    const b = s.db.createToken({ userId: user.id, kind: 'invite', expiresAt: clock.t + DAY });
+    assert.equal((await post(s, `/api/invite/${b}`, { password: 'пароль-123' })).status, 200);
+    await expectGone(s, a, 'invite');
+    await s.login('ib@x.ru', 'пароль-123');
+  } finally { await s.close(); }
+});
+
+test('приглашение не действует для уже активного человека', async () => {
+  const { s, clock } = await clockServer();
+  try {
+    const user = await s.addUser({ email: 'act@x.ru', name: 'А', password: 'пароль-123' });
+    const token = s.db.createToken({ userId: user.id, kind: 'invite', expiresAt: clock.t + DAY });
+    await expectGone(s, token, 'invite');
+  } finally { await s.close(); }
+});
+
+test('два сброса: после использования второго первый не действует', async () => {
+  const { s, clock } = await clockServer();
+  try {
+    const user = await s.addUser({ email: 'rr@x.ru', name: 'Р', password: 'старый-пароль' });
+    const first = tokenOf(issueLink(s.db, user, { now: clock.t, publicOrigin: TEST_ORIGIN }));
+    const second = tokenOf(issueLink(s.db, user, { now: clock.t, publicOrigin: TEST_ORIGIN }));
+    await expectGone(s, first, 'reset');
+    assert.equal((await post(s, `/api/reset/${second}`, { password: 'новый-пароль' })).status, 200);
+    await expectGone(s, second, 'reset');
+    await s.login('rr@x.ru', 'новый-пароль');
+  } finally { await s.close(); }
+});
+
+test('неиспользованный сброс умирает при использовании другого (токены выданы в обход issueLink)', async () => {
+  const { s, clock } = await clockServer();
+  try {
+    const user = await s.addUser({ email: 'rb@x.ru', name: 'Р', password: 'старый-пароль' });
+    const a = s.db.createToken({ userId: user.id, kind: 'reset', expiresAt: clock.t + HOUR });
+    const b = s.db.createToken({ userId: user.id, kind: 'reset', expiresAt: clock.t + HOUR });
+    assert.equal((await post(s, `/api/reset/${b}`, { password: 'новый-пароль' })).status, 200);
+    await expectGone(s, a, 'reset');
+  } finally { await s.close(); }
+});
+
+test('ссылка сброса, выданная до смены пароля, после неё не действует', async () => {
+  const { s, clock } = await clockServer();
+  try {
+    const user = await s.addUser({ email: 'pc@x.ru', name: 'П', password: 'старый-пароль' });
+    const cookie = await s.login('pc@x.ru', 'старый-пароль');
+    const reset = tokenOf(issueLink(s.db, user, { now: clock.t, publicOrigin: TEST_ORIGIN }));
+    const ok = await post(s, '/api/password', { current: 'старый-пароль', password: 'новый-пароль' }, { Cookie: cookie });
+    assert.equal(ok.status, 200);
+    await expectGone(s, reset, 'reset');
+    await s.login('pc@x.ru', 'новый-пароль');
+  } finally { await s.close(); }
+});
+
+test('issueLink дважды: первая ссылка гаснет сразу, вторая работает', async () => {
+  const { s, clock } = await clockServer();
+  try {
+    const user = await s.addUser({ email: 'il@x.ru', name: 'И', password: 'пароль-123' });
+    const first = tokenOf(issueLink(s.db, user, { now: clock.t, publicOrigin: TEST_ORIGIN }));
+    const second = tokenOf(issueLink(s.db, user, { now: clock.t, publicOrigin: TEST_ORIGIN }));
+    await expectGone(s, first, 'reset');
+    assert.equal((await s.fetch(`/api/reset/${second}`)).status, 200);
+    assert.equal((await s.fetch(`/reset/${second}`)).status, 200);
+  } finally { await s.close(); }
+});
