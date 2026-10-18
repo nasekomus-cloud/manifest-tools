@@ -5,7 +5,7 @@
 // ('bl-split/index.html' → 'bl-split'). Запись «Разделить коносаменты» стоит
 // в tools.js дважды, но ключ один — одно право открывает обе записи.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import vm from 'node:vm';
 
@@ -25,7 +25,31 @@ export function loadCatalog(siteRoot) {
   const raw = JSON.parse(JSON.stringify(sandbox.window.TOOLS));
   const tools = raw.map((tool) => ({ ...tool, key: toolKey(tool.href) }));
   const keys = [...new Set(tools.map((tool) => tool.key))];
-  return { tools, keys };
+  return { tools, keys, deps: loadDeps(siteRoot, keys) };
+}
+
+// Зависимости между инструментами: страница <key>/index.html подключает скрипт
+// или стиль из каталога другого инструмента (`<script src="../grand-total/app.js">`) —
+// значит, владельцу <key> нужны не-HTML файлы того каталога. Считаются только
+// теги script/link; обычные ссылки <a href> — переход на другую страницу, а не зависимость.
+// deps: Map<ключ, Set<ключи, от которых он зависит>>, без самого себя.
+function loadDeps(siteRoot, keys) {
+  const deps = new Map();
+  const known = new Set(keys);
+  for (const key of keys) {
+    const page = join(siteRoot, key, 'index.html');
+    const found = new Set();
+    if (existsSync(page)) {
+      const html = readFileSync(page, 'utf8');
+      for (const [, tag, attrs] of html.matchAll(/<(script|link)\b([^>]*)>/gi)) {
+        const attr = tag.toLowerCase() === 'script' ? 'src' : 'href';
+        const ref = new RegExp(`\\b${attr}\\s*=\\s*["']\\.\\./([^/"'?#]+)/`, 'i').exec(attrs);
+        if (ref && known.has(ref[1]) && ref[1] !== key) found.add(ref[1]);
+      }
+    }
+    deps.set(key, found);
+  }
+  return deps;
 }
 
 // Администратору — все ключи каталога; остальным — пересечение их прав с каталогом

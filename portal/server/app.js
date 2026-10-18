@@ -156,6 +156,24 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     return handler(req, res, ctx);
   }
 
+  // Не-HTML файл: у последнего сегмента есть расширение, кроме .html/.htm
+  // (каталог и адрес без расширения отдали бы index.html — это страница).
+  function isAsset(segments, trailingSlash) {
+    if (trailingSlash) return false;
+    const last = segments[segments.length - 1] ?? '';
+    const dot = last.lastIndexOf('.');
+    if (dot <= 0) return false;
+    return !['.html', '.htm'].includes(last.slice(dot).toLowerCase());
+  }
+
+  // Скрипты и стили инструмента `key` нужны тем, у кого есть инструмент, подключающий их из своей страницы
+  function dependsOnAllowed(key, allowed) {
+    for (const owner of allowed) {
+      if (catalog.deps.get(owner)?.has(key)) return true;
+    }
+    return false;
+  }
+
   // --- Страницы и файлы ----------------------------------------------------
 
   const notFound = (res) => sendText(res, 404, 'Не найдено');
@@ -246,7 +264,7 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     if (kind.kind === 'tool') {
       if (!user) return toLogin(res, path);
       const allowed = allowedKeys(user, db.getTools(user.id), catalog);
-      if (!allowed.has(kind.key)) {
+      if (!allowed.has(kind.key) && !(isAsset(segments, trailingSlash) && dependsOnAllowed(kind.key, allowed))) {
         const tool = catalog.tools.find((t) => t.key === kind.key);
         return send(res, 403, 'text/html; charset=utf-8', noAccessPage(tool));
       }

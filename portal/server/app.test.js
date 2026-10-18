@@ -510,3 +510,24 @@ test('страницы портала и администратора (на вр
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('скрипты соседнего инструмента, подключённые страницей, доступны владельцу этой страницы', async () => {
+  await s.addUser({ email: 'gti@x.ru', name: 'Импорт', password: 'пароль-123', tools: ['grand-total-import'] });
+  const c = await s.login('gti@x.ru', 'пароль-123');
+  const get = (p) => s.fetch(p, { headers: { cookie: c } });
+
+  assert.equal((await get('/grand-total-import/index.html')).status, 200);
+  const app = await get('/grand-total/app.js?v=1');
+  assert.equal(app.status, 200);
+  assert.equal(await app.text(), read('grand-total/app.js'));
+  assert.equal((await get('/grand-total/core.js')).status, 200);
+  // а страницы самого grand-total — только с его правом
+  for (const p of ['/grand-total/index.html', '/grand-total/', '/grand-total', '/grand-total/index.HTML']) {
+    assert.equal((await get(p)).status, 403, p);
+  }
+  // каталоги, на которые зависимости нет
+  assert.equal((await get('/merge/app.js')).status, 403);
+  assert.equal((await get('/source-audit/app.js')).status, 403);
+  // у владельца только merge grand-total/app.js закрыт
+  assert.equal((await s.fetch('/grand-total/app.js', { headers: { cookie } })).status, 403);
+});

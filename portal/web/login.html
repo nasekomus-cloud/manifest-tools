@@ -16,14 +16,13 @@
     <p id="login-error" role="alert" hidden></p>
   </form>
 </main>
+<script src="/portal/safe-next.js"></script>
 <script>
 // Оформление страницы — в задаче 8; здесь только рабочая форма.
 (function () {
-  // next — только путь внутри сайта: «//host» и «\» увели бы на чужой адрес
-  function safeNext() {
-    var next = new URLSearchParams(location.search).get('next');
-    if (next && next.charAt(0) === '/' && next.charAt(1) !== '/' && next.indexOf('\\') < 0) return next;
-    return '/';
+  // next — только путь внутри сайта (см. safe-next.js)
+  function nextUrl() {
+    return window.safeNext(new URLSearchParams(location.search).get('next'), location.origin);
   }
   var form = document.getElementById('login-form');
   var error = document.getElementById('login-error');
@@ -40,7 +39,7 @@
     }).then(function (r) {
       return r.json().then(function (data) { return { ok: r.ok, data: data }; });
     }).then(function (r) {
-      if (r.ok) { location.href = safeNext(); return; }
+      if (r.ok) { location.href = nextUrl(); return; }
       error.textContent = r.data.error || 'Не удалось войти';
       error.hidden = false;
     }).catch(function () {

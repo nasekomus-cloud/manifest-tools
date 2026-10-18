@@ -85,3 +85,16 @@ test('renderToolsJs: только разрешённые записи, без п
   assert.ok(window.TOOLS.every((t) => !('key' in t)));
   assert.equal(window.TOOLS[0].num, 2);
 });
+
+test('deps: grand-total-import тянет скрипт из grand-total, больше ни у кого зависимостей нет', () => {
+  assert.deepEqual([...catalog.deps.get('grand-total-import')], ['grand-total']);
+  for (const key of catalog.keys) {
+    assert.ok(catalog.deps.has(key), key);
+    assert.ok(!catalog.deps.get(key).has(key), `${key} не зависит от себя`);
+    if (key !== 'grand-total-import') assert.equal(catalog.deps.get(key).size, 0, key);
+  }
+});
+
+test('deps: обычная ссылка <a href="../source-audit/…"> зависимостью не считается', () => {
+  assert.equal(catalog.deps.get('arm-upload').has('source-audit'), false);
+});
