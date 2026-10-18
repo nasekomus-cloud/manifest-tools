@@ -52,9 +52,12 @@ export async function startTestServer({
       });
       db.close();
     },
-    /** Создаёт активного человека с паролем и правами. */
-    async addUser({ email, name, password, isAdmin = false, tools = [] }) {
-      const user = db.createUser({ email, name, isAdmin });
+    /**
+     * Создаёт активного человека с паролем и правами. showLocked — как в рабочей базе,
+     * по умолчанию выключено: закрытые инструменты коллега не видит.
+     */
+    async addUser({ email, name, password, isAdmin = false, tools = [], showLocked = false }) {
+      const user = db.createUser({ email, name, isAdmin, showLocked });
       db.setPassword(user.id, await hashPassword(password));
       db.setTools(user.id, tools);
       return db.getUserById(user.id);

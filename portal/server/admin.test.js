@@ -10,11 +10,11 @@ const json = (cookie, body) => ({
 const put = (cookie, body) => ({ method: 'PUT', headers: { Cookie: cookie }, body: JSON.stringify(body) });
 const get = (cookie) => ({ headers: { Cookie: cookie } });
 
-/** Сервер с администратором и коллегой; возвращает cookie обоих. */
+/** Сервер с администратором и коллегой (видит закрытые инструменты — show_locked); возвращает cookie обоих. */
 async function setup(opts = {}) {
   const s = await startTestServer(opts);
   const admin = await s.addUser({ email: 'boss@x.ru', name: 'Босс', password: 'пароль-босса', isAdmin: true });
-  const lena = await s.addUser({ email: 'lena@x.ru', name: 'Лена', password: 'пароль-лены', tools: ['merge'] });
+  const lena = await s.addUser({ email: 'lena@x.ru', name: 'Лена', password: 'пароль-лены', tools: ['merge'], showLocked: true });
   const adminCookie = await s.login('boss@x.ru', 'пароль-босса');
   const lenaCookie = await s.login('lena@x.ru', 'пароль-лены');
   return { s, admin, lena, adminCookie, lenaCookie };

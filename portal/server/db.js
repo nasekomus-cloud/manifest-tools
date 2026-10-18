@@ -19,7 +19,10 @@ CREATE TABLE IF NOT EXISTS users (
   is_admin      INTEGER NOT NULL DEFAULT 0,
   status        TEXT NOT NULL DEFAULT 'invited' CHECK (status IN ('invited', 'active', 'disabled')),
   created_at    INTEGER NOT NULL,
-  last_login_at INTEGER
+  last_login_at INTEGER,
+  show_locked   INTEGER NOT NULL DEFAULT 0,
+  guest         INTEGER NOT NULL DEFAULT 0,
+  expires_at    INTEGER
 );
 CREATE TABLE IF NOT EXISTS permissions (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -29,7 +32,7 @@ CREATE TABLE IF NOT EXISTS permissions (
 CREATE TABLE IF NOT EXISTS tokens (
   token_hash TEXT PRIMARY KEY,
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  kind       TEXT NOT NULL CHECK (kind IN ('invite', 'reset')),
+  kind       TEXT NOT NULL CHECK (kind IN ('invite', 'reset', 'guest')),
   expires_at INTEGER NOT NULL,
   used_at    INTEGER
 );
@@ -70,7 +73,54 @@ function toUser(row) {
     status: row.status,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
+    showLocked: row.show_locked === 1,
+    guest: row.guest === 1,
+    expiresAt: row.expires_at ?? null,
   };
+}
+
+// Таблица tokens в том виде, в каком её создаёт SCHEMA (для переделки старой базы)
+const TOKENS_TABLE = `CREATE TABLE tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind       TEXT NOT NULL CHECK (kind IN ('invite', 'reset', 'guest')),
+  expires_at INTEGER NOT NULL,
+  used_at    INTEGER
+)`;
+
+/**
+ * Доводит базу, созданную прежней версией портала, до текущей схемы.
+ * CREATE TABLE IF NOT EXISTS существующую таблицу не меняет, поэтому:
+ *  - недостающие колонки users добавляются ALTER TABLE … ADD COLUMN (только если их нет);
+ *  - у tokens ограничение CHECK на вид нельзя поменять ALTER TABLE — таблица пересоздаётся
+ *    с тем же содержимым одной транзакцией (на неё никто не ссылается, строки копируются как есть).
+ * Повторный вызов ничего не делает.
+ */
+function migrate(raw) {
+  const columns = new Set(raw.prepare('PRAGMA table_info(users)').all().map((c) => c.name));
+  const added = [
+    ['show_locked', 'INTEGER NOT NULL DEFAULT 0'],
+    ['guest', 'INTEGER NOT NULL DEFAULT 0'],
+    ['expires_at', 'INTEGER'],
+  ];
+  for (const [name, type] of added) {
+    if (!columns.has(name)) raw.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
+  }
+
+  const tokensSql = raw.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tokens'").get()?.sql ?? '';
+  if (!tokensSql.includes("'guest'")) {
+    raw.exec('BEGIN');
+    try {
+      raw.exec(TOKENS_TABLE.replace('CREATE TABLE tokens', 'CREATE TABLE tokens_new'));
+      raw.exec('INSERT INTO tokens_new (token_hash, user_id, kind, expires_at, used_at) SELECT token_hash, user_id, kind, expires_at, used_at FROM tokens');
+      raw.exec('DROP TABLE tokens');
+      raw.exec('ALTER TABLE tokens_new RENAME TO tokens');
+      raw.exec('COMMIT');
+    } catch (err) {
+      raw.exec('ROLLBACK');
+      throw err;
+    }
+  }
 }
 
 /**
@@ -84,9 +134,11 @@ export function openDb(path) {
   raw.exec('PRAGMA busy_timeout = 5000');
   if (path !== ':memory:') raw.exec('PRAGMA journal_mode = WAL');
   raw.exec(SCHEMA);
+  migrate(raw);
 
   const q = (sql) => raw.prepare(sql);
-  const userSelect = 'SELECT id, email, name, is_admin, status, created_at, last_login_at FROM users';
+  const USER_COLUMNS = 'id, email, name, is_admin, status, created_at, last_login_at, show_locked, guest, expires_at';
+  const userSelect = `SELECT ${USER_COLUMNS} FROM users`;
 
   function getUserById(id) {
     return toUser(q(`${userSelect} WHERE id = ?`).get(id));
@@ -105,17 +157,31 @@ export function openDb(path) {
     ).get(hashToken(rawToken), kind, now);
   }
 
+  // Срок вышел: отключить, выкинуть из всех сессий, погасить ссылки
+  function expireUser(userId, at) {
+    q("UPDATE users SET status = 'disabled' WHERE id = ?").run(userId);
+    q('DELETE FROM sessions WHERE user_id = ?').run(userId);
+    q('UPDATE tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL').run(at, userId);
+  }
+
   return {
     raw,
     close: () => raw.close(),
 
     // --- пользователи ---
-    createUser({ email, name, isAdmin, at = Date.now() }) {
-      const info = q('INSERT INTO users (email, name, is_admin, created_at) VALUES (?, ?, ?, ?)').run(
+    // guest/expiresAt — тестовый доступ по ссылке; status по умолчанию 'invited'
+    createUser({ email, name, isAdmin, at = Date.now(), showLocked = false, guest = false, expiresAt = null, status = 'invited' }) {
+      const info = q(
+        'INSERT INTO users (email, name, is_admin, created_at, show_locked, guest, expires_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      ).run(
         normalizeEmail(email),
         name,
         isAdmin ? 1 : 0,
         at,
+        showLocked ? 1 : 0,
+        guest ? 1 : 0,
+        expiresAt,
+        status,
       );
       return getUserById(Number(info.lastInsertRowid));
     },
@@ -146,6 +212,21 @@ export function openDb(path) {
     },
     touchLogin(userId, at) {
       q('UPDATE users SET last_login_at = ? WHERE id = ?').run(at, userId);
+    },
+    setShowLocked(userId, value) {
+      q('UPDATE users SET show_locked = ? WHERE id = ?').run(value ? 1 : 0, userId);
+    },
+    setExpiry(userId, at) {
+      q('UPDATE users SET expires_at = ? WHERE id = ?').run(at, userId);
+    },
+    expireUser,
+    // Всех, у кого срок вышел (now >= expires_at), а статус ещё не «отключён»; возвращает сколько
+    disableExpired(now) {
+      const ids = q("SELECT id FROM users WHERE expires_at IS NOT NULL AND expires_at <= ? AND status != 'disabled'")
+        .all(now)
+        .map((r) => r.id);
+      for (const id of ids) expireUser(id, now);
+      return ids.length;
     },
 
     // --- права на инструменты ---
@@ -181,6 +262,18 @@ export function openDb(path) {
       return row?.user_id ?? null;
     },
 
+    // Тестовая ссылка многоразовая: действует, пока не отозвана и не истекла (срок не включительно —
+    // как у самого человека: в момент expires_at уже нельзя)
+    peekGuestToken(token, now) {
+      return q("SELECT user_id FROM tokens WHERE token_hash = ? AND kind = 'guest' AND used_at IS NULL AND expires_at > ?")
+        .get(hashToken(token), now)?.user_id ?? null;
+    },
+    // Новый срок живым тестовым ссылкам человека («Продлить»); возвращает сколько продлено
+    extendGuestTokens(userId, expiresAt) {
+      return Number(q("UPDATE tokens SET expires_at = ? WHERE user_id = ? AND kind = 'guest' AND used_at IS NULL")
+        .run(expiresAt, userId).changes);
+    },
+
     // Гасит все ещё не использованные ссылки человека (после смены пароля и перед выпуском новой)
     revokeUserTokens(userId, at) {
       return Number(q('UPDATE tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL').run(at, userId).changes);
@@ -194,7 +287,7 @@ export function openDb(path) {
     },
     getSessionUser(token) {
       const row = q(
-        `SELECT u.id, u.email, u.name, u.is_admin, u.status, u.created_at, u.last_login_at
+        `SELECT ${USER_COLUMNS.split(', ').map((c) => `u.${c}`).join(', ')}
          FROM sessions s JOIN users u ON u.id = s.user_id
          WHERE s.token_hash = ? AND u.status = 'active'`,
       ).get(hashToken(token));
@@ -249,7 +342,7 @@ export function openDb(path) {
     },
     listRequests({ status = 'open' } = {}) {
       return q(
-        `SELECT r.id, r.user_id, u.name, u.email, r.tool, r.status, r.created_at
+        `SELECT r.id, r.user_id, u.name, u.email, u.guest, r.tool, r.status, r.created_at
          FROM requests r JOIN users u ON u.id = r.user_id
          WHERE r.status = ? ORDER BY r.created_at, r.id`,
       ).all(status).map((r) => ({
@@ -257,6 +350,7 @@ export function openDb(path) {
         userId: r.user_id,
         userName: r.name,
         email: r.email,
+        guest: r.guest === 1,
         tool: r.tool,
         status: r.status,
         at: r.created_at,

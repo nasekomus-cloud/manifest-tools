@@ -28,6 +28,16 @@ const HSTS = 'max-age=31536000';
 const RATE_LIMIT_MESSAGE = 'Слишком много попыток. Попробуйте через 15 минут.';
 const NEED_LOGIN = { error: 'Нужно войти' };
 
+/**
+ * Видит ли человек закрытые для него инструменты (карточки «Нет доступа», 403 с кнопкой
+ * «Запросить доступ», справку). Настройка show_locked по умолчанию выключена: тогда о
+ * закрытых инструментах человек не узнаёт вовсе — их адреса отвечают 404. Администратору
+ * закрытого нет, настройка на него не влияет.
+ */
+export function seesLocked(user) {
+  return user.isAdmin || user.showLocked;
+}
+
 export function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
@@ -259,9 +269,21 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
   function handleMe(res, user) {
     if (!user) return sendJson(res, 401, NEED_LOGIN);
     const allowed = allowedKeys(user, db.getTools(user.id), catalog);
+    // Без show_locked закрытых записей в ответе нет вовсе
+    const tools = catalog.tools
+      .map((tool) => ({ ...tool, allowed: allowed.has(tool.key) }))
+      .filter((tool) => tool.allowed || seesLocked(user));
     sendJson(res, 200, {
-      user: { id: user.id, email: user.email, name: user.name, isAdmin: user.isAdmin },
-      tools: catalog.tools.map((tool) => ({ ...tool, allowed: allowed.has(tool.key) })),
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        isAdmin: user.isAdmin,
+        showLocked: user.showLocked,
+        guest: user.guest,
+        expiresAt: user.expiresAt,
+      },
+      tools,
       openRequests: user.isAdmin ? db.countOpenRequests() : 0,
     });
   }
@@ -377,6 +399,7 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
         const fragment = await files.serve(helpDir, [`${key}.html`]);
         if (!fragment || fragment.redirectSlash) return notFound(res);
         const allowed = allowedKeys(user, db.getTools(user.id), catalog).has(key);
+        if (!allowed && !seesLocked(user)) return notFound(res); // о закрытом инструменте не рассказываем
         return send(res, 200, 'text/html; charset=utf-8', helpPage(catalog, key, fragment.body.toString('utf8'), allowed));
       }
       // /help/samples/<файл> — пример файла, только прямо из portal/help/samples (без подкаталогов)
@@ -413,6 +436,7 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
       if (!user) return toLogin(res, path);
       const allowed = allowedKeys(user, db.getTools(user.id), catalog);
       if (!allowed.has(kind.key) && !(isAsset(segments, trailingSlash) && dependsOnAllowed(kind.key, allowed))) {
+        if (!seesLocked(user)) return notFound(res); // как будто такого инструмента нет
         const tool = catalog.tools.find((t) => t.key === kind.key);
         return send(res, 403, 'text/html; charset=utf-8', noAccessPage(tool));
       }

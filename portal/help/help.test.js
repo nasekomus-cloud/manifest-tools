@@ -249,12 +249,12 @@ test('исходный файл линии: разбор, проверка, фа
 /* ——— Маршруты ——— */
 
 let s;
-let plainCookie; // без прав на инструменты
+let plainCookie; // без прав на инструменты, но видит закрытые (show_locked)
 let mergeCookie; // с правом на «Объединить манифесты»
 
 before(async () => {
   s = await startTestServer();
-  await s.addUser({ email: 'plain@test.ru', name: 'Без прав', password: 'пароль-без-прав' });
+  await s.addUser({ email: 'plain@test.ru', name: 'Без прав', password: 'пароль-без-прав', showLocked: true });
   await s.addUser({ email: 'merge@test.ru', name: 'Склейка', password: 'пароль-склейки', tools: ['merge'] });
   plainCookie = await s.login('plain@test.ru', 'пароль-без-прав');
   mergeCookie = await s.login('merge@test.ru', 'пароль-склейки');

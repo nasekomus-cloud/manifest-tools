@@ -39,7 +39,7 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 async function setup(mailer) {
   const s = await startTestServer({ mailer });
   const admin = await s.addUser({ email: 'boss@x.ru', name: 'Босс', password: 'пароль-босса', isAdmin: true });
-  const lena = await s.addUser({ email: 'lena@x.ru', name: 'Лена', password: 'пароль-лены', tools: ['merge'] });
+  const lena = await s.addUser({ email: 'lena@x.ru', name: 'Лена', password: 'пароль-лены', tools: ['merge'], showLocked: true });
   return { s, admin, lena, adminCookie: await s.login('boss@x.ru', 'пароль-босса') };
 }
 

@@ -101,6 +101,8 @@ export function createJournalRoutes({ db, catalog, now, mailer = null, publicOri
 
   async function handleRequestAccess(req, res, ctx) {
     if (!ctx.user) return sendJson(res, 401, NEED_LOGIN);
+    // Без show_locked человек закрытых инструментов не видит — и просить о них не может
+    if (!ctx.user.isAdmin && !ctx.user.showLocked) return sendJson(res, 403, { error: 'Запросы доступа отключены' });
     const body = await readJson(req);
     const { tool } = body;
     if (typeof tool !== 'string' || !knownKeys.has(tool)) throw new HttpError(400, 'Неизвестный инструмент');
@@ -110,7 +112,7 @@ export function createJournalRoutes({ db, catalog, now, mailer = null, publicOri
       // Новый запрос — письмо каждому активному администратору (в фоне, на ответ не влияет)
       const mail = accessRequestMail({
         userName: ctx.user.name,
-        userEmail: ctx.user.email,
+        userEmail: ctx.user.guest ? 'тестовая ссылка' : ctx.user.email, // служебный адрес тестового не показываем
         toolTitle: toolTitle(tool),
         adminUrl: `${publicOrigin}/admin/requests`,
       });

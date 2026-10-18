@@ -227,7 +227,7 @@ test('запрос доступа не дублируется, пока откр
   const open = db.listRequests({});
   assert.equal(open.length, 3);
   assert.deepEqual(open.find((r) => r.id === first.id), {
-    id: first.id, userId: u.id, userName: 'Иван', email: 'ivan@mail.ru', tool: 'merge', status: 'open', at: 10,
+    id: first.id, userId: u.id, userName: 'Иван', email: 'ivan@mail.ru', guest: false, tool: 'merge', status: 'open', at: 10,
   });
 
   assert.deepEqual(db.resolveRequest(first.id, 'granted', admin.id, 60), { userId: u.id, tool: 'merge' });
@@ -239,4 +239,144 @@ test('запрос доступа не дублируется, пока откр
   const next = db.addRequest({ userId: u.id, tool: 'merge', at: 70 });
   assert.equal(next.created, true);
   assert.notEqual(next.id, first.id);
+});
+
+// ── Доработки: «показывать недоступные» и тестовый доступ ────────────────────
+
+// Схема рабочей базы до доработок (2026-10-18): без show_locked/guest/expires_at,
+// у tokens вид только 'invite' | 'reset'
+const OLD_SCHEMA = `
+CREATE TABLE users (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  email         TEXT NOT NULL UNIQUE,
+  name          TEXT NOT NULL,
+  password_hash TEXT,
+  is_admin      INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'invited' CHECK (status IN ('invited', 'active', 'disabled')),
+  created_at    INTEGER NOT NULL,
+  last_login_at INTEGER
+);
+CREATE TABLE permissions (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tool    TEXT NOT NULL,
+  PRIMARY KEY (user_id, tool)
+);
+CREATE TABLE tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind       TEXT NOT NULL CHECK (kind IN ('invite', 'reset')),
+  expires_at INTEGER NOT NULL,
+  used_at    INTEGER
+);
+CREATE TABLE sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX sessions_user ON sessions(user_id);
+`;
+
+test('миграция: старая база получает новые колонки и вид токена guest, данные на месте', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dir = mkdtempSync(join(tmpdir(), 'portal-db-'));
+  try {
+    const path = join(dir, 'portal.db');
+    const old = new DatabaseSync(path);
+    old.exec(OLD_SCHEMA);
+    old.prepare("INSERT INTO users (email, name, password_hash, is_admin, status, created_at) VALUES ('boss@x.ru', 'Босс', 'h', 1, 'active', 5)").run();
+    old.prepare("INSERT INTO permissions (user_id, tool) VALUES (1, 'merge')").run();
+    const invite = newToken();
+    old.prepare("INSERT INTO tokens (token_hash, user_id, kind, expires_at) VALUES (?, 1, 'reset', 1000)").run(hashToken(invite));
+    const session = newToken();
+    old.prepare('INSERT INTO sessions (token_hash, user_id, created_at) VALUES (?, 1, 7)').run(hashToken(session));
+    // вид guest старая схема не принимает
+    assert.throws(() => old.prepare("INSERT INTO tokens (token_hash, user_id, kind, expires_at) VALUES ('x', 1, 'guest', 1)").run());
+    old.close();
+
+    const db = openDb(path);
+    const cols = db.raw.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+    for (const name of ['show_locked', 'guest', 'expires_at']) assert.ok(cols.includes(name), name);
+    const boss = db.getUserByEmail('boss@x.ru');
+    assert.equal(boss.name, 'Босс');
+    assert.equal(boss.status, 'active');
+    assert.equal(boss.isAdmin, true);
+    assert.equal(boss.showLocked, false);
+    assert.equal(boss.guest, false);
+    assert.equal(boss.expiresAt, null);
+    assert.equal(db.getPasswordHash(boss.id), 'h');
+    assert.deepEqual(db.getTools(boss.id), ['merge']);
+    assert.equal(db.getSessionUser(session).id, boss.id);
+    assert.equal(db.peekToken(invite, 'reset', 10), boss.id); // старая ссылка жива
+    // новый вид токена принимается
+    const g = db.createToken({ userId: boss.id, kind: 'guest', expiresAt: 2000 });
+    assert.equal(db.peekToken(g, 'guest', 10), boss.id);
+    // неизвестный вид — по-прежнему нет
+    assert.throws(() => db.createToken({ userId: boss.id, kind: 'other', expiresAt: 1 }));
+    db.close();
+
+    // повторное открытие ничего не ломает
+    const again = openDb(path);
+    assert.equal(again.getUserByEmail('boss@x.ru').name, 'Босс');
+    assert.equal(again.peekToken(g, 'guest', 10), boss.id);
+    again.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('createUser: showLocked, guest, expiresAt и статус; setShowLocked, setExpiry', () => {
+  const db = openDb(':memory:');
+  const plain = mkUser(db);
+  assert.equal(plain.showLocked, false);
+  assert.equal(plain.guest, false);
+  assert.equal(plain.expiresAt, null);
+  const g = db.createUser({ email: 'guest-1@guest.invalid', name: 'Тест', isAdmin: false, showLocked: true, guest: true, expiresAt: 500, status: 'active' });
+  assert.equal(g.showLocked, true);
+  assert.equal(g.guest, true);
+  assert.equal(g.expiresAt, 500);
+  assert.equal(g.status, 'active');
+  db.setShowLocked(plain.id, true);
+  assert.equal(db.getUserById(plain.id).showLocked, true);
+  db.setShowLocked(plain.id, false);
+  assert.equal(db.getUserById(plain.id).showLocked, false);
+  db.setExpiry(g.id, 900);
+  assert.equal(db.getUserById(g.id).expiresAt, 900);
+  const listed = db.listUsers().find((u) => u.id === g.id);
+  assert.equal(listed.guest, true);
+  assert.equal(listed.expiresAt, 900);
+});
+
+test('expireUser и disableExpired: отключают просроченных, гасят сессии и ссылки', () => {
+  const db = openDb(':memory:');
+  const early = db.createUser({ email: 'g1@guest.invalid', name: 'Ранний', guest: true, expiresAt: 100, status: 'active' });
+  const late = db.createUser({ email: 'g2@guest.invalid', name: 'Поздний', guest: true, expiresAt: 300, status: 'active' });
+  const plain = mkUser(db);
+  db.setPassword(plain.id, 'h');
+  const s1 = db.createSession(early.id, 1);
+  const t1 = db.createToken({ userId: early.id, kind: 'guest', expiresAt: 100 });
+  const s2 = db.createSession(late.id, 1);
+  const s3 = db.createSession(plain.id, 1);
+
+  assert.equal(db.disableExpired(99), 0);
+  assert.equal(db.disableExpired(100), 1); // срок включительно: в момент expires_at уже нельзя
+  assert.equal(db.getUserById(early.id).status, 'disabled');
+  assert.equal(db.getSessionUser(s1), null);
+  assert.equal(db.peekToken(t1, 'guest', 50), null);
+  assert.equal(db.getSessionUser(s2).id, late.id);
+  assert.equal(db.getSessionUser(s3).id, plain.id);
+  assert.equal(db.disableExpired(100), 0); // уже отключённых не трогает повторно
+
+  db.expireUser(late.id, 150);
+  assert.equal(db.getUserById(late.id).status, 'disabled');
+  assert.equal(db.getSessionUser(s2), null);
+});
+
+test('extendGuestTokens продлевает живые guest-ссылки человека', () => {
+  const db = openDb(':memory:');
+  const g = db.createUser({ email: 'g@guest.invalid', name: 'Тест', guest: true, expiresAt: 100, status: 'active' });
+  const live = db.createToken({ userId: g.id, kind: 'guest', expiresAt: 100 });
+  assert.equal(db.extendGuestTokens(g.id, 500), 1);
+  assert.equal(db.peekToken(live, 'guest', 400), g.id);
+  db.revokeUserTokens(g.id, 1);
+  assert.equal(db.extendGuestTokens(g.id, 900), 0);
 });

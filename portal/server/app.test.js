@@ -10,12 +10,12 @@ import { createLimiter } from './ratelimit.js';
 const read = (rel) => readFileSync(join(REPO_ROOT, rel), 'utf8');
 
 let s;
-let cookie; // сессия коллеги с правом только на «merge»
+let cookie; // сессия коллеги с правом только на «merge»; видит закрытые (show_locked)
 let adminCookie;
 
 before(async () => {
   s = await startTestServer();
-  await s.addUser({ email: 'ira@x.ru', name: 'Ирина', password: 'пароль-123', tools: ['merge'] });
+  await s.addUser({ email: 'ira@x.ru', name: 'Ирина', password: 'пароль-123', tools: ['merge'], showLocked: true });
   await s.addUser({ email: 'boss@x.ru', name: 'Главный', password: 'админ-пароль', isAdmin: true });
   cookie = await s.login('ira@x.ru', 'пароль-123');
   adminCookie = await s.login('boss@x.ru', 'админ-пароль');
@@ -438,7 +438,9 @@ test('Cache-Control: no-store на любом ответе', async () => {
 test('/api/me: пользователь и инструменты с признаком allowed', async () => {
   assert.equal((await s.fetch('/api/me')).status, 401);
   const me = await (await s.fetch('/api/me', { headers: { cookie } })).json();
-  assert.deepEqual(me.user, { id: me.user.id, email: 'ira@x.ru', name: 'Ирина', isAdmin: false });
+  assert.deepEqual(me.user, {
+    id: me.user.id, email: 'ira@x.ru', name: 'Ирина', isAdmin: false, showLocked: true, guest: false, expiresAt: null,
+  });
   assert.equal(me.tools.length, s.catalog.tools.length);
   assert.ok(me.tools.every((t) => typeof t.key === 'string' && typeof t.allowed === 'boolean' && t.href && t.title));
   assert.deepEqual([...new Set(me.tools.filter((t) => t.allowed).map((t) => t.key))], ['merge']);
@@ -511,7 +513,7 @@ test('403-страница экранирует название инструм�
     writeFileSync(join(root, 'tools.js'), `window.TOOLS = [{ title: '<img src=x onerror=alert(1)> "&', href: 'evil/index.html', category: 'export' }];`);
     const srv = await startTestServer({ siteRoot: root });
     try {
-      await srv.addUser({ email: 'u@x.ru', name: 'Обычный', password: 'пароль-123' });
+      await srv.addUser({ email: 'u@x.ru', name: 'Обычный', password: 'пароль-123', showLocked: true });
       const c = await srv.login('u@x.ru', 'пароль-123');
       const html = await (await srv.fetch('/evil/index.html', { headers: { cookie: c } })).text();
       assert.ok(!html.includes('<img'), 'разметка из названия не проходит');
@@ -537,7 +539,7 @@ test('страницы портала и администратора (на вр
     const srv = await startTestServer({ siteRoot: root });
     try {
       await srv.addUser({ email: 'a@x.ru', name: 'Админ', password: 'пароль-123', isAdmin: true });
-      await srv.addUser({ email: 'u@x.ru', name: 'Обычный', password: 'пароль-123' });
+      await srv.addUser({ email: 'u@x.ru', name: 'Обычный', password: 'пароль-123', showLocked: true });
       const admin = await srv.login('a@x.ru', 'пароль-123');
       const user = await srv.login('u@x.ru', 'пароль-123');
       const get = async (p, c) => {
@@ -570,7 +572,7 @@ test('страницы портала и администратора (на вр
 });
 
 test('скрипты соседнего инструмента, подключённые страницей, доступны владельцу этой страницы', async () => {
-  await s.addUser({ email: 'gti@x.ru', name: 'Импорт', password: 'пароль-123', tools: ['grand-total-import'] });
+  await s.addUser({ email: 'gti@x.ru', name: 'Импорт', password: 'пароль-123', tools: ['grand-total-import'], showLocked: true });
   const c = await s.login('gti@x.ru', 'пароль-123');
   const get = (p) => s.fetch(p, { headers: { cookie: c } });
 

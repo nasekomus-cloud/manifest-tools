@@ -39,6 +39,13 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
     return [...new Set(value)];
   }
 
+  /** Необязательный признак show_locked: нет — false, не булево — 400. */
+  function parseShowLocked(value) {
+    if (value === undefined) return false;
+    if (typeof value !== 'boolean') throw new HttpError(400, 'Настройка указана неверно');
+    return value;
+  }
+
   function userWithTools(id) {
     return { ...db.getUserById(id), tools: db.getTools(id) };
   }
@@ -69,10 +76,11 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
       throw new HttpError(400, 'Почта указана неверно');
     }
     const tools = body.tools === undefined ? [] : parseTools(body.tools);
+    const showLocked = parseShowLocked(body.showLocked);
     // Занятая почта — понятный ответ, а не ошибка SQLite
     if (db.getUserByEmail(cleanEmail)) throw new HttpError(409, 'Такой адрес уже есть');
 
-    const created = db.createUser({ email: cleanEmail, name: cleanName, isAdmin: false, at: now() });
+    const created = db.createUser({ email: cleanEmail, name: cleanName, isAdmin: false, at: now(), showLocked });
     db.setTools(created.id, tools);
     const inviteLink = link(created);
     // Письмо уходит в фоне и не влияет на ответ; ссылка остаётся и в ответе — её можно скопировать
@@ -85,6 +93,15 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
     const user = requireUser(id);
     if (user.isAdmin) throw new HttpError(400, 'У администратора все инструменты');
     db.setTools(user.id, parseTools(body.tools));
+    sendJson(res, 200, { user: userWithTools(user.id) });
+  }
+
+  async function handleSettings(req, res, id) {
+    const body = await readJson(req);
+    const user = requireUser(id);
+    if (user.isAdmin) throw new HttpError(400, 'У администратора открыто всё');
+    if (typeof body.showLocked !== 'boolean') throw new HttpError(400, 'Настройка указана неверно');
+    db.setShowLocked(user.id, body.showLocked);
     sendJson(res, 200, { user: userWithTools(user.id) });
   }
 
@@ -160,6 +177,7 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
   const ROUTES = [
     [/^\/api\/admin\/users$/, { GET: handleListUsers, POST: handleCreateUser }],
     [/^\/api\/admin\/users\/([^/]+)\/tools$/, { PUT: handleSetTools }],
+    [/^\/api\/admin\/users\/([^/]+)\/settings$/, { PUT: handleSettings }],
     [/^\/api\/admin\/users\/([^/]+)\/link$/, { POST: handleLink }],
     [/^\/api\/admin\/users\/([^/]+)\/disable$/, { POST: handleDisable }],
     [/^\/api\/admin\/users\/([^/]+)\/enable$/, { POST: handleEnable }],
