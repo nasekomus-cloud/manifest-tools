@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Задайте пароль</title>
+<link rel="stylesheet" href="/portal/theme.css">
+</head>
+<body>
+<main>
+  <h1 id="title">Задайте пароль</h1>
+  <p id="who" hidden></p>
+  <form id="password-form" hidden>
+    <label>Пароль <input type="password" id="password" autocomplete="new-password" minlength="8" required></label>
+    <label>Повторите пароль <input type="password" id="password2" autocomplete="new-password" minlength="8" required></label>
+    <p>Пароль — не короче 8 символов.</p>
+    <button type="submit" id="submit">Сохранить пароль</button>
+    <p id="form-error" role="alert" hidden></p>
+  </form>
+  <p id="gone" role="alert" hidden>Ссылка уже использована или устарела — попросите новую у администратора.</p>
+</main>
+<script>
+// Одна страница на приглашение (/invite/<токен>) и сброс (/reset/<токен>); режим — по пути.
+// Оформление — в задаче 8; здесь только рабочая форма.
+(function () {
+  var parts = location.pathname.split('/').filter(Boolean);
+  var mode = parts[0] === 'reset' ? 'reset' : 'invite';
+  var api = '/api/' + mode + '/' + parts[1];
+
+  var form = document.getElementById('password-form');
+  var error = document.getElementById('form-error');
+  var who = document.getElementById('who');
+  var gone = document.getElementById('gone');
+
+  var heading = mode === 'reset' ? 'Новый пароль' : 'Задайте пароль';
+  document.getElementById('title').textContent = heading;
+  document.title = heading;
+
+  function showError(text) {
+    error.textContent = text;
+    error.hidden = false;
+  }
+  function showGone() {
+    form.hidden = true;
+    who.hidden = true;
+    gone.hidden = false;
+  }
+
+  fetch(api).then(function (r) {
+    if (r.status === 410) { showGone(); return null; }
+    if (!r.ok) throw new Error(String(r.status));
+    return r.json();
+  }).then(function (data) {
+    if (!data) return;
+    who.textContent = data.name + ' (' + data.email + ')';
+    who.hidden = false;
+    form.hidden = false;
+  }).catch(function () {
+    gone.textContent = 'Не удалось проверить ссылку. Обновите страницу.';
+    gone.hidden = false;
+  });
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    error.hidden = true;
+    var password = document.getElementById('password').value;
+    if (password.length < 8) { showError('Пароль — не короче 8 символов'); return; }
+    if (password !== document.getElementById('password2').value) { showError('Пароли не совпадают'); return; }
+    var submit = document.getElementById('submit');
+    submit.disabled = true;
+    fetch(api, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: password }),
+    }).then(function (r) {
+      if (r.status === 410) { showGone(); return null; }
+      return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (r) {
+      if (!r) return;
+      if (r.ok) { location.href = '/'; return; }
+      submit.disabled = false;
+      showError(r.data.error || 'Не удалось сохранить пароль');
+    }).catch(function () {
+      submit.disabled = false;
+      showError('Нет связи с сервером');
+    });
+  });
+})();
+</script>
+</body>
+</html>

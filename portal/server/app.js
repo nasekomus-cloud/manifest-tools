@@ -10,6 +10,7 @@ import { normalizeEmail } from './db.js';
 import { hashPassword, verifyPassword } from './passwords.js';
 import { createLimiter } from './ratelimit.js';
 import { parsePath, isTestFile, createFileServer } from './static.js';
+import { createAuthRoutes } from './routes-auth.js';
 import {
   HttpError, readJson, send, sendJson, sendText, redirect, parseCookies, sessionCookie, SESSION_COOKIE,
 } from './http-utils.js';
@@ -71,7 +72,6 @@ ${script}
 }
 
 export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Date.now, cookieSecure = true }) {
-  void mailer; // письма появятся в задаче 4 (приглашения, сброс пароля)
   const origin = publicOrigin.replace(/\/+$/, '');
   const catalog = loadCatalog(siteRoot);
   const files = createFileServer();
@@ -90,6 +90,9 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     if (typeof real === 'string' && real.trim() && real.length <= 64) return real.trim();
     return req.socket.remoteAddress ?? 'unknown';
   }
+
+  // Приглашения, сброс и смена пароля, «Забыли пароль?»
+  const auth = createAuthRoutes({ db, now, mailer, cookieOptions, clientIp });
 
   // --- API ---------------------------------------------------------------
 
@@ -149,7 +152,7 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
   };
 
   async function handleApi(req, res, pathname, ctx) {
-    const route = API[pathname];
+    const route = API[pathname] ?? auth.matchApi(pathname);
     if (!route) return sendJson(res, 404, { error: 'Не найдено' });
     const handler = route[req.method];
     if (!handler) return sendJson(res, 405, { error: 'Метод не поддерживается' }, { Allow: Object.keys(route).join(', ') });
@@ -218,9 +221,13 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
 
     // Открытое всем
     if (plain && bare === '/login') return sendFile(res, webDir, ['login.html'], false, path);
-    if ((first === 'invite' || first === 'reset') && segments.length >= 2) {
-      // Заглушка: страницы по ссылкам приглашения/сброса появятся в задаче 4
-      return sendFile(res, webDir, [`${first}.html`], false, path);
+    if (first === 'invite' || first === 'reset') {
+      if (segments.length !== 2 || trailingSlash) return notFound(res);
+      // Одна страница на оба вида ссылок; режим она берёт из адреса. Недействующая ссылка — 410 с объяснением
+      if (auth.isLinkLive(first, segments[1])) return sendFile(res, webDir, ['invite.html'], false, path);
+      const gone = await files.serve(webDir, ['link-gone.html']);
+      if (!gone || gone.redirectSlash) return notFound(res);
+      return send(res, 410, gone.type, gone.body);
     }
     if (first === 'portal' && segments.length >= 2) return sendFile(res, webDir, segments.slice(1), trailingSlash, path);
     if (plain && bare === '/assets/fonts.css') return sendFile(res, siteRoot, segments, false, path);

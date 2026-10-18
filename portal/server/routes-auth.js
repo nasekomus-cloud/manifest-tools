@@ -1,0 +1,155 @@
+// Приглашения, сброс пароля, смена пароля и «Забыли пароль?».
+//
+// Ссылки живут в таблице tokens (kind 'invite' | 'reset'): приглашение — 7 дней,
+// сброс — 24 часа, оба одноразовые. Удачное задание пароля по ссылке гасит токен,
+// гасит все прежние сессии человека и сразу входит им — cookie выдаётся так же, как при входе.
+
+import { normalizeEmail } from './db.js';
+import { hashPassword, verifyPassword } from './passwords.js';
+import { createLimiter } from './ratelimit.js';
+import { HttpError, readJson, sendJson, sessionCookie } from './http-utils.js';
+
+export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const RESET_TTL_MS = 24 * 60 * 60 * 1000;
+
+export const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 1024;
+const MAX_TOKEN_LENGTH = 128;
+
+const GONE = { error: 'Ссылка уже использована или устарела — попросите новую у администратора.' };
+const SHORT_PASSWORD = 'Пароль — не короче 8 символов';
+const FORGOT_MESSAGE = 'Если такой адрес есть, мы передали запрос администратору.';
+const RATE_LIMIT_MESSAGE = 'Слишком много попыток. Попробуйте через 15 минут.';
+
+/**
+ * Выпускает ссылку для человека: приглашённому, который ещё не задавал пароль, — приглашение
+ * на 7 дней, остальным — сброс пароля на 24 часа. Возвращает полный адрес ссылки.
+ */
+export function issueLink(db, user, { now, publicOrigin }) {
+  const origin = publicOrigin.replace(/\/+$/, '');
+  if (user.status === 'invited') {
+    const token = db.createToken({ userId: user.id, kind: 'invite', expiresAt: now + INVITE_TTL_MS });
+    return `${origin}/invite/${token}`;
+  }
+  const token = db.createToken({ userId: user.id, kind: 'reset', expiresAt: now + RESET_TTL_MS });
+  return `${origin}/reset/${token}`;
+}
+
+function checkPassword(password) {
+  if (typeof password !== 'string') throw new HttpError(400, SHORT_PASSWORD);
+  if (password.length < MIN_PASSWORD_LENGTH) throw new HttpError(400, SHORT_PASSWORD);
+  if (password.length > MAX_PASSWORD_LENGTH) throw new HttpError(400, 'Слишком длинное значение');
+}
+
+/**
+ * @param {object} deps
+ * @param {object} deps.db
+ * @param {() => number} deps.now
+ * @param {object|null} deps.mailer      письма — задача 6; пока поведение как без почты
+ * @param {object} deps.cookieOptions
+ * @param {(req) => string} deps.clientIp
+ */
+export function createAuthRoutes({ db, now, mailer, cookieOptions, clientIp }) {
+  // Отдельный счётчик от входа: запросы «Забыли пароль?» не должны ни блокировать вход, ни зависеть от него
+  const forgotLimiter = createLimiter({ max: 10, windowMs: 15 * 60 * 1000, now });
+
+  /** Человек, которому принадлежит действующая ссылка этого вида, иначе null (в том числе отключённый). */
+  function linkUser(kind, token) {
+    if (typeof token !== 'string' || token.length === 0 || token.length > MAX_TOKEN_LENGTH) return null;
+    const userId = db.peekToken(token, kind, now());
+    if (userId === null) return null;
+    const user = db.getUserById(userId);
+    return user && user.status !== 'disabled' ? user : null;
+  }
+
+  /** Новая сессия вместо всех прежних; ответ с cookie. */
+  function startFreshSession(res, userId) {
+    db.deleteUserSessions(userId);
+    const session = db.createSession(userId, now());
+    sendJson(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie(session, cookieOptions) });
+  }
+
+  function handleLinkInfo(res, kind, token) {
+    const user = linkUser(kind, token);
+    if (!user) return sendJson(res, 410, GONE);
+    return sendJson(res, 200, { email: user.email, name: user.name });
+  }
+
+  async function handleLinkSubmit(req, res, kind, token) {
+    const body = await readJson(req);
+    if (!linkUser(kind, token)) return sendJson(res, 410, GONE);
+    checkPassword(body.password);
+    const hash = await hashPassword(body.password);
+    // Токен тратится одним запросом: из двух одновременных отправок пароль зададит только одна
+    const userId = db.consumeToken(token, kind, now());
+    if (userId === null) return sendJson(res, 410, GONE);
+    db.setPassword(userId, hash);
+    return startFreshSession(res, userId);
+  }
+
+  async function handlePassword(req, res, ctx) {
+    const body = await readJson(req);
+    if (!ctx.user) return sendJson(res, 401, { error: 'Нужно войти' });
+    const { current, password } = body;
+    if (typeof current !== 'string' || current.length > MAX_PASSWORD_LENGTH) {
+      throw new HttpError(400, 'Текущий пароль указан неверно');
+    }
+    const hash = db.getPasswordHash(ctx.user.id);
+    if (!hash || !(await verifyPassword(current, hash))) {
+      throw new HttpError(400, 'Текущий пароль указан неверно');
+    }
+    checkPassword(password);
+    db.setPassword(ctx.user.id, await hashPassword(password));
+    return startFreshSession(res, ctx.user.id);
+  }
+
+  async function handleForgot(req, res) {
+    const body = await readJson(req);
+    if (typeof body.email !== 'string' || body.email.length === 0) throw new HttpError(400, 'Введите почту');
+    if (body.email.length > 254) throw new HttpError(400, 'Слишком длинное значение');
+
+    // Каждый запрос — попытка: иначе можно было бы забить администратору список запросов
+    const ipKey = `ip:${clientIp(req)}`;
+    if (forgotLimiter.blocked(ipKey)) return sendJson(res, 429, { error: RATE_LIMIT_MESSAGE });
+    forgotLimiter.hit(ipKey);
+
+    const user = db.getUserByEmail(normalizeEmail(body.email));
+    if (user && user.status === 'active') {
+      // TODO(задача 6): при `mailer` отправить письмо со ссылкой issueLink(db, user, …).
+      // Пока почты нет в любом случае — запрос уходит администратору.
+      void mailer;
+      db.addRequest({ userId: user.id, tool: null, at: now() });
+    }
+    // Ответ один и тот же для известной и неизвестной почты
+    return sendJson(res, 200, { message: FORGOT_MESSAGE });
+  }
+
+  const api = {
+    '/api/forgot': { POST: handleForgot },
+    '/api/password': { POST: handlePassword },
+  };
+
+  /** Адреса со ссылкой-токеном: /api/invite/<token>, /api/reset/<token>. */
+  function matchLinkApi(pathname) {
+    const m = /^\/api\/(invite|reset)\/([^/]+)$/.exec(pathname);
+    if (!m) return null;
+    let token;
+    try {
+      token = decodeURIComponent(m[2]);
+    } catch {
+      token = '';
+    }
+    const kind = m[1];
+    return {
+      GET: (req, res) => handleLinkInfo(res, kind, token),
+      POST: (req, res) => handleLinkSubmit(req, res, kind, token),
+    };
+  }
+
+  return {
+    /** Маршрут API по пути: объект «метод → обработчик» или null. */
+    matchApi: (pathname) => api[pathname] ?? matchLinkApi(pathname),
+    /** Действует ли ссылка вида kind ('invite' | 'reset') — для страницы по ссылке. */
+    isLinkLive: (kind, token) => linkUser(kind, token) !== null,
+  };
+}
