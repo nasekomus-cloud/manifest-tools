@@ -115,6 +115,9 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
   // если их нет (срок уже истёк или доступ отключали — ссылки погашены), в ответе новая ссылка
   async function handleExtend(req, res, id) {
     const body = await readJson(req);
+    // Срок мог выйти, а уборка ещё не пройти: сначала отключаем просроченного (ссылки и сессии
+    // гаснут), иначе «Продлить» оживило бы старую ссылку и уже открытые по ней сессии
+    db.disableExpired(now());
     const user = requireUser(id);
     if (!user.guest) throw new HttpError(400, 'Продлить можно только тестовый доступ');
     const hours = parseHours(body.hours);
@@ -173,7 +176,10 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
     const user = requireUser(id);
     if (user.status === 'disabled' && user.guest) throw new HttpError(409, 'Тестовый доступ отключён — сначала продлите его');
     if (user.status === 'disabled') throw new HttpError(409, 'Человек отключён — сначала включите доступ');
-    sendJson(res, 200, { link: link(user) });
+    const fresh = link(user);
+    // Тестовую ссылку перевыпускают, когда прежняя утекла: все, кто вошёл по ней, выходят
+    if (user.guest) db.deleteUserSessions(user.id);
+    sendJson(res, 200, { link: fresh });
   }
 
   function handleDisable(req, res, id, ctx) {

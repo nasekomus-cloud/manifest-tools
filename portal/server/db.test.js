@@ -380,3 +380,33 @@ test('extendGuestTokens продлевает живые guest-ссылки че�
   db.revokeUserTokens(g.id, 1);
   assert.equal(db.extendGuestTokens(g.id, 900), 0);
 });
+
+test('миграция: ссылка без человека (осиротевшая строка) и недоделанная tokens_new не роняют запуск', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dir = mkdtempSync(join(tmpdir(), 'portal-db-'));
+  try {
+    const path = join(dir, 'portal.db');
+    const old = new DatabaseSync(path);
+    old.exec(OLD_SCHEMA);
+    old.prepare("INSERT INTO users (email, name, status, created_at) VALUES ('u@x.ru', 'У', 'active', 1)").run();
+    const live = newToken();
+    old.prepare("INSERT INTO tokens (token_hash, user_id, kind, expires_at) VALUES (?, 1, 'reset', 1000)").run(hashToken(live));
+    // строка, чей человек удалён в обход внешних ключей (так бывает в базе, которую правили руками)
+    old.exec('PRAGMA foreign_keys = OFF');
+    old.prepare("INSERT INTO tokens (token_hash, user_id, kind, expires_at) VALUES ('orphan', 999, 'invite', 1000)").run();
+    // остаток прерванной миграции
+    old.exec('CREATE TABLE tokens_new (x INTEGER)');
+    old.close();
+
+    const db = openDb(path);
+    const hashes = db.raw.prepare('SELECT token_hash FROM tokens').all().map((r) => r.token_hash);
+    assert.deepEqual(hashes, [hashToken(live)]);
+    assert.equal(db.peekToken(live, 'reset', 10), 1);
+    assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'tokens_new'").get().n, 0);
+    const g = db.createToken({ userId: 1, kind: 'guest', expiresAt: 2000 });
+    assert.equal(db.peekToken(g, 'guest', 10), 1);
+    db.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

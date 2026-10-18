@@ -202,7 +202,7 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
    * по этой ссылке не впустить: нужен и вид токена 'guest', и признак guest у человека.
    * Прежние сессии не гасятся — ссылку можно открыть на нескольких устройствах.
    */
-  function openGuestLink(token) {
+  function guestLinkUser(token) {
     if (typeof token !== 'string' || token.length === 0 || token.length > MAX_TOKEN_LENGTH) return null;
     const at = now();
     db.disableExpired(at); // истёкший срок записывается сразу, а не при ночной уборке
@@ -210,14 +210,22 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
     if (userId === null) return null;
     const user = db.getUserById(userId);
     if (!user || !user.guest || user.status !== 'active' || user.expiresAt === null || at >= user.expiresAt) return null;
-    db.touchLogin(user.id, at);
-    return db.createSession(user.id, at);
+    return user;
+  }
+
+  function openGuestLink(token) {
+    const user = guestLinkUser(token);
+    if (!user) return null;
+    db.touchLogin(user.id, now());
+    return db.createSession(user.id, now());
   }
 
   return {
     /** Маршрут API по пути: объект «метод → обработчик» или null. */
     matchApi: (pathname) => api[pathname] ?? matchLinkApi(pathname),
     openGuestLink,
+    /** Действует ли тестовая ссылка — без входа (для HEAD: предзагрузка ссылок сессий не плодит). */
+    isGuestLinkLive: (token) => guestLinkUser(token) !== null,
     /** Действует ли ссылка вида kind ('invite' | 'reset') — для страницы по ссылке. */
     isLinkLive: (kind, token) => linkUser(kind, token) !== null,
     /** Ждёт, пока завершатся письма, отправляемые в фоне (для тестов). */

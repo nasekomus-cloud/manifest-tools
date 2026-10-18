@@ -280,7 +280,12 @@ function userRow(user) {
     actions.append(actionButton(user.guest ? 'Новая ссылка' : 'Новая ссылка для входа', (event) => {
       event.currentTarget.disabled = true;
       userAction(user, 'link', (data) => {
-        panel = { id: user.id, kind: 'link', link: data.link, hint: user.guest ? guestLinkHint(user.expiresAt) : undefined };
+        panel = {
+          id: user.id,
+          kind: 'link',
+          link: data.link,
+          hint: user.guest ? `Прежняя ссылка больше не действует, все, кто открыл её, вышли. ${guestLinkHint(user.expiresAt)}` : undefined,
+        };
       });
     }));
   }

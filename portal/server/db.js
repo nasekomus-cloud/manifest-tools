@@ -93,7 +93,8 @@ const TOKENS_TABLE = `CREATE TABLE tokens (
  * CREATE TABLE IF NOT EXISTS существующую таблицу не меняет, поэтому:
  *  - недостающие колонки users добавляются ALTER TABLE … ADD COLUMN (только если их нет);
  *  - у tokens ограничение CHECK на вид нельзя поменять ALTER TABLE — таблица пересоздаётся
- *    с тем же содержимым одной транзакцией (на неё никто не ссылается, строки копируются как есть).
+ *    с тем же содержимым одной транзакцией (на неё никто не ссылается, строки копируются как есть,
+ *    кроме ссылок несуществующих людей).
  * Повторный вызов ничего не делает.
  */
 function migrate(raw) {
@@ -111,8 +112,12 @@ function migrate(raw) {
   if (!tokensSql.includes("'guest'")) {
     raw.exec('BEGIN');
     try {
+      raw.exec('DROP TABLE IF EXISTS tokens_new'); // остаток чужой или прерванной попытки
       raw.exec(TOKENS_TABLE.replace('CREATE TABLE tokens', 'CREATE TABLE tokens_new'));
-      raw.exec('INSERT INTO tokens_new (token_hash, user_id, kind, expires_at, used_at) SELECT token_hash, user_id, kind, expires_at, used_at FROM tokens');
+      // Ссылки удалённых в обход внешних ключей людей не переносим: с foreign_keys = ON такая
+      // строка сорвала бы INSERT, и сервис не смог бы стартовать
+      raw.exec(`INSERT INTO tokens_new (token_hash, user_id, kind, expires_at, used_at)
+        SELECT token_hash, user_id, kind, expires_at, used_at FROM tokens WHERE user_id IN (SELECT id FROM users)`);
       raw.exec('DROP TABLE tokens');
       raw.exec('ALTER TABLE tokens_new RENAME TO tokens');
       raw.exec('COMMIT');

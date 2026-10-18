@@ -374,6 +374,10 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     // Тестовая ссылка: многоразовый вход без пароля до срока; недействующая — 410 с объяснением
     if (first === 'guest') {
       if (segments.length !== 2 || trailingSlash) return notFound(res);
+      // HEAD шлют программы предпросмотра и предзагрузки ссылок — им только «жива ли», без сессии
+      if (req.method === 'HEAD') {
+        return auth.isGuestLinkLive(segments[1]) ? send(res, 200, 'text/html; charset=utf-8', '') : sendGone(res, 'guest-gone.html');
+      }
       const session = auth.openGuestLink(segments[1]);
       if (session) {
         res.setHeader('Set-Cookie', sessionCookie(session, cookieOptions));

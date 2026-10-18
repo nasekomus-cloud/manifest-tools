@@ -218,16 +218,21 @@ test('«Продлить»: только тестовому, часы 1–720, �
   } finally { await s.close(); }
 });
 
-test('«Новая ссылка» тестовому: guest-ссылка на текущий срок, старая отозвана', async () => {
+test('«Новая ссылка» тестовому: guest-ссылка на текущий срок, старая отозвана, вошедшие по ней вышли', async () => {
   const { s, clock, adminCookie, createGuest, open } = await setup();
   try {
     const { user, link } = await createGuest({ hours: 10 });
+    const { cookie: oldSession } = await open(link); // кто-то уже вошёл по прежней ссылке
+    assert.equal((await s.fetch('/api/me', get(oldSession))).status, 200);
     clock.now = START + HOUR;
     const r = await s.fetch(`/api/admin/users/${user.id}/link`, post(adminCookie, {}));
     assert.equal(r.status, 200);
     const { link: next } = await r.json();
     assert.match(next, new RegExp(`^${TEST_ORIGIN}/guest/[\\w-]{43}$`));
     assert.equal((await open(link)).r.status, 410);
+    // ссылку перевыпускают, когда прежняя утекла: все, кто вошёл по ней, выходят
+    assert.equal((await s.fetch('/api/me', get(oldSession))).status, 401);
+    assert.equal(s.db.getUserById(user.id).status, 'active');
     assert.equal((await open(next)).r.status, 302);
     assert.equal(s.db.getUserById(user.id).expiresAt, START + 10 * HOUR);
     const row = s.db.raw.prepare('SELECT expires_at FROM tokens WHERE token_hash = ?').get(hashToken(tokenOf(next)));
@@ -327,5 +332,38 @@ test('приглашение не может занять служебный а�
   try {
     const r = await s.fetch('/api/admin/users', post(adminCookie, { email: 'guest-1@guest.invalid', name: 'Н' }));
     assert.equal(r.status, 400);
+  } finally { await s.close(); }
+});
+
+test('«Продлить» после срока, когда уборка ещё не прошла: старая ссылка и сессии не оживают, в ответе новая ссылка', async () => {
+  const { s, clock, adminCookie, createGuest, open } = await setup();
+  try {
+    const { user, link } = await createGuest({ hours: 1 });
+    const { cookie } = await open(link);
+    clock.now = START + 2 * HOUR; // срок вышел, но ни одного запроса тестового и ни одной уборки
+    assert.equal(s.db.getUserById(user.id).status, 'active');
+    const r = await s.fetch(`/api/admin/users/${user.id}/extend`, post(adminCookie, { hours: 5 }));
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.equal(data.user.status, 'active');
+    assert.equal(data.user.expiresAt, START + 7 * HOUR);
+    assert.match(data.link, new RegExp(`^${TEST_ORIGIN}/guest/[\\w-]{43}$`));
+    assert.equal((await open(link)).r.status, 410);
+    assert.equal((await s.fetch('/api/me', get(cookie))).status, 401);
+    assert.equal((await open(data.link)).r.status, 302);
+  } finally { await s.close(); }
+});
+
+test('HEAD /guest/<токен> не создаёт сессию (предзагрузка ссылок)', async () => {
+  const { s, createGuest } = await setup();
+  try {
+    const { user, link } = await createGuest();
+    const r = await fetch(link.replace(TEST_ORIGIN, s.url), { method: 'HEAD', redirect: 'manual' });
+    assert.ok([200, 302].includes(r.status), String(r.status));
+    assert.equal(r.headers.get('set-cookie'), null);
+    assert.equal(s.db.raw.prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?').get(user.id).n, 0);
+    assert.equal(s.db.getUserById(user.id).lastLoginAt, null);
+    const bad = await fetch(`${s.url}/guest/нет-такого`, { method: 'HEAD', redirect: 'manual' });
+    assert.equal(bad.status, 410);
   } finally { await s.close(); }
 });
