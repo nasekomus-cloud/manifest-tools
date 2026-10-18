@@ -1,0 +1,106 @@
+// Журнал работы и запрос доступа к инструменту — для любого вошедшего.
+//
+// В журнал попадают только ключ инструмента, имена файлов и текст итога: сами файлы
+// манифестов на сервер не отправляются никогда.
+
+import { allowedKeys } from './catalog.js';
+import { HttpError, readJson, sendJson } from './http-utils.js';
+
+export const MAX_FILES = 50;
+export const MAX_FILE_NAME = 255;
+export const MAX_SUMMARY = 500;
+export const MAX_LIMIT = 500;
+const DEFAULT_LIMIT = 100;
+
+const NEED_LOGIN = { error: 'Нужно войти' };
+
+// Обрезка по символам, а не по кодовым единицам: пару-суррогат (эмодзи в имени файла) не рвём
+function truncate(text, max) {
+  const chars = Array.from(text);
+  return chars.length <= max ? text : chars.slice(0, max).join('');
+}
+
+/**
+ * @param {object} deps
+ * @param {object} deps.db
+ * @param {{keys: string[], tools: object[]}} deps.catalog
+ * @param {() => number} deps.now
+ */
+export function createJournalRoutes({ db, catalog, now }) {
+  const knownKeys = new Set(catalog.keys);
+  const toolTitle = (key) => catalog.tools.find((t) => t.key === key)?.title ?? key;
+
+  function allowedFor(user) {
+    return allowedKeys(user, db.getTools(user.id), catalog);
+  }
+
+  async function handleAddJournal(req, res, ctx) {
+    if (!ctx.user) return sendJson(res, 401, NEED_LOGIN);
+    const body = await readJson(req);
+    const { tool, kind, files, summary } = body;
+    if (typeof tool !== 'string' || !knownKeys.has(tool) || !allowedFor(ctx.user).has(tool)) {
+      throw new HttpError(400, 'Неизвестный инструмент');
+    }
+    if (kind !== 'result' && kind !== 'download') throw new HttpError(400, 'Неизвестный вид записи');
+    if (!Array.isArray(files) || files.length > MAX_FILES || files.some((name) => typeof name !== 'string')) {
+      throw new HttpError(400, `Список файлов — до ${MAX_FILES} имён`);
+    }
+    if (typeof summary !== 'string') throw new HttpError(400, 'Нет текста итога');
+
+    db.addJournal({
+      userId: ctx.user.id,
+      tool,
+      kind,
+      files: files.map((name) => truncate(name, MAX_FILE_NAME)),
+      summary: truncate(summary, MAX_SUMMARY),
+      at: now(),
+    });
+    res.writeHead(204);
+    res.end();
+  }
+
+  function parseCount(text, what) {
+    if (!/^\d{1,15}$/.test(text)) throw new HttpError(400, what);
+    return Number(text);
+  }
+
+  function handleListJournal(req, res, ctx) {
+    if (!ctx.user) return sendJson(res, 401, NEED_LOGIN);
+    const params = new URL(req.url, 'http://portal.local').searchParams;
+
+    const filter = {};
+    if (ctx.user.isAdmin) {
+      if (params.has('user')) filter.userId = parseCount(params.get('user'), 'Человек указан неверно');
+    } else {
+      filter.userId = ctx.user.id; // параметр user коллегам не нужен — только свои записи
+    }
+    if (params.has('tool')) filter.tool = params.get('tool');
+    filter.limit = DEFAULT_LIMIT;
+    if (params.has('limit')) {
+      const limit = parseCount(params.get('limit'), 'Предел указан неверно');
+      if (limit < 1) throw new HttpError(400, 'Предел указан неверно');
+      filter.limit = Math.min(limit, MAX_LIMIT);
+    }
+    sendJson(res, 200, db.listJournal(filter).map((rec) => ({ ...rec, toolTitle: toolTitle(rec.tool) })));
+  }
+
+  async function handleRequestAccess(req, res, ctx) {
+    if (!ctx.user) return sendJson(res, 401, NEED_LOGIN);
+    const body = await readJson(req);
+    const { tool } = body;
+    if (typeof tool !== 'string' || !knownKeys.has(tool)) throw new HttpError(400, 'Неизвестный инструмент');
+    if (allowedFor(ctx.user).has(tool)) return sendJson(res, 200, { already: true });
+    const { created } = db.addRequest({ userId: ctx.user.id, tool, at: now() });
+    return sendJson(res, created ? 201 : 200, { created });
+  }
+
+  const api = {
+    '/api/journal': { GET: handleListJournal, POST: handleAddJournal },
+    '/api/requests': { POST: handleRequestAccess },
+  };
+
+  return {
+    /** Маршрут API по пути: объект «метод → обработчик» или null. */
+    matchApi: (pathname) => api[pathname] ?? null,
+  };
+}

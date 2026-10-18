@@ -11,6 +11,8 @@ import { hashPassword, verifyPassword } from './passwords.js';
 import { createLimiter } from './ratelimit.js';
 import { parsePath, isTestFile, createFileServer } from './static.js';
 import { createAuthRoutes } from './routes-auth.js';
+import { createAdminRoutes } from './routes-admin.js';
+import { createJournalRoutes } from './routes-journal.js';
 import {
   HttpError, readJson, send, sendJson, sendText, redirect, parseCookies, sessionCookie, SESSION_COOKIE,
 } from './http-utils.js';
@@ -94,6 +96,11 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
   // Приглашения, сброс и смена пароля, «Забыли пароль?»
   const auth = createAuthRoutes({ db, now, mailer, cookieOptions, clientIp });
 
+  // Люди, права и запросы доступа (только администраторам)
+  const admin = createAdminRoutes({ db, catalog, now, publicOrigin: origin });
+  // Журнал работы и запрос доступа к инструменту (любому вошедшему)
+  const journal = createJournalRoutes({ db, catalog, now });
+
   // --- API ---------------------------------------------------------------
 
   async function handleLogin(req, res) {
@@ -152,7 +159,7 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
   };
 
   async function handleApi(req, res, pathname, ctx) {
-    const route = API[pathname] ?? auth.matchApi(pathname);
+    const route = API[pathname] ?? auth.matchApi(pathname) ?? admin.matchApi(pathname) ?? journal.matchApi(pathname);
     if (!route) return sendJson(res, 404, { error: 'Не найдено' });
     const handler = route[req.method];
     if (!handler) return sendJson(res, 405, { error: 'Метод не поддерживается' }, { Allow: Object.keys(route).join(', ') });
