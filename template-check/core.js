@@ -13,7 +13,7 @@ import {
   COLUMN_HEADER_ROW_HEIGHT, DATA_ROW_HEIGHT, TEXT_FORMAT, REQUIRED_FILL_ARGB, COLUMN_HEADER_FILL_ARGB, FONTS,
   normalizeHeader,
 } from './template-form.js?v=202609282100';
-import { parseLoadingOrder } from '../lib/loading-order.js?v=202609130013';
+import { parseLoadingOrder } from '../lib/loading-order.js?v=202610181430';
 import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202609130013';
 
 // Ошибка — оранжевым, не жёлтым: в новой форме заказчик сам заливает жёлтым

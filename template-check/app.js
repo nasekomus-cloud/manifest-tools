@@ -10,7 +10,7 @@
 // самой проверки файлы читаются заново из исходных байтов (spec §6) — объект,
 // прочитанный при распознавании, для этого не переиспользуется.
 
-import { detectFileKind, checkTemplate } from './core.js?v=202609282100';
+import { detectFileKind, checkTemplate } from './core.js?v=202610181430';
 
 const Shell = window.Shell;
 

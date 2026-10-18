@@ -423,6 +423,9 @@ dropzone.addEventListener('drop', (event) => {
   }
 });
 
+// Положение тумблера нумерации запоминается между открытиями страницы.
+Shell.remember('merge', [renumberCheckbox]);
+
 renumberCheckbox.addEventListener('change', () => {
   // параметр поменялся — показанный результат собран с другим
   if (resultWorkbook) setChanged();

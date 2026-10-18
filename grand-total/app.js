@@ -34,6 +34,15 @@ const HEADER_LABELS =
     ? { date: 'ARRIVAL DATE:', port: 'PORT OF DISCHARGE:' }
     : { date: 'SAILING DATE:', port: 'PORT OF LOADING:' };
 
+// Последние введённые позывной, дата и терминал/порт подставляются при
+// открытии страницы (Shell.remember). У экспорта и импорта память своя: поле
+// порта там значит разное (порт погрузки / порт выгрузки).
+Shell.remember(`grand-total:${document.body.dataset.reportMode === 'import' ? 'import' : 'export'}`, [
+  callSignInput,
+  arrivalDateInput,
+  terminalInput,
+]);
+
 const TABLE_COLUMNS = [
   'TOTAL CONTAINER NUMBER',
   'TOTAL GROSS CARGO WEIGHT',

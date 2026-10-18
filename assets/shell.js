@@ -414,11 +414,57 @@
     setResultShown(false);
   }
 
+  // ── Память полей ────────────────────────────────────────────────────────
+  // remember(key, elements): последние введённые значения полей (текст, дата —
+  // value, флажок/тумблер — checked) подставляются при открытии страницы и
+  // сохраняются при каждой правке. Хранилище — localStorage этого браузера под
+  // «manifest-tools:fields:<key>», по id поля; недоступно — страница работает
+  // как раньше, просто без памяти. Значения ставятся без событий input/change —
+  // страница читает поля, когда они нужны, а не по событию при загрузке.
+
+  var FIELDS_PREFIX = 'manifest-tools:fields:';
+
+  function remember(key, elements) {
+    var storageKey = FIELDS_PREFIX + key;
+    var saved = {};
+    try {
+      saved = JSON.parse(window.localStorage.getItem(storageKey) || '{}') || {};
+    } catch (e) {
+      saved = {};
+    }
+
+    function isToggle(el) {
+      return el.type === 'checkbox' || el.type === 'radio';
+    }
+
+    function save() {
+      var data = {};
+      elements.forEach(function (el) {
+        if (el.id) data[el.id] = isToggle(el) ? el.checked : el.value;
+      });
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(data));
+      } catch (e) {
+        // хранилище недоступно — просто не помним
+      }
+    }
+
+    elements.forEach(function (el) {
+      if (!el || !el.id) return;
+      if (Object.prototype.hasOwnProperty.call(saved, el.id)) {
+        if (isToggle(el)) el.checked = Boolean(saved[el.id]);
+        else el.value = String(saved[el.id]);
+      }
+      el.addEventListener(isToggle(el) ? 'change' : 'input', save);
+    });
+  }
+
   window.Shell = {
     plural: plural,
     setStep: setStep,
     setAction: setAction,
     setResultShown: setResultShown,
     formatSize: formatSize,
+    remember: remember,
   };
 })();

@@ -17,7 +17,7 @@ import {
   FIRST_COLUMN,
   LAST_COLUMN,
 } from '../lib/manifest-format.js?v=202609121930';
-import { parseLoadingOrder } from '../lib/loading-order.js?v=202609130013';
+import { parseLoadingOrder } from '../lib/loading-order.js?v=202610181430';
 import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202609130013';
 
 const NEW_COLUMN_HEADER = 'Несовпадения';
@@ -272,7 +272,7 @@ export function crossCheckOrders(combinedWb, orderEntries) {
 
       const cargoWeight = cellNumber(row.getCell(cols.cargoWeight));
       if (cargoWeight === null || Math.abs(cargoWeight - entry.cargoWeight) > WEIGHT_EPSILON) {
-        issues.push(`вес груза: свод ${cargoWeight ?? '—'}, по поручению ${entry.cargoWeight} кг (без поддонов/палет)`);
+        issues.push(`вес груза: свод ${cargoWeight ?? '—'}, по поручению ${entry.cargoWeight} кг (без поддонов/палет и средств крепления)`);
         summary.cargoWeight += 1;
       }
 
