@@ -594,3 +594,31 @@ test('скрипты соседнего инструмента, подключё
   // у владельца только merge grand-total/app.js закрыт
   assert.equal((await s.fetch('/grand-total/app.js', { headers: { cookie } })).status, 403);
 });
+
+test('бренд MukhLine: логотип и значки отдаются без входа и небольшие, у страниц — новое название и значок вкладки', async () => {
+  for (const [name, type, maxKb] of [['mukhline-logo.jpg', 'image/jpeg', 120], ['mukhline-badge.png', 'image/png', 40], ['favicon.png', 'image/png', 20]]) {
+    const r = await s.fetch(`/portal/${name}`);
+    assert.equal(r.status, 200, name);
+    assert.equal(r.headers.get('content-type').split(';')[0], type, name);
+    assert.ok((await r.arrayBuffer()).byteLength < maxKb * 1024, `${name} меньше ${maxKb} КБ`);
+  }
+  // кран Tallyman убран
+  assert.equal((await s.fetch('/portal/logo-t.svg')).status, 404);
+  assert.equal((await s.fetch('/portal/favicon.svg')).status, 404);
+  for (const name of ['login.html', 'invite.html', 'link-gone.html', 'guest-gone.html']) {
+    const html = read(`portal/web/${name}`);
+    assert.ok(html.includes('<img class="auth__logo" src="/portal/mukhline-logo.jpg" alt="MukhLine"'), name);
+    assert.ok(html.includes('— MukhLine</title>'), name);
+  }
+  // страницы, которые собирает сервер, — тоже
+  const no = await (await s.fetch('/dg-check/index.html', { headers: { cookie } })).text();
+  assert.ok(no.includes('<title>Нет доступа — MukhLine</title>'));
+  assert.ok(no.includes('href="/portal/favicon.png"'));
+  const help = await (await s.fetch('/help/merge', { headers: { cookie } })).text();
+  assert.ok(help.includes('— как это работает — MukhLine</title>'));
+  // старого названия нет ни в одной странице и скрипте портала
+  const { readdirSync } = await import('node:fs');
+  for (const name of readdirSync(join(REPO_ROOT, 'portal/web')).filter((n) => /\.(html|js|css)$/.test(n) && !n.endsWith('.test.js'))) {
+    assert.ok(!read(`portal/web/${name}`).includes('Tallyman'), name);
+  }
+});

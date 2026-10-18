@@ -110,8 +110,8 @@ function noAccessPage(tool) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/svg+xml" href="/portal/favicon.svg">
-<title>Нет доступа — Tallyman</title>
+<link rel="icon" type="image/png" href="/portal/favicon.png">
+<title>Нет доступа — MukhLine</title>
 <link rel="stylesheet" href="/assets/fonts.css">
 <link rel="stylesheet" href="/assets/style.css">
 <link rel="stylesheet" href="/portal/portal.css">
@@ -161,8 +161,8 @@ function helpPage(catalog, key, fragment, allowed) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/svg+xml" href="/portal/favicon.svg">
-<title>${escapeHtml(tool.title)} — как это работает — Tallyman</title>
+<link rel="icon" type="image/png" href="/portal/favicon.png">
+<title>${escapeHtml(tool.title)} — как это работает — MukhLine</title>
 <link rel="stylesheet" href="/assets/fonts.css">
 <link rel="stylesheet" href="/assets/style.css">
 <link rel="stylesheet" href="/portal/portal.css">

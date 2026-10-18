@@ -1,4 +1,4 @@
-// Дополнение к assets/shell.js для портала (tallyman.nasekomuspro.ru).
+// Дополнение к assets/shell.js для портала MukhLine (mukhline.nasekomuspro.ru).
 //
 // Сервер отдаёт /assets/shell.js как assets/shell.js + этот файл, так что код
 // выполняется сразу после того, как старый каркас нарисовал панель и выставил
@@ -6,7 +6,7 @@
 // ничего о портале не знают.
 //
 // Что делает:
-//   1. Бренд панели — логотип Tallyman, подпись под ним убирается; тема страницы
+//   1. Бренд панели — значок и слово MukhLine, подпись под ним убирается; тема страницы
 //      запоминается в localStorage для страниц без входа.
 //   2. Полоса сверху: «Журнал», для администраторов «Пользователи» со счётчиком
 //      открытых запросов, плашка с именем (ведёт в профиль) и «Выйти».
@@ -156,20 +156,26 @@
     var brand = side.querySelector('.side__brand');
     if (brand) {
       brand.textContent = '';
-      brand.setAttribute('aria-label', 'Tallyman — на главную');
-      // Кран вместо T рисует CSS (маска logo-t.svg цветами темы) — см. .tm-logo__t в theme.css
-      var logo = el('span', 'tm-logo');
-      logo.appendChild(el('span', 'tm-logo__t'));
-      logo.appendChild(el('span', 'tm-logo__rest', 'allyman'));
-      brand.appendChild(logo);
+      brand.setAttribute('aria-label', 'MukhLine — на главную');
+      // Значок — муха-капитан из логотипа; слово — текстом, цвета темы (.mk-brand__* в theme.css).
+      // width/height в разметке: без стилей экрана (печать) картинка не раздувается
+      var badge = el('img', 'mk-brand__badge');
+      badge.src = '/portal/mukhline-badge.png';
+      badge.alt = '';
+      badge.width = 42;
+      badge.height = 42;
+      var word = el('span', 'mk-brand__word', 'Mukh');
+      word.appendChild(el('span', 'mk-brand__line', 'Line'));
+      brand.appendChild(badge);
+      brand.appendChild(word);
     }
 
     // Значок вкладки: на страницах инструментов своего нет — ставим портальный
     if (!doc.querySelector('link[rel~="icon"]')) {
       var icon = doc.createElement('link');
       icon.rel = 'icon';
-      icon.type = 'image/svg+xml';
-      icon.href = '/portal/favicon.svg';
+      icon.type = 'image/png';
+      icon.href = '/portal/favicon.png';
       doc.head.appendChild(icon);
     }
 

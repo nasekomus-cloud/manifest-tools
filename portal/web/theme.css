@@ -30,7 +30,7 @@
  * а правило с [hidden] ниже весомее и на экране его перебивает.
  *
  * Раскладка: .app — колонка; .app__side — верхняя полоса во всю ширину
- * («Tallyman.», кнопка «Инструменты», справа ссылки портала); список инструментов
+ * (значок и «MukhLine», кнопка «Инструменты», справа ссылки портала); список инструментов
  * с переключателем «Экспорт / Импорт» — выпадающая панель .portal-menu под
  * кнопкой на любой ширине (открывает её assets/shell.js классом is-open).
  * Макеты: .superpowers/brainstorm/41798-1792325312/content/g-export-import.html
@@ -92,6 +92,12 @@
     --tm-count-opacity: 0.8;                   /* счётчик «7 из 7» на вкладке — приглушён */
     --tm-shadow-menu: 0 18px 48px rgba(0, 0, 0, 0.5);
     --tm-shadow-bar: 0 10px 30px rgba(0, 0, 0, 0.35);
+    /* Логотип MukhLine — картинка на белом фоне. На тёмных темах (эти значения наследуют все
+     * тёмные) — на белой скруглённой плашке, значок полосы — в белом кольце */
+    --tm-logo-bg: #ffffff;
+    --tm-logo-blend: normal;
+    --tm-logo-radius: 24px;
+    --tm-logo-ring: 0 0 0 2px var(--tm-logo-bg);
   }
 
   /* Старые переменные assets/style.css — из текущей темы */
@@ -183,6 +189,10 @@
     --tm-count-opacity: 1;
     --tm-shadow-menu: 0 18px 48px rgba(var(--tm-ink-rgb), 0.18);
     --tm-shadow-bar: 0 10px 30px rgba(var(--tm-ink-rgb), 0.1);
+    /* На светлых белый фон логотипа растворяется в фоне страницы (multiply) — без плашки и рамки */
+    --tm-logo-blend: multiply;
+    --tm-logo-radius: 0;
+    --tm-logo-ring: none;
   }
 
   /* ───────────── Палитры остальных тем (значения — из брифа, как есть) ─────────────
@@ -477,71 +487,33 @@
     display: none;
   }
 
-  .portal-dot {
-    color: var(--tm-accent);
+  /* Бренд MukhLine в полосе: круглый значок (portal/web/mukhline-badge.png — муха-капитан
+   * из логотипа) и слово «Mukh» + «Line» цветами темы. Разметка — shell-addon.js:
+   * <a class="side__brand"><img class="mk-brand__badge"><span class="mk-brand__word">
+   * Mukh<span class="mk-brand__line">Line</span></span></a>. У картинки белый фон:
+   * на тёмных темах значок в белом кольце, на светлых — без рамки (--tm-logo-ring). */
+  .side__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
   }
 
-  /* Логотип Tallyman: кран вместо буквы T, слово стоит на корпусе контейнеровоза
-   * (::after). Кран — portal/web/logo-t.svg как маска: сам знак — цветом акцента
-   * темы, трос (::before) — второстепенным, контейнер на тросе (::after) — цветом
-   * «внимание»; маска обрезает их по форме знака. Разметка — в shell-addon.js
-   * (полоса) и на страницах входа: <span class="tm-logo"><span class="tm-logo__t">
-   * </span><span class="tm-logo__rest">allyman</span></span> */
-  .tm-logo {
-    position: relative;
-    display: inline-block;
-    padding: 0 0.12em 0.38em 0.04em;
+  .mk-brand__badge {
+    flex: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--tm-logo-bg);
+    box-shadow: var(--tm-logo-ring);
+  }
+
+  .mk-brand__word {
     color: var(--tm-strong);
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: -0.01em;
     white-space: nowrap;
   }
 
-  .tm-logo__t {
-    position: relative;
-    display: inline-block;
-    width: 0.98em;
-    height: 1.08em;
-    margin-right: -0.06em;
-    vertical-align: -0.04em;
-    background: var(--tm-accent);
-    -webkit-mask: url("/portal/logo-t.svg") center / contain no-repeat;
-    mask: url("/portal/logo-t.svg") center / contain no-repeat;
-  }
-
-  /* Координаты — в долях поля знака 56×62 (viewBox logo-t.svg) с запасом: лишнее срежет маска */
-  .tm-logo__t::before,
-  .tm-logo__t::after {
-    content: "";
-    position: absolute;
-  }
-
-  .tm-logo__t::before {
-    left: 73%;
-    top: 18%;
-    width: 18%;
-    height: 15%;
-    background: var(--tm-muted);
-  }
-
-  .tm-logo__t::after {
-    left: 66%;
-    top: 31%;
-    width: 34%;
-    height: 21%;
-    background: var(--tm-warn);
-  }
-
-  .tm-logo::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 0.2em;
-    background: var(--tm-accent);
-    clip-path: polygon(0 0, 100% 0, 95% 100%, 5% 100%);
+  .mk-brand__line {
+    color: var(--tm-accent-text);
   }
 
   .side__menu-btn {

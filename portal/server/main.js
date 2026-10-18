@@ -4,7 +4,7 @@
 //   PORT           порт, по умолчанию 8010
 //   DB_PATH        файл базы SQLite (обязательно)
 //   SITE_ROOT      корень репозитория; по умолчанию — два уровня выше этого файла
-//   PUBLIC_ORIGIN  https://tallyman.nasekomuspro.ru (обязательно; по нему проверяется Origin)
+//   PUBLIC_ORIGIN  https://mukhline.nasekomuspro.ru (обязательно; по нему проверяется Origin)
 //   COOKIE_SECURE  0 — выключить флаг Secure у cookie (только локальная разработка)
 //   SMTP_*         необязательная почта: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
 //                  (без SMTP_HOST писем нет, портал работает полностью и пакет nodemailer
