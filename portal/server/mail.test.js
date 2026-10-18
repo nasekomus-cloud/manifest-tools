@@ -57,7 +57,7 @@ test('createMailer: с SMTP_HOST отдаёт send и собирает тран�
     return { sendMail: async (mail) => { calls.mail = mail; } };
   };
   const mailer = await createMailer(
-    { SMTP_HOST: 'smtp.x.ru', SMTP_PORT: '465', SMTP_USER: 'u', SMTP_PASS: 'p', SMTP_FROM: 'Лоция <no-reply@x.ru>' },
+    { SMTP_HOST: 'smtp.x.ru', SMTP_PORT: '465', SMTP_USER: 'u', SMTP_PASS: 'p', SMTP_FROM: 'Tallyman <no-reply@x.ru>' },
     { createTransport },
   );
   assert.equal(typeof mailer.send, 'function');
@@ -67,7 +67,7 @@ test('createMailer: с SMTP_HOST отдаёт send и собирает тран�
     auth: { user: 'u', pass: 'p' },
   });
   await mailer.send({ to: 'a@b.ru', subject: 'Тема', text: 'Текст' });
-  assert.deepEqual(calls.mail, { from: 'Лоция <no-reply@x.ru>', to: 'a@b.ru', subject: 'Тема', text: 'Текст' });
+  assert.deepEqual(calls.mail, { from: 'Tallyman <no-reply@x.ru>', to: 'a@b.ru', subject: 'Тема', text: 'Текст' });
 });
 
 test('createMailer: порт по умолчанию 587 без TLS-обёртки; без SMTP_USER — без авторизации', async () => {
@@ -105,7 +105,7 @@ test('приглашение: письмо приглашённому со сс�
     assert.equal(mailer.sent.length, 1);
     const [mail] = mailer.sent;
     assert.equal(mail.to, 'new@x.ru');
-    assert.equal(mail.subject, 'Приглашение в Лоцию');
+    assert.equal(mail.subject, 'Приглашение в Tallyman');
     assert.ok(mail.text.includes(link), 'в письме та же ссылка');
     assert.ok(mail.text.includes('Новая'), 'в письме имя');
   } finally { await s.close(); }
@@ -147,7 +147,7 @@ test('«Забыли пароль?» с почтой: письмо со ссыл
     assert.equal(mailer.sent.length, 1);
     const [mail] = mailer.sent;
     assert.equal(mail.to, 'lena@x.ru');
-    assert.equal(mail.subject, 'Сброс пароля в Лоции');
+    assert.equal(mail.subject, 'Сброс пароля в Tallyman');
     const token = new RegExp(`${TEST_ORIGIN}/reset/(\\S+)`).exec(mail.text)?.[1];
     assert.ok(token, 'в письме ссылка сброса');
     assert.equal(s.db.peekToken(token, 'reset', Date.now()), lena.id);
@@ -186,7 +186,7 @@ test('«Забыли пароль?» с почтой у приглашённог
     assert.equal(mailer.sent.length, 1);
     const [mail] = mailer.sent;
     assert.equal(mail.to, 'inv@x.ru');
-    assert.equal(mail.subject, 'Приглашение в Лоцию');
+    assert.equal(mail.subject, 'Приглашение в Tallyman');
     const token = new RegExp(`${TEST_ORIGIN}/invite/(\\S+)`).exec(mail.text)?.[1];
     assert.ok(token, 'в письме ссылка-приглашение');
     assert.notEqual(token, old);
@@ -259,7 +259,7 @@ test('запрос доступа: письмо каждому активном�
     assert.deepEqual(mailer.sent.map((m) => m.to).sort(), ['boss2@x.ru', 'boss@x.ru']);
     const title = s.catalog.tools.find((t) => t.key === 'dg-check').title;
     for (const mail of mailer.sent) {
-      assert.equal(mail.subject, 'Запрос доступа в Лоции');
+      assert.equal(mail.subject, 'Запрос доступа в Tallyman');
       assert.ok(mail.text.includes('Лена'), 'имя человека');
       assert.ok(mail.text.includes(title), 'название инструмента');
     }

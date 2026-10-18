@@ -5,7 +5,7 @@
 //   SMTP_HOST  сервер исходящей почты (без него почты нет)
 //   SMTP_PORT  порт, по умолчанию 587; 465 — TLS сразу при подключении
 //   SMTP_USER, SMTP_PASS  логин и пароль (без SMTP_USER — без авторизации)
-//   SMTP_FROM  адрес отправителя, например «Лоция <no-reply@example.ru>»
+//   SMTP_FROM  адрес отправителя, например «Tallyman <no-reply@example.ru>»
 
 // nodemailer подгружается только когда SMTP_HOST задан (динамический import внутри
 // createMailer): без почты пакет не нужен и на сервере его может не быть вовсе.
@@ -63,11 +63,11 @@ export async function sendSafely(mailer, message) {
 
 export function inviteMail({ name, link }) {
   return {
-    subject: 'Приглашение в Лоцию',
+    subject: 'Приглашение в Tallyman',
     text: [
       `Здравствуйте, ${name}!`,
       '',
-      'Вас пригласили в Лоцию — набор инструментов для судовых манифестов.',
+      'Вас пригласили в Tallyman — набор инструментов для судовых манифестов.',
       'Чтобы задать пароль и войти, откройте ссылку (она действует 7 дней):',
       link,
     ].join('\n'),
@@ -76,11 +76,11 @@ export function inviteMail({ name, link }) {
 
 export function resetMail({ name, link }) {
   return {
-    subject: 'Сброс пароля в Лоции',
+    subject: 'Сброс пароля в Tallyman',
     text: [
       `Здравствуйте, ${name}!`,
       '',
-      'Для вашей почты запросили сброс пароля в Лоции.',
+      'Для вашей почты запросили сброс пароля в Tallyman.',
       'Чтобы задать новый пароль, откройте ссылку (она действует 24 часа):',
       link,
       '',
@@ -91,7 +91,7 @@ export function resetMail({ name, link }) {
 
 export function accessRequestMail({ userName, userEmail, toolTitle, adminUrl }) {
   return {
-    subject: 'Запрос доступа в Лоции',
+    subject: 'Запрос доступа в Tallyman',
     text: [
       `${userName} (${userEmail}) просит доступ к инструменту «${toolTitle}».`,
       '',
