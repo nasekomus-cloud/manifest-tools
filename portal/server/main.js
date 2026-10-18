@@ -6,7 +6,8 @@
 //   SITE_ROOT      корень репозитория; по умолчанию — два уровня выше этого файла
 //   PUBLIC_ORIGIN  https://tools.nasekomuspro.ru (обязательно; по нему проверяется Origin)
 //   COOKIE_SECURE  0 — выключить флаг Secure у cookie (только локальная разработка)
-//   SMTP_*         настройки почты — подключаются в задаче 4
+//   SMTP_*         необязательная почта: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
+//                  (без SMTP_HOST писем нет, портал работает полностью — см. mail.js)
 
 import http from 'node:http';
 import { mkdirSync } from 'node:fs';
@@ -38,6 +39,7 @@ const cookieSecure = env.COOKIE_SECURE !== '0';
 
 const { openDb } = await import('./db.js');
 const { createApp } = await import('./app.js');
+const { createMailer } = await import('./mail.js');
 
 if (dbPath !== ':memory:') mkdirSync(dirname(resolve(dbPath)), { recursive: true });
 const db = openDb(dbPath);
@@ -50,7 +52,10 @@ function pruneJournal() {
 pruneJournal();
 setInterval(pruneJournal, DAY_MS).unref();
 
-const server = http.createServer(createApp({ db, siteRoot, publicOrigin, mailer: null, now: Date.now, cookieSecure }));
+const mailer = createMailer(env);
+console.log(mailer ? `Почта: SMTP ${env.SMTP_HOST}` : 'Почта не настроена (SMTP_HOST не задан) — ссылки выдаёт администратор');
+
+const server = http.createServer(createApp({ db, siteRoot, publicOrigin, mailer, now: Date.now, cookieSecure }));
 server.listen(port, '127.0.0.1', () => {
   console.log(`Портал слушает 127.0.0.1:${port}, сайт: ${siteRoot}, адрес: ${publicOrigin}`);
 });

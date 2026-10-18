@@ -8,6 +8,7 @@ import { normalizeEmail } from './db.js';
 import { hashPassword, verifyPassword } from './passwords.js';
 import { createLimiter } from './ratelimit.js';
 import { HttpError, readJson, sendJson, sessionCookie } from './http-utils.js';
+import { sendSafely, resetMail } from './mail.js';
 
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const RESET_TTL_MS = 24 * 60 * 60 * 1000;
@@ -48,11 +49,11 @@ function checkPassword(password) {
  * @param {object} deps
  * @param {object} deps.db
  * @param {() => number} deps.now
- * @param {object|null} deps.mailer      письма — задача 6; пока поведение как без почты
+ * @param {object|null} deps.mailer      почта (null — без почты, запрос уходит администратору)
  * @param {object} deps.cookieOptions
  * @param {(req) => string} deps.clientIp
  */
-export function createAuthRoutes({ db, now, mailer, cookieOptions, clientIp }) {
+export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions, clientIp }) {
   // Отдельный счётчик от входа: запросы «Забыли пароль?» не должны ни блокировать вход, ни зависеть от него
   const forgotLimiter = createLimiter({ max: 10, windowMs: 15 * 60 * 1000, now });
 
@@ -124,10 +125,13 @@ export function createAuthRoutes({ db, now, mailer, cookieOptions, clientIp }) {
 
     const user = db.getUserByEmail(normalizeEmail(body.email));
     if (user && user.status === 'active') {
-      // TODO(задача 6): при `mailer` отправить письмо со ссылкой issueLink(db, user, …).
-      // Пока почты нет в любом случае — запрос уходит администратору.
-      void mailer;
-      db.addRequest({ userId: user.id, tool: null, at: now() });
+      // С почтой человек получает ссылку сброса сам; нет почты или письмо не ушло — запрос администратору
+      let mailed = false;
+      if (mailer) {
+        const mail = resetMail({ name: user.name, link: issueLink(db, user, { now: now(), publicOrigin }) });
+        mailed = await sendSafely(mailer, { to: user.email, ...mail });
+      }
+      if (!mailed) db.addRequest({ userId: user.id, tool: null, at: now() });
     }
     // Ответ один и тот же для известной и неизвестной почты
     return sendJson(res, 200, { message: FORGOT_MESSAGE });

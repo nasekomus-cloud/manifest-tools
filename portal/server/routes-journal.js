@@ -5,6 +5,7 @@
 
 import { allowedKeys } from './catalog.js';
 import { HttpError, readJson, sendJson } from './http-utils.js';
+import { sendSafely, accessRequestMail } from './mail.js';
 
 export const MAX_FILES = 50;
 export const MAX_FILE_NAME = 255;
@@ -25,8 +26,10 @@ function truncate(text, max) {
  * @param {object} deps.db
  * @param {{keys: string[], tools: object[]}} deps.catalog
  * @param {() => number} deps.now
+ * @param {object|null} [deps.mailer]
+ * @param {string} [deps.publicOrigin]
  */
-export function createJournalRoutes({ db, catalog, now }) {
+export function createJournalRoutes({ db, catalog, now, mailer = null, publicOrigin = '' }) {
   const knownKeys = new Set(catalog.keys);
   const toolTitle = (key) => catalog.tools.find((t) => t.key === key)?.title ?? key;
 
@@ -91,6 +94,18 @@ export function createJournalRoutes({ db, catalog, now }) {
     if (typeof tool !== 'string' || !knownKeys.has(tool)) throw new HttpError(400, 'Неизвестный инструмент');
     if (allowedFor(ctx.user).has(tool)) return sendJson(res, 200, { already: true });
     const { created } = db.addRequest({ userId: ctx.user.id, tool, at: now() });
+    if (created && mailer) {
+      // Новый запрос — письмо каждому активному администратору (в фоне, на ответ не влияет)
+      const mail = accessRequestMail({
+        userName: ctx.user.name,
+        userEmail: ctx.user.email,
+        toolTitle: toolTitle(tool),
+        adminUrl: `${publicOrigin}/admin/requests`,
+      });
+      for (const admin of db.listUsers()) {
+        if (admin.isAdmin && admin.status === 'active') void sendSafely(mailer, { to: admin.email, ...mail });
+      }
+    }
     return sendJson(res, created ? 201 : 200, { created });
   }
 

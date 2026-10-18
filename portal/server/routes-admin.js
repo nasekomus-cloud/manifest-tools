@@ -6,6 +6,7 @@
 import { normalizeEmail } from './db.js';
 import { issueLink } from './routes-auth.js';
 import { HttpError, readJson, sendJson } from './http-utils.js';
+import { sendSafely, inviteMail } from './mail.js';
 
 const MAX_EMAIL_LENGTH = 254;
 const MAX_NAME_LENGTH = 200;
@@ -23,8 +24,9 @@ function parseId(text) {
  * @param {{keys: string[], tools: object[]}} deps.catalog
  * @param {() => number} deps.now
  * @param {string} deps.publicOrigin
+ * @param {object|null} [deps.mailer]  почта; null — ссылки только возвращаются в ответе
  */
-export function createAdminRoutes({ db, catalog, now, publicOrigin }) {
+export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = null }) {
   const knownKeys = new Set(catalog.keys);
 
   /** Список ключей из тела: массив строк из каталога. Иначе 400. */
@@ -72,7 +74,10 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin }) {
 
     const created = db.createUser({ email: cleanEmail, name: cleanName, isAdmin: false, at: now() });
     db.setTools(created.id, tools);
-    sendJson(res, 201, { user: userWithTools(created.id), link: link(created) });
+    const inviteLink = link(created);
+    // Письмо уходит в фоне и не влияет на ответ; ссылка остаётся и в ответе — её можно скопировать
+    void sendSafely(mailer, { to: cleanEmail, ...inviteMail({ name: cleanName, link: inviteLink }) });
+    sendJson(res, 201, { user: userWithTools(created.id), link: inviteLink });
   }
 
   async function handleSetTools(req, res, id) {
@@ -100,6 +105,7 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin }) {
     }
     db.setStatus(user.id, 'disabled');
     db.deleteUserSessions(user.id); // иначе после включения старая cookie ожила бы
+    db.revokeUserTokens(user.id, now()); // и выданная ранее ссылка приглашения/сброса
     sendJson(res, 200, { user: userWithTools(user.id) });
   }
 

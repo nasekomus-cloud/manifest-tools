@@ -94,12 +94,12 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
   }
 
   // Приглашения, сброс и смена пароля, «Забыли пароль?»
-  const auth = createAuthRoutes({ db, now, mailer, cookieOptions, clientIp });
+  const auth = createAuthRoutes({ db, now, mailer, publicOrigin: origin, cookieOptions, clientIp });
 
   // Люди, права и запросы доступа (только администраторам)
-  const admin = createAdminRoutes({ db, catalog, now, publicOrigin: origin });
+  const admin = createAdminRoutes({ db, catalog, now, publicOrigin: origin, mailer });
   // Журнал работы и запрос доступа к инструменту (любому вошедшему)
-  const journal = createJournalRoutes({ db, catalog, now });
+  const journal = createJournalRoutes({ db, catalog, now, mailer, publicOrigin: origin });
 
   // --- API ---------------------------------------------------------------
 
