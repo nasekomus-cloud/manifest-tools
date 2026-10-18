@@ -61,7 +61,11 @@ test('createMailer: с SMTP_HOST отдаёт send и собирает тран�
     { createTransport },
   );
   assert.equal(typeof mailer.send, 'function');
-  assert.deepEqual(calls.options, { host: 'smtp.x.ru', port: 465, secure: true, auth: { user: 'u', pass: 'p' } });
+  assert.deepEqual(calls.options, {
+    host: 'smtp.x.ru', port: 465, secure: true,
+    connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 10000,
+    auth: { user: 'u', pass: 'p' },
+  });
   await mailer.send({ to: 'a@b.ru', subject: 'Тема', text: 'Текст' });
   assert.deepEqual(calls.mail, { from: 'Лоция <no-reply@x.ru>', to: 'a@b.ru', subject: 'Тема', text: 'Текст' });
 });
@@ -69,7 +73,10 @@ test('createMailer: с SMTP_HOST отдаёт send и собирает тран�
 test('createMailer: порт по умолчанию 587 без TLS-обёртки; без SMTP_USER — без авторизации', () => {
   let options;
   createMailer({ SMTP_HOST: 'smtp.x.ru', SMTP_FROM: 'a@b.ru' }, { createTransport: (o) => { options = o; return {}; } });
-  assert.deepEqual(options, { host: 'smtp.x.ru', port: 587, secure: false });
+  assert.deepEqual(options, {
+    host: 'smtp.x.ru', port: 587, secure: false,
+    connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 10000,
+  });
 });
 
 // --- приглашение ---------------------------------------------------------
@@ -124,6 +131,7 @@ test('«Забыли пароль?» с почтой: письмо со ссыл
     const r = await s.fetch('/api/forgot', post({ email: 'lena@x.ru' }));
     assert.equal(r.status, 200);
     assert.deepEqual(await r.json(), { message: 'Если такой адрес есть, мы передали запрос администратору.' });
+    await s.idle();
     assert.equal(mailer.sent.length, 1);
     const [mail] = mailer.sent;
     assert.equal(mail.to, 'lena@x.ru');
@@ -146,6 +154,7 @@ test('«Забыли пароль?»: неизвестная и неактивн
       assert.equal(r.status, 200);
       assert.deepEqual(await r.json(), message);
     }
+    await s.idle();
     assert.equal(mailer.sent.length, 0);
   } finally { await s.close(); }
 });
@@ -158,12 +167,26 @@ test('«Забыли пароль?»: send бросает исключение �
       const r = await s.fetch('/api/forgot', post({ email: 'lena@x.ru' }));
       assert.equal(r.status, 200);
       assert.deepEqual(await r.json(), { message: 'Если такой адрес есть, мы передали запрос администратору.' });
+      await s.idle();
       const requests = s.db.listRequests();
       assert.equal(requests.length, 1);
       assert.equal(requests[0].tool, null);
       assert.equal(requests[0].userId, lena.id);
       assert.equal(logged.length, 1);
     });
+  } finally { await s.close(); }
+});
+
+test('«Забыли пароль?»: зависшая почта не задерживает ответ — тот же текст сразу', async () => {
+  const mailer = { async send() { await new Promise(() => {}); } }; // письмо никогда не завершается
+  const { s } = await setup(mailer);
+  try {
+    const message = { message: 'Если такой адрес есть, мы передали запрос администратору.' };
+    const known = await s.fetch('/api/forgot', post({ email: 'lena@x.ru' }));
+    assert.equal(known.status, 200);
+    assert.deepEqual(await known.json(), message);
+    const unknown = await s.fetch('/api/forgot', post({ email: 'nobody@x.ru' }));
+    assert.deepEqual(await unknown.json(), message);
   } finally { await s.close(); }
 });
 

@@ -315,7 +315,7 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     return handlePage(req, res, parsed, user);
   }
 
-  return (req, res) => {
+  const handler = (req, res) => {
     handle(req, res).catch((err) => {
       if (err instanceof HttpError) {
         // Тело слишком большого запроса дочитывать незачем — закрываем соединение
@@ -328,4 +328,7 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
       else res.destroy();
     });
   };
+  // Для тестов: дождаться писем, которые уходят в фоне
+  handler.idle = auth.idle;
+  return handler;
 }

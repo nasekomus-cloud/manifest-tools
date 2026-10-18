@@ -27,7 +27,8 @@ export async function startTestServer({
 } = {}) {
   const db = openDb(dbPath);
   const catalog = loadCatalog(siteRoot);
-  const server = http.createServer(createApp({ db, siteRoot, publicOrigin: TEST_ORIGIN, mailer, now, cookieSecure }));
+  const app = createApp({ db, siteRoot, publicOrigin: TEST_ORIGIN, mailer, now, cookieSecure });
+  const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${server.address().port}`;
 
@@ -42,6 +43,8 @@ export async function startTestServer({
     db,
     catalog,
     fetch: request,
+    /** Дожидается писем, уходящих в фоне после ответа. */
+    idle: () => app.idle(),
     async close() {
       await new Promise((resolve) => {
         server.close(resolve);

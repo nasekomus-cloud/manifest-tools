@@ -9,6 +9,8 @@
 
 import nodemailer from 'nodemailer';
 
+const SMTP_TIMEOUT_MS = 10_000;
+
 /**
  * @param {Record<string, string|undefined>} env
  * @param {{createTransport: Function}} [transports]  подмена nodemailer — для тестов без сети
@@ -17,7 +19,15 @@ import nodemailer from 'nodemailer';
 export function createMailer(env, { createTransport } = nodemailer) {
   if (!env.SMTP_HOST) return null;
   const port = Number(env.SMTP_PORT || 587);
-  const options = { host: env.SMTP_HOST, port, secure: port === 465 };
+  // Зависший SMTP не должен держать ничего дольше 10 секунд на каждом этапе (у nodemailer по умолчанию — минуты)
+  const options = {
+    host: env.SMTP_HOST,
+    port,
+    secure: port === 465,
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
+  };
   if (env.SMTP_USER) options.auth = { user: env.SMTP_USER, pass: env.SMTP_PASS ?? '' };
   const transport = createTransport(options);
   const from = env.SMTP_FROM;

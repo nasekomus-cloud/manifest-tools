@@ -113,6 +113,24 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
     return startFreshSession(res, ctx.user.id);
   }
 
+  // Письма, которые ещё уходят в фоне: на них ждут тесты (idle) и они же не дают потерять ошибку
+  const pending = new Set();
+  function track(promise) {
+    pending.add(promise);
+    promise.finally(() => pending.delete(promise));
+  }
+
+  /** Ссылка сброса письмом; письмо не ушло — запрос администратору, как без почты. Не бросает. */
+  async function mailResetLink(user) {
+    try {
+      const mail = resetMail({ name: user.name, link: issueLink(db, user, { now: now(), publicOrigin }) });
+      if (await sendSafely(mailer, { to: user.email, ...mail })) return;
+      db.addRequest({ userId: user.id, tool: null, at: now() });
+    } catch (err) {
+      console.error(`Сброс пароля: ${err?.message ?? err}`);
+    }
+  }
+
   async function handleForgot(req, res) {
     const body = await readJson(req);
     if (typeof body.email !== 'string' || body.email.length === 0) throw new HttpError(400, 'Введите почту');
@@ -125,13 +143,12 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
 
     const user = db.getUserByEmail(normalizeEmail(body.email));
     if (user && user.status === 'active') {
-      // С почтой человек получает ссылку сброса сам; нет почты или письмо не ушло — запрос администратору
-      let mailed = false;
       if (mailer) {
-        const mail = resetMail({ name: user.name, link: issueLink(db, user, { now: now(), publicOrigin }) });
-        mailed = await sendSafely(mailer, { to: user.email, ...mail });
+        // Ответ не ждёт SMTP: иначе зависшая почта давала бы 504, а время ответа выдавало бы, что адрес известен
+        track(mailResetLink(user));
+      } else {
+        db.addRequest({ userId: user.id, tool: null, at: now() });
       }
-      if (!mailed) db.addRequest({ userId: user.id, tool: null, at: now() });
     }
     // Ответ один и тот же для известной и неизвестной почты
     return sendJson(res, 200, { message: FORGOT_MESSAGE });
@@ -164,5 +181,7 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
     matchApi: (pathname) => api[pathname] ?? matchLinkApi(pathname),
     /** Действует ли ссылка вида kind ('invite' | 'reset') — для страницы по ссылке. */
     isLinkLive: (kind, token) => linkUser(kind, token) !== null,
+    /** Ждёт, пока завершатся письма, отправляемые в фоне (для тестов). */
+    idle: async () => { while (pending.size > 0) await Promise.allSettled([...pending]); },
   };
 }
