@@ -8,6 +8,12 @@
 // Больше порядок нигде не задан: переставить инструменты — переставить записи здесь.
 //
 // Поля записи:
+//   num         — номер инструмента для разговора с заказчиком («инструмент № 5»):
+//                 показан в панели, маршруте, карточках, крошках и заголовке страницы.
+//                 Закреплён за инструментом, а не за местом в списке: при перестановке
+//                 записей номер не меняется, новому инструменту — следующий свободный
+//                 (сейчас 14). Обе записи «Разделить коносаменты» — одна страница,
+//                 номер у них общий;
 //   title       — полное название (заголовок страницы, карточка на главной);
 //   navTitle    — короткое имя для панели и маршрута (нет — берётся title);
 //   description — описание на карточке;
@@ -20,6 +26,7 @@ window.TOOLS = [
     navTitle: 'Проверить шаблон',
     description:
       'Сверить шаблон эл. поручения с формой для загрузки в систему и с поручением на погрузку: ошибки — оранжевым, к ним текстовый отчёт, а что можно — исправленный шаблон.',
+    num: 1,
     href: 'template-check/index.html',
     category: 'export',
     output: 'xlsx',
@@ -29,6 +36,7 @@ window.TOOLS = [
     navTitle: 'Объединить манифесты',
     description:
       'Склеить несколько файлов манифеста в один общий файл, сохранив оформление.',
+    num: 2,
     href: 'merge/index.html',
     category: 'export',
     output: 'xlsx',
@@ -38,6 +46,7 @@ window.TOOLS = [
     navTitle: 'Проверить исходный файл',
     description:
       'Найти в файле от линии технические ошибки: опечатки в номерах контейнеров, вес в тоннах вместо кг, перегруз, рефы без температуры, опасный груз без UN, повторы и разнобой внутри коносамента.',
+    num: 8,
     href: 'source-audit/index.html',
     category: 'import',
     output: 'xlsx',
@@ -47,6 +56,7 @@ window.TOOLS = [
     navTitle: 'Файлы для АРМ',
     description:
       'Разделить исходный файл линии по портам погрузки на файлы «for ARM uploading …»: названия портов и терминалов, пломбы, класс опасности и даты — в формате АРМ.',
+    num: 9,
     href: 'arm-upload/index.html',
     category: 'import',
     output: 'zip',
@@ -56,6 +66,7 @@ window.TOOLS = [
     navTitle: 'Сверить с исходным файлом',
     description:
       'Сверить манифест, внесённый в систему, с исходным файлом линии по номеру контейнера: расхождения — отдельным столбцом, строки подсветятся жёлтым.',
+    num: 10,
     href: 'source-check/index.html',
     category: 'import',
     output: 'xlsx',
@@ -65,6 +76,7 @@ window.TOOLS = [
     navTitle: 'Сверить опасные грузы',
     description:
       'Сверить сводный файл с официальным DG-манифестом по номеру контейнера.',
+    num: 11,
     href: 'dg-check/index.html',
     category: 'import',
     output: 'xlsx',
@@ -74,6 +86,7 @@ window.TOOLS = [
     navTitle: 'Дашборд по портам отправления',
     description:
       'То же самое, но разбивка по портам отправления (погрузки), а не назначения.',
+    num: 12,
     href: 'dashboard-departure/index.html',
     category: 'import',
     output: 'xlsx',
@@ -83,6 +96,7 @@ window.TOOLS = [
     navTitle: 'Сверить с поручениями',
     description:
       'Сверить сводный файл с поручениями: вес груза и тары, пломбы, тип контейнера, номер поручения и класс опасного груза — несовпадения подсветятся жёлтым.',
+    num: 3,
     href: 'order-check/index.html',
     category: 'export',
     output: 'xlsx',
@@ -92,6 +106,7 @@ window.TOOLS = [
     navTitle: 'Итоговый отчёт',
     description:
       'Сводная таблица «GRAND TOTAL» по типам контейнеров в PDF. Позывной, дату прибытия и терминал — впишите вручную.',
+    num: 4,
     href: 'grand-total/index.html',
     category: 'export',
     output: 'pdf',
@@ -103,6 +118,7 @@ window.TOOLS = [
     navTitle: 'Итоговый отчёт',
     description:
       'Сводная таблица «GRAND TOTAL» по типам контейнеров в PDF. Позывной, дату прибытия и порт выгрузки — впишите вручную.',
+    num: 13,
     href: 'grand-total-import/index.html',
     category: 'import',
     output: 'pdf',
@@ -112,6 +128,7 @@ window.TOOLS = [
     navTitle: 'Реестр поручений и коносаментов',
     description:
       'Собрать из одного или нескольких манифестов таблицу уникальных пар «номер поручения — номер коносамента».',
+    num: 5,
     href: 'bl-registry/index.html',
     category: 'export',
     output: 'xlsx',
@@ -121,6 +138,7 @@ window.TOOLS = [
     navTitle: 'Разделить коносаменты',
     description:
       'Разбить один PDF с несколькими коносаментами на отдельные файлы по номеру, архивом zip.',
+    num: 6,
     href: 'bl-split/index.html',
     category: 'import',
     output: 'zip',
@@ -132,6 +150,7 @@ window.TOOLS = [
     navTitle: 'Разделить коносаменты',
     description:
       'Разбить один PDF с несколькими коносаментами на отдельные файлы по номеру, архивом zip.',
+    num: 6,
     href: 'bl-split/index.html',
     category: 'export',
     output: 'zip',
@@ -141,6 +160,7 @@ window.TOOLS = [
     navTitle: 'Информация по портам назначения',
     description:
       'Разбивка по портам назначения: сколько контейнеров каждого типа и сколько это весит, порожние — отдельной строкой.',
+    num: 7,
     href: 'dashboard/index.html',
     category: 'export',
     output: 'xlsx',

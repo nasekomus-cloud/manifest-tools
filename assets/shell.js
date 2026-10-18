@@ -24,6 +24,11 @@
 //   setAction({info: string, hint: string|null})
 //   setResultShown(shown: boolean)
 //   formatSize(bytes) -> string            — «840 Б», «84 КБ», «12,4 МБ»
+//   toolNumber(tool) -> string             — «№ 5» по полю num из tools.js, '' если номера нет
+//
+// Номер инструмента (num из tools.js) shell ставит сам: в панели, в крошках,
+// перед заголовком h1.page__title и в начале <title> — на странице ничего
+// делать не нужно.
 (function () {
   'use strict';
 
@@ -136,6 +141,11 @@
     return mb.toFixed(1).replace('.', ',') + NBSP + 'МБ';
   }
 
+  // «№ 5» — неразрывный пробел, чтобы номер не отрывался от знака.
+  function toolNumber(tool) {
+    return tool && tool.num ? '№' + NBSP + tool.num : '';
+  }
+
   // ── Панель ──────────────────────────────────────────────────────────────
 
   var side = document.getElementById('app-side');
@@ -159,6 +169,7 @@
         if (currentTool && tool.href === currentTool.href) {
           link.setAttribute('aria-current', 'page');
         }
+        link.appendChild(el('span', 'side__num', toolNumber(tool)));
         link.appendChild(el('span', 'side__name', tool.navTitle || tool.title));
         if (tool.output) link.appendChild(el('span', 'side__fmt', tool.output));
         item.appendChild(link);
@@ -284,7 +295,7 @@
       var separator = el('span', null, '/');
       separator.setAttribute('aria-hidden', 'true');
       crumbs.appendChild(separator);
-      var current = el('span', null, currentTool.title);
+      var current = el('span', null, (currentTool.num ? toolNumber(currentTool) + ' · ' : '') + currentTool.title);
       current.setAttribute('aria-current', 'page');
       crumbs.appendChild(current);
     }
@@ -406,6 +417,13 @@
   if (main) {
     renderCrumbs();
   }
+  if (currentTool && currentTool.num) {
+    var pageTitle = document.querySelector('.page__title');
+    if (pageTitle) {
+      pageTitle.insertBefore(el('span', 'page__num', toolNumber(currentTool)), pageTitle.firstChild);
+    }
+    document.title = toolNumber(currentTool) + ' · ' + document.title;
+  }
   if (stepsEl) {
     prepareSteps();
     setStep(1);
@@ -466,5 +484,6 @@
     setResultShown: setResultShown,
     formatSize: formatSize,
     remember: remember,
+    toolNumber: toolNumber,
   };
 })();
