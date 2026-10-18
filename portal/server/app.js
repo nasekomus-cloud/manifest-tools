@@ -25,28 +25,10 @@ export function escapeHtml(text) {
 }
 
 /**
- * Страница «Нет доступа» (403). Её видит только вошедший человек, поэтому она собрана
- * на том же каркасе, что и страницы инструментов (tools.js → assets/shell.js с
- * добавкой портала): та же полоса сверху и меню «Инструменты».
- * Дан инструмент — «Инструмент «…» вам пока не выдан» и кнопка «Запросить доступ»
- * (POST /api/requests); без инструмента (страницы администратора) — без кнопки.
- * Слова «страница» в тексте нет намеренно: тест проверяет, что содержимое
- * закрытой страницы администратора сюда не попало.
+ * Кнопка «Запросить доступ» (#request-access с data-tool) и строка #request-status:
+ * POST /api/requests {tool}, после ответа — «Запрос отправлен». Общая для «Нет доступа» и справки.
  */
-function noAccessPage(tool) {
-  const request = tool
-    ? `<p class="no-access__text">Инструмент «${escapeHtml(tool.title)}» вам пока не выдан.</p>
-    <div class="portal-actions">
-      <button class="btn btn--warn" type="button" id="request-access" data-tool="${escapeHtml(tool.key)}">Запросить доступ</button>
-      <a class="btn btn--secondary" href="/">На главную</a>
-    </div>
-    <p class="portal-msg" id="request-status" role="status" hidden></p>`
-    : `<p class="no-access__text">Этот раздел — только для администратора.</p>
-    <div class="portal-actions">
-      <a class="btn btn--secondary" href="/">На главную</a>
-    </div>`;
-  const script = tool
-    ? `<script>
+const REQUEST_ACCESS_SCRIPT = `<script>
 (function () {
   var button = document.getElementById('request-access');
   var status = document.getElementById('request-status');
@@ -80,8 +62,30 @@ function noAccessPage(tool) {
   });
 })();
 </script>
-`
-    : '';
+`;
+
+/**
+ * Страница «Нет доступа» (403). Её видит только вошедший человек, поэтому она собрана
+ * на том же каркасе, что и страницы инструментов (tools.js → assets/shell.js с
+ * добавкой портала): та же полоса сверху и меню «Инструменты».
+ * Дан инструмент — «Инструмент «…» вам пока не выдан» и кнопка «Запросить доступ»
+ * (POST /api/requests); без инструмента (страницы администратора) — без кнопки.
+ * Слова «страница» в тексте нет намеренно: тест проверяет, что содержимое
+ * закрытой страницы администратора сюда не попало.
+ */
+function noAccessPage(tool) {
+  const request = tool
+    ? `<p class="no-access__text">Инструмент «${escapeHtml(tool.title)}» вам пока не выдан.</p>
+    <div class="portal-actions">
+      <button class="btn btn--warn" type="button" id="request-access" data-tool="${escapeHtml(tool.key)}">Запросить доступ</button>
+      <a class="btn btn--secondary" href="/">На главную</a>
+    </div>
+    <p class="portal-msg" id="request-status" role="status" hidden></p>`
+    : `<p class="no-access__text">Этот раздел — только для администратора.</p>
+    <div class="portal-actions">
+      <a class="btn btn--secondary" href="/">На главную</a>
+    </div>`;
+  const script = tool ? REQUEST_ACCESS_SCRIPT : '';
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -107,11 +111,74 @@ ${script}</body>
 `;
 }
 
+const TAB_NAMES = { export: 'Экспорт', import: 'Импорт' };
+
+/**
+ * Справка к инструменту (/help/<ключ>): тот же каркас, что у «Нет доступа».
+ * fragment — portal/help/<ключ>.html из репозитория (свой, доверенный текст),
+ * вставляется как есть; заголовок и описание — из каталога, с экранированием.
+ * Справку видит любой вошедший — даже без права на инструмент, чтобы понять, о
+ * чём просить: с правом — «Открыть инструмент», без — «Запросить доступ».
+ */
+function helpPage(catalog, key, fragment, allowed) {
+  const entries = catalog.tools.filter((t) => t.key === key);
+  const tool = entries[0];
+  // «Разделить коносаменты» стоит в обеих вкладках
+  const tabs = [...new Set(entries.map((t) => TAB_NAMES[t.category]).filter(Boolean))].join(' и ');
+  const action = allowed
+    ? `<div class="portal-actions">
+      <a class="btn" href="/${escapeHtml(tool.href)}">Открыть инструмент</a>
+      <a class="btn btn--secondary" href="/">На главную</a>
+    </div>`
+    : `<p class="help-page__note">Инструмент вам пока не выдан — администратор откроет доступ по запросу.</p>
+    <div class="portal-actions">
+      <button class="btn btn--warn" type="button" id="request-access" data-tool="${escapeHtml(tool.key)}">Запросить доступ</button>
+      <a class="btn btn--secondary" href="/">На главную</a>
+    </div>
+    <p class="portal-msg" id="request-status" role="status" hidden></p>`;
+  return `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(tool.title)} — как это работает — Лоция</title>
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/portal/portal.css">
+</head>
+<body class="app portal-page help-page">
+<aside class="app__side" id="app-side"></aside>
+<main class="app__main">
+  <p class="help-page__kicker">Как это работает${tabs ? ` · ${escapeHtml(tabs)}` : ''}</p>
+  <h1 class="page__title">${escapeHtml(tool.title)}</h1>
+  <p class="portal-lead">${escapeHtml(tool.description)}</p>
+  <article class="help">
+${fragment.trim()}
+  </article>
+  <section class="help-page__actions">
+    ${action}
+  </section>
+</main>
+<script src="/tools.js"></script>
+<script src="/assets/shell.js"></script>
+${allowed ? '' : REQUEST_ACCESS_SCRIPT}</body>
+</html>
+`;
+}
+
+// Имя файла в Content-Disposition: ASCII-запас в filename и точное имя в filename*
+function attachment(name) {
+  const ascii = name.replace(/[^\x20-\x7e]|["\\]/g, '_');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
+
 export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Date.now, cookieSecure = true }) {
   const origin = publicOrigin.replace(/\/+$/, '');
   const catalog = loadCatalog(siteRoot);
   const files = createFileServer();
   const webDir = join(siteRoot, 'portal', 'web');
+  const helpDir = join(siteRoot, 'portal', 'help');
+  const samplesDir = join(helpDir, 'samples');
   const limiter = createLimiter({ max: 10, windowMs: 15 * 60 * 1000, now });
 
   // Ложная сверка пароля для неизвестной почты — чтобы по времени ответа
@@ -285,7 +352,22 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     }
     if (first === 'help') {
       if (!user) return toLogin(res, path);
-      return notFound(res); // справка — задача 9
+      if (trailingSlash) return notFound(res);
+      // /help/<ключ> — инструкция; ключ только из каталога, файл — portal/help/<ключ>.html
+      if (segments.length === 2 && catalog.keys.includes(segments[1])) {
+        const key = segments[1];
+        const fragment = await files.serve(helpDir, [`${key}.html`]);
+        if (!fragment || fragment.redirectSlash) return notFound(res);
+        const allowed = allowedKeys(user, db.getTools(user.id), catalog).has(key);
+        return send(res, 200, 'text/html; charset=utf-8', helpPage(catalog, key, fragment.body.toString('utf8'), allowed));
+      }
+      // /help/samples/<файл> — пример файла, только прямо из portal/help/samples (без подкаталогов)
+      if (segments.length === 3 && segments[1] === 'samples') {
+        const found = await files.serve(samplesDir, [segments[2]]);
+        if (!found || found.redirectSlash) return notFound(res);
+        return send(res, 200, found.type, found.body, { 'Content-Disposition': attachment(segments[2]) });
+      }
+      return notFound(res);
     }
 
     // Собранные сервером файлы

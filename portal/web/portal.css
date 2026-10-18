@@ -619,6 +619,84 @@
     color: #c9d8e2;
   }
 
+  /* ───────────── Справка к инструменту (/help/<ключ>) ───────────── */
+
+  .help-page .app__main {
+    max-width: 860px;
+  }
+
+  .help-page__kicker {
+    margin: 0 0 6px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .help {
+    display: grid;
+    gap: 14px;
+    margin: 0 0 24px;
+  }
+
+  .help section {
+    padding: 18px 22px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .help h2 {
+    margin: 0 0 8px;
+    font-size: 19px;
+    color: var(--ink);
+  }
+
+  .help p,
+  .help ul {
+    margin: 0 0 8px;
+    line-height: 1.55;
+  }
+
+  .help ul {
+    padding-left: 22px;
+  }
+
+  .help li + li {
+    margin-top: 4px;
+  }
+
+  .help > section > :last-child {
+    margin-bottom: 0;
+  }
+
+  .help code {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    color: var(--accent);
+  }
+
+  .help__samples {
+    border-color: rgba(127, 227, 240, 0.4) !important;
+  }
+
+  .help__samples a {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--accent);
+    text-underline-offset: 3px;
+  }
+
+  .help__samples a:hover {
+    color: #ffffff;
+  }
+
+  .help-page__note {
+    margin: 0 0 14px;
+    color: var(--warn);
+  }
+
   /* ───────────── Открытые страницы: вход, приглашение, сброс ───────────── */
 
   .portal-public {
