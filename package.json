@@ -8,7 +8,8 @@
     "test": "node --test"
   },
   "devDependencies": {
-    "exceljs": "^4.4.0"
+    "exceljs": "^4.4.0",
+    "jszip": "^3.10.1"
   },
   "dependencies": {
     "nodemailer": "^6.10.1"

@@ -20,6 +20,10 @@ rsync -avz --delete \
   --exclude '.autopilot' \
   --exclude '.claude' \
   --exclude '.agents' \
+  --exclude '.superpowers' \
+  --exclude '.portal-dev' \
+  --exclude 'portal' \
+  --exclude 'docs' \
   --exclude 'package.json' \
   --exclude 'package-lock.json' \
   --exclude 'CLAUDE.md' \
@@ -28,6 +32,7 @@ rsync -avz --delete \
   --exclude '.DS_Store' \
   --exclude 'skills-lock.json' \
   --exclude 'deploy-em.sh' \
+  --exclude 'deploy-tools.sh' \
   ./ "$HOST:$TARGET_DIR/"
 
 ssh "$HOST" "chown -R www-data:www-data $TARGET_DIR"

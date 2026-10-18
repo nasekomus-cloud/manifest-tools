@@ -1,0 +1,21 @@
+[Unit]
+Description=Портал инструментов для манифестов (tools.nasekomuspro.ru)
+After=network.target
+
+[Service]
+User=manifest-portal
+WorkingDirectory=/opt/manifest-portal
+# PORT, DB_PATH, SITE_ROOT, PUBLIC_ORIGIN, при необходимости SMTP_* — права файла 600
+EnvironmentFile=/etc/manifest-portal.env
+ExecStart=/usr/bin/node portal/server/main.js
+Restart=always
+RestartSec=3
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/manifest-portal
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

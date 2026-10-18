@@ -1,0 +1,15 @@
+[Unit]
+Description=Резервная копия базы портала (7 последних)
+
+[Service]
+Type=oneshot
+User=manifest-portal
+WorkingDirectory=/opt/manifest-portal
+EnvironmentFile=/etc/manifest-portal.env
+ExecStart=/usr/bin/node portal/deploy/backup.mjs
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/manifest-portal
+ProtectHome=yes
+PrivateTmp=yes

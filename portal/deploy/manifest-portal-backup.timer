@@ -1,0 +1,10 @@
+[Unit]
+Description=Резервная копия базы портала раз в сутки
+
+[Timer]
+# после ночной перезагрузки сервера в 01:00
+OnCalendar=*-*-* 03:30
+Persistent=true
+
+[Install]
+WantedBy=timers.target
