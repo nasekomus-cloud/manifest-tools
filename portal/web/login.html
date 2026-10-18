@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вход</title>
+<link rel="stylesheet" href="/portal/theme.css">
+</head>
+<body>
+<main>
+  <h1>Вход</h1>
+  <form id="login-form">
+    <label>Почта <input type="email" id="email" autocomplete="username" required></label>
+    <label>Пароль <input type="password" id="password" autocomplete="current-password" required></label>
+    <button type="submit">Войти</button>
+    <p id="login-error" role="alert" hidden></p>
+  </form>
+</main>
+<script>
+// Оформление страницы — в задаче 8; здесь только рабочая форма.
+(function () {
+  // next — только путь внутри сайта: «//host» и «\» увели бы на чужой адрес
+  function safeNext() {
+    var next = new URLSearchParams(location.search).get('next');
+    if (next && next.charAt(0) === '/' && next.charAt(1) !== '/' && next.indexOf('\\') < 0) return next;
+    return '/';
+  }
+  var form = document.getElementById('login-form');
+  var error = document.getElementById('login-error');
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    error.hidden = true;
+    fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+      }),
+    }).then(function (r) {
+      return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (r) {
+      if (r.ok) { location.href = safeNext(); return; }
+      error.textContent = r.data.error || 'Не удалось войти';
+      error.hidden = false;
+    }).catch(function () {
+      error.textContent = 'Нет связи с сервером';
+      error.hidden = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>

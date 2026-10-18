@@ -80,6 +80,8 @@ function toUser(row) {
 export function openDb(path) {
   const raw = new DatabaseSync(path);
   raw.exec('PRAGMA foreign_keys = ON');
+  // Резервная копия читает базу параллельно с сервером: ждём освободившуюся блокировку, а не падаем
+  raw.exec('PRAGMA busy_timeout = 5000');
   if (path !== ':memory:') raw.exec('PRAGMA journal_mode = WAL');
   raw.exec(SCHEMA);
 
