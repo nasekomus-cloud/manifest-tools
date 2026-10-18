@@ -15,11 +15,32 @@ URL="https://tools.nasekomuspro.ru/login"
 
 cd "$(dirname "$0")"
 
+# На сервер едет то, что лежит в рабочей папке, а не то, что закоммичено: чужой файл
+# (например, настоящий манифест заказчика, брошенный в папку инструмента) уехал бы на
+# сервер вместе с кодом. Поэтому с незафиксированными изменениями и неотслеживаемыми файлами не работаем.
+if [ -n "$(git status --porcelain)" ]; then
+  echo "Ошибка: в рабочей папке есть незакоммиченные или неотслеживаемые файлы — на сервер они не поедут." >&2
+  echo "Закоммить нужное и убери лишнее, затем запусти скрипт снова. Сейчас:" >&2
+  git status --short >&2
+  exit 1
+fi
+
+# nodemailer ставится не на сервере (там нет npm), а копируется отсюда:
+# пакет на чистом JS, без зависимостей.
+if [ ! -f node_modules/nodemailer/package.json ]; then
+  echo "Ошибка: нет node_modules/nodemailer — выполни npm install в корне репозитория." >&2
+  exit 1
+fi
+
 echo "Заливаю на $HOST ..."
 
-# package.json и package-lock.json нужны (на сервере npm ci --omit=dev ради nodemailer);
+# package.json нужен серверу ("type": "module"), package-lock.json едет за компанию;
 # portal/help/make-samples.js уезжает вместе с папкой — он мал и безвреден.
+# Из node_modules едет только nodemailer: правила include стоят раньше exclude (первое совпадение выигрывает).
 rsync -avz --delete \
+  --include '/node_modules/' \
+  --include '/node_modules/nodemailer/***' \
+  --exclude '/node_modules/*' \
   --exclude '.git' \
   --exclude 'node_modules' \
   --exclude '.autopilot' \
@@ -36,12 +57,16 @@ rsync -avz --delete \
   --exclude 'deploy-*.sh' \
   ./ "$HOST:$TARGET_DIR/"
 
-echo "Ставлю зависимости и перезапускаю сервис ..."
-ssh "$HOST" "cd $TARGET_DIR && npm ci --omit=dev && chown -R manifest-portal: $TARGET_DIR && systemctl restart manifest-portal"
+echo "Перезапускаю сервис ..."
+ssh "$HOST" "chown -R manifest-portal: $TARGET_DIR && systemctl restart manifest-portal"
 
-# Сервису нужна пара секунд на запуск
-sleep 3
-CODE="$(curl -s -o /dev/null -w '%{http_code}' "$URL" || true)"
+# Сервису нужно время на запуск: до 10 попыток с паузой в секунду
+CODE=""
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  CODE="$(curl -s -o /dev/null -w '%{http_code}' "$URL" || true)"
+  [ "$CODE" = "200" ] && break
+  sleep 1
+done
 if [ "$CODE" != "200" ]; then
   echo "Ошибка: $URL ответил $CODE вместо 200. Смотри: ssh $HOST journalctl -u manifest-portal -n 50" >&2
   exit 1

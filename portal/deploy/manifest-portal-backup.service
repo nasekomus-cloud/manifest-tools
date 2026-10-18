@@ -8,8 +8,12 @@ WorkingDirectory=/opt/manifest-portal
 EnvironmentFile=/etc/manifest-portal.env
 ExecStart=/usr/bin/node portal/deploy/backup.mjs
 
+# Копии базы — только для владельца
+UMask=0077
 NoNewPrivileges=yes
 ProtectSystem=strict
-ReadWritePaths=/var/lib/manifest-portal
+# Тот же каталог состояния, что у основного сервиса: пишет в /var/lib/manifest-portal/backup
+StateDirectory=manifest-portal
+StateDirectoryMode=0700
 ProtectHome=yes
 PrivateTmp=yes

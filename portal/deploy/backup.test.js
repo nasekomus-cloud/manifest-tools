@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { backupName, selectForPruning, runBackup } from './backup.mjs';
 
 test('backupName: дата с нулями в имени', () => {
@@ -43,6 +44,33 @@ test('runBackup: пишет копию, повторный запуск в то�
     const copy = new DatabaseSync(join(backupDir, files.at(-1)));
     assert.equal(copy.prepare('SELECT v FROM t').get().v, 'один');
     copy.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('runBackup: нет файла базы — ошибка, пустая база и каталог копий не создаются', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'portal-backup-'));
+  try {
+    const dbPath = join(dir, 'нет-такой.db');
+    const backupDir = join(dir, 'backup');
+    await assert.rejects(runBackup({ dbPath, backupDir }), /Файл базы не найден/);
+    assert.equal(existsSync(dbPath), false);
+    assert.equal(existsSync(backupDir), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('backup.mjs как скрипт: без файла базы — код выхода 1 и сообщение', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const dir = mkdtempSync(join(tmpdir(), 'portal-backup-'));
+  try {
+    const script = fileURLToPath(new URL('./backup.mjs', import.meta.url));
+    const r = spawnSync(process.execPath, [script], { env: { ...process.env, DB_PATH: join(dir, 'нет.db') }, encoding: 'utf8' });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /Файл базы не найден/);
+    assert.equal(readdirSync(dir).length, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

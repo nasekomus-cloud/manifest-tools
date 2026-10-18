@@ -11,9 +11,14 @@ ExecStart=/usr/bin/node portal/server/main.js
 Restart=always
 RestartSec=3
 
+# Файлы, которые создаёт сервис (база, WAL), — только для владельца
+UMask=0077
 NoNewPrivileges=yes
 ProtectSystem=strict
-ReadWritePaths=/var/lib/manifest-portal
+# /var/lib/manifest-portal создаёт и отдаёт во владение пользователю сам systemd (права 0700);
+# при ProtectSystem=strict он же остаётся единственным местом, куда сервис может писать
+StateDirectory=manifest-portal
+StateDirectoryMode=0700
 ProtectHome=yes
 PrivateTmp=yes
 

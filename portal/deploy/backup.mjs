@@ -5,7 +5,7 @@
 //   BACKUP_DIR   каталог копий; по умолчанию «backup» рядом с базой
 //   BACKUP_KEEP  сколько копий хранить, по умолчанию 7
 
-import { mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,6 +29,9 @@ export function selectForPruning(fileNames, keep = DEFAULT_KEEP) {
 // Тонкая часть с вводом-выводом: копия во временный файл, потом переименование —
 // оборванная копия не займёт место настоящей. Возвращает путь копии и удалённые файлы.
 export async function runBackup({ dbPath, backupDir, keep = DEFAULT_KEEP, now = new Date() }) {
+  // Нет базы — не копировать: sqlite молча создал бы пустой файл, и в каталоге копий
+  // появилась бы «копия» без данных (а при ротации она вытеснила бы настоящую)
+  if (!existsSync(dbPath)) throw new Error(`Файл базы не найден: ${dbPath}`);
   const { DatabaseSync } = await import('node:sqlite');
   mkdirSync(backupDir, { recursive: true });
   const target = join(backupDir, backupName(now));
@@ -36,6 +39,7 @@ export async function runBackup({ dbPath, backupDir, keep = DEFAULT_KEEP, now = 
   rmSync(temp, { force: true });
   const db = new DatabaseSync(dbPath);
   try {
+    db.exec('PRAGMA busy_timeout = 5000'); // сервис пишет в ту же базу: подождать, а не падать на «database is locked»
     db.exec(`VACUUM INTO '${temp.replaceAll("'", "''")}'`);
   } finally {
     db.close();
@@ -59,6 +63,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   }
   const backupDir = process.env.BACKUP_DIR || join(dirname(resolve(dbPath)), 'backup');
   const keep = Number(process.env.BACKUP_KEEP || DEFAULT_KEEP);
-  const { target, removed } = await runBackup({ dbPath, backupDir, keep });
+  let result;
+  try {
+    result = await runBackup({ dbPath, backupDir, keep });
+  } catch (err) {
+    console.error(err?.message ?? err);
+    process.exit(1);
+  }
+  const { target, removed } = result;
   console.log(`Копия базы: ${basename(target)}${removed.length ? `, удалено старых: ${removed.length}` : ''}`);
 }
