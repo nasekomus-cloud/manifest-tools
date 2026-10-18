@@ -57,10 +57,11 @@ test('POST /api/admin/guests: тестовый человек на 24 часа �
     assert.match(user.email, /^guest-[0-9a-f]{24}@guest\.invalid$/);
     assert.match(link, new RegExp(`^${TEST_ORIGIN}/guest/[\\w-]{43}$`));
     assert.equal(s.db.getPasswordHash(user.id), null);
-    // в базе только хеш ссылки, срок ссылки = срок человека
-    const rows = s.db.raw.prepare("SELECT token_hash, expires_at FROM tokens WHERE kind = 'guest'").all();
+    // в базе хеш ссылки и сам токен (R23 — чтобы скопировать ссылку снова), срок ссылки = срок человека
+    const rows = s.db.raw.prepare("SELECT token_hash, raw, expires_at FROM tokens WHERE kind = 'guest'").all();
     assert.equal(rows.length, 1);
     assert.equal(rows[0].token_hash, hashToken(tokenOf(link)));
+    assert.equal(rows[0].raw, tokenOf(link));
     assert.equal(rows[0].expires_at, START + 24 * HOUR);
     // две ссылки — две разные служебные почты
     const second = await createGuest({ name: 'Второй', showLocked: true, hours: 1 });
@@ -365,5 +366,102 @@ test('HEAD /guest/<токен> не создаёт сессию (предзаг�
     assert.equal(s.db.getUserById(user.id).lastLoginAt, null);
     const bad = await fetch(`${s.url}/guest/нет-такого`, { method: 'HEAD', redirect: 'manual' });
     assert.equal(bad.status, 410);
+  } finally { await s.close(); }
+});
+
+// ── «Скопировать ссылку» и «Удалить» (R22, R23) ─────────────────────────────
+
+const del = (cookie, headers = {}) => ({ method: 'DELETE', headers: { ...(cookie ? { Cookie: cookie } : {}), ...headers } });
+
+test('GET /api/admin/users: тестовому — действующая ссылка (link), остальным — нет', async () => {
+  const { s, adminCookie, createGuest } = await setup();
+  try {
+    const { user, link } = await createGuest();
+    const list = async () => (await s.fetch('/api/admin/users', get(adminCookie))).json();
+    let users = await list();
+    assert.equal(users.find((u) => u.id === user.id).link, link);
+    for (const u of users.filter((x) => !x.guest)) assert.ok(!('link' in u), u.name);
+    // в базе — и хеш, и сам токен; у приглашения и сброса сам токен не хранится
+    assert.equal(s.db.raw.prepare("SELECT COUNT(*) AS n FROM tokens WHERE raw IS NOT NULL AND kind != 'guest'").get().n, 0);
+    const invited = await s.fetch('/api/admin/users', post(adminCookie, { email: 'new@x.ru', name: 'Новенький' }));
+    assert.equal(invited.status, 201);
+    assert.ok(!('link' in (await invited.json()).user));
+    users = await list();
+    assert.ok(!('link' in users.find((u) => u.email === 'new@x.ru')));
+
+    // «Новая ссылка» — в списке уже она
+    const next = (await (await s.fetch(`/api/admin/users/${user.id}/link`, post(adminCookie, {}))).json()).link;
+    assert.notEqual(next, link);
+    assert.equal((await list()).find((u) => u.id === user.id).link, next);
+    // ответы на действия со строкой тоже несут ссылку — страница не теряет кнопку
+    const tools = await (await s.fetch(`/api/admin/users/${user.id}/tools`, { method: 'PUT', headers: { Cookie: adminCookie }, body: JSON.stringify({ tools: [] }) })).json();
+    assert.equal(tools.user.link, next);
+    // отключили — ссылки нет
+    await s.fetch(`/api/admin/users/${user.id}/disable`, post(adminCookie, {}));
+    assert.ok(!('link' in (await list()).find((u) => u.id === user.id)));
+  } finally { await s.close(); }
+});
+
+test('GET /api/admin/users: старая тестовая ссылка без raw — link нет; истёкшая — нет', async () => {
+  const { s, clock, adminCookie, createGuest } = await setup();
+  try {
+    const old = (await createGuest({ name: 'Старый' })).user;
+    s.db.raw.prepare('UPDATE tokens SET raw = NULL WHERE user_id = ?').run(old.id); // выдана до R23
+    const short = (await createGuest({ name: 'Короткий', hours: 1 })).user;
+    clock.now += HOUR;
+    const users = await (await s.fetch('/api/admin/users', get(adminCookie))).json();
+    assert.ok(!('link' in users.find((u) => u.id === old.id)));
+    assert.ok(!('link' in users.find((u) => u.id === short.id)));
+  } finally { await s.close(); }
+});
+
+test('DELETE /api/admin/users/<id>: тестовый удаляется целиком, сессия — 401, ссылка — 410, журнал с именем остаётся', async () => {
+  const { s, adminCookie, createGuest, open } = await setup();
+  try {
+    const { user, link } = await createGuest({ showLocked: true });
+    const { cookie } = await open(link);
+    assert.equal((await s.fetch('/api/journal', post(cookie, { tool: 'merge', kind: 'result', files: ['a.xlsx'], summary: 'ок' }))).status, 204);
+    assert.equal((await s.fetch('/api/requests', post(cookie, { tool: 'dg-check' }))).status, 201);
+
+    const r = await s.fetch(`/api/admin/users/${user.id}`, del(adminCookie));
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: true });
+    assert.equal(s.db.getUserById(user.id), null);
+    assert.equal((await s.fetch('/api/me', get(cookie))).status, 401);
+    const gone = await open(link);
+    assert.equal(gone.r.status, 410);
+    assert.ok(gone.text.includes(GONE_TEXT));
+    const users = await (await s.fetch('/api/admin/users', get(adminCookie))).json();
+    assert.ok(!users.some((u) => u.id === user.id));
+    assert.equal(s.db.listRequests().length, 0);
+    const journal = await (await s.fetch('/api/journal', get(adminCookie))).json();
+    assert.equal(journal.length, 1);
+    assert.equal(journal[0].userName, 'Тест для ООО Ромашка');
+    assert.deepEqual(journal[0].files, ['a.xlsx']);
+    // второй раз — такого уже нет
+    assert.equal((await s.fetch(`/api/admin/users/${user.id}`, del(adminCookie))).status, 404);
+  } finally { await s.close(); }
+});
+
+test('DELETE /api/admin/users/<id>: обычного человека и администратора — 400, коллеге — 403, без входа — 401, без Origin — 403', async () => {
+  const { s, adminCookie, lenaCookie, createGuest } = await setup();
+  try {
+    const { user } = await createGuest();
+    const lena = s.db.getUserByEmail('lena@x.ru');
+    const boss = s.db.getUserByEmail('boss@x.ru');
+    for (const target of [lena, boss]) {
+      const r = await s.fetch(`/api/admin/users/${target.id}`, del(adminCookie));
+      assert.equal(r.status, 400);
+      assert.deepEqual(await r.json(), { error: 'Удалять можно только тестовые доступы' });
+      assert.ok(s.db.getUserById(target.id));
+    }
+    assert.equal((await s.fetch(`/api/admin/users/${user.id}`, del(lenaCookie))).status, 403);
+    assert.equal((await s.fetch(`/api/admin/users/${user.id}`, del(null))).status, 401);
+    assert.equal((await s.fetch(`/api/admin/users/${user.id}`, del(adminCookie, { Origin: 'https://evil.example' }))).status, 403);
+    assert.equal((await s.fetch('/api/admin/users/abc', del(adminCookie))).status, 404);
+    assert.equal((await s.fetch('/api/admin/users/9999', del(adminCookie))).status, 404);
+    assert.ok(s.db.getUserById(user.id));
+    // GET по адресу человека не поддерживается
+    assert.equal((await s.fetch(`/api/admin/users/${user.id}`, get(adminCookie))).status, 405);
   } finally { await s.close(); }
 });

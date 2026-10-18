@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS tokens (
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   kind       TEXT NOT NULL CHECK (kind IN ('invite', 'reset', 'guest')),
   expires_at INTEGER NOT NULL,
-  used_at    INTEGER
+  used_at    INTEGER,
+  raw        TEXT
 );
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
@@ -45,7 +46,8 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
 CREATE TABLE IF NOT EXISTS journal (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  user_name  TEXT,
   tool       TEXT NOT NULL,
   kind       TEXT NOT NULL CHECK (kind IN ('result', 'download')),
   files_json TEXT NOT NULL,
@@ -87,8 +89,34 @@ const TOKENS_TABLE = `CREATE TABLE tokens (
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   kind       TEXT NOT NULL CHECK (kind IN ('invite', 'reset', 'guest')),
   expires_at INTEGER NOT NULL,
-  used_at    INTEGER
+  used_at    INTEGER,
+  raw        TEXT
 )`;
+
+// Таблица journal в том виде, в каком её создаёт SCHEMA. Запись переживает удаление человека
+// (удалённый тестовый доступ, R22): user_id становится NULL, имя остаётся в user_name
+const JOURNAL_TABLE = `CREATE TABLE journal (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  user_name  TEXT,
+  tool       TEXT NOT NULL,
+  kind       TEXT NOT NULL CHECK (kind IN ('result', 'download')),
+  files_json TEXT NOT NULL,
+  summary    TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+)`;
+
+/** Выполняет fn одной транзакцией: ошибка — откат и исключение дальше. */
+function inTransaction(raw, fn) {
+  raw.exec('BEGIN');
+  try {
+    fn();
+    raw.exec('COMMIT');
+  } catch (err) {
+    raw.exec('ROLLBACK');
+    throw err;
+  }
+}
 
 /**
  * Доводит базу, созданную прежней версией портала, до текущей схемы.
@@ -96,7 +124,10 @@ const TOKENS_TABLE = `CREATE TABLE tokens (
  *  - недостающие колонки users добавляются ALTER TABLE … ADD COLUMN (только если их нет);
  *  - у tokens ограничение CHECK на вид нельзя поменять ALTER TABLE — таблица пересоздаётся
  *    с тем же содержимым одной транзакцией (на неё никто не ссылается, строки копируются как есть,
- *    кроме ссылок несуществующих людей).
+ *    кроме ссылок несуществующих людей); колонка raw (сам guest-токен, R23) — ADD COLUMN;
+ *  - у journal был user_id NOT NULL … ON DELETE CASCADE — удаление человека стёрло бы его записи
+ *    (а их надо сохранить, R22); внешний ключ ALTER TABLE не меняет — таблица пересоздаётся так же,
+ *    одной транзакцией, с теми же id и именем человека в user_name.
  * Повторный вызов ничего не делает.
  */
 function migrate(raw) {
@@ -112,10 +143,9 @@ function migrate(raw) {
     if (!columns.has(name)) raw.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
   }
 
-  const tokensSql = raw.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tokens'").get()?.sql ?? '';
-  if (!tokensSql.includes("'guest'")) {
-    raw.exec('BEGIN');
-    try {
+  const tableSql = (name) => raw.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(name)?.sql ?? '';
+  if (!tableSql('tokens').includes("'guest'")) {
+    inTransaction(raw, () => {
       raw.exec('DROP TABLE IF EXISTS tokens_new'); // остаток чужой или прерванной попытки
       raw.exec(TOKENS_TABLE.replace('CREATE TABLE tokens', 'CREATE TABLE tokens_new'));
       // Ссылки удалённых в обход внешних ключей людей не переносим: с foreign_keys = ON такая
@@ -124,11 +154,24 @@ function migrate(raw) {
         SELECT token_hash, user_id, kind, expires_at, used_at FROM tokens WHERE user_id IN (SELECT id FROM users)`);
       raw.exec('DROP TABLE tokens');
       raw.exec('ALTER TABLE tokens_new RENAME TO tokens');
-      raw.exec('COMMIT');
-    } catch (err) {
-      raw.exec('ROLLBACK');
-      throw err;
-    }
+    });
+  }
+  // Сам guest-токен (R23) — у ссылок, выданных раньше, его нет: их «Скопировать» не покажет
+  const tokenColumns = new Set(raw.prepare('PRAGMA table_info(tokens)').all().map((c) => c.name));
+  if (!tokenColumns.has('raw')) raw.exec('ALTER TABLE tokens ADD COLUMN raw TEXT');
+
+  if (!tableSql('journal').includes('user_name')) {
+    inTransaction(raw, () => {
+      raw.exec('DROP TABLE IF EXISTS journal_new');
+      raw.exec(JOURNAL_TABLE.replace('CREATE TABLE journal', 'CREATE TABLE journal_new'));
+      // Запись человека, удалённого в обход внешних ключей, остаётся — без ссылки на человека
+      raw.exec(`INSERT INTO journal_new (id, user_id, user_name, tool, kind, files_json, summary, created_at)
+        SELECT j.id, u.id, u.name, j.tool, j.kind, j.files_json, j.summary, j.created_at
+        FROM journal j LEFT JOIN users u ON u.id = j.user_id`);
+      raw.exec('DROP TABLE journal'); // индекс journal_created уходит вместе с ней
+      raw.exec('ALTER TABLE journal_new RENAME TO journal');
+      raw.exec('CREATE INDEX IF NOT EXISTS journal_created ON journal(created_at)');
+    });
   }
 }
 
@@ -166,11 +209,17 @@ export function openDb(path) {
     ).get(hashToken(rawToken), kind, now);
   }
 
+  // Гасит неиспользованные ссылки человека; погашенную guest-ссылку в открытом виде не храним
+  function revokeTokens(userId, at) {
+    q('UPDATE tokens SET raw = NULL WHERE user_id = ? AND raw IS NOT NULL').run(userId);
+    return Number(q('UPDATE tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL').run(at, userId).changes);
+  }
+
   // Срок вышел: отключить, выкинуть из всех сессий, погасить ссылки
   function expireUser(userId, at) {
     q("UPDATE users SET status = 'disabled' WHERE id = ?").run(userId);
     q('DELETE FROM sessions WHERE user_id = ?').run(userId);
-    q('UPDATE tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL').run(at, userId);
+    revokeTokens(userId, at);
   }
 
   return {
@@ -198,6 +247,17 @@ export function openDb(path) {
       return toUser(q(`${userSelect} WHERE email = ?`).get(normalizeEmail(email)));
     },
     getUserById,
+    /**
+     * Удаляет человека целиком: сессии, ссылки, права и запросы уходят каскадом (ON DELETE CASCADE),
+     * записи журнала остаются — с его именем в user_name и user_id = NULL (R22).
+     * Кого можно удалять (только тестовых), решает вызывающий.
+     */
+    deleteUser(userId) {
+      inTransaction(raw, () => {
+        q('UPDATE journal SET user_name = (SELECT name FROM users WHERE id = ?) WHERE user_id = ?').run(userId, userId);
+        q('DELETE FROM users WHERE id = ?').run(userId);
+      });
+    },
     listUsers() {
       const byUser = new Map();
       for (const { user_id: id, tool } of q('SELECT user_id, tool FROM permissions ORDER BY tool').all()) {
@@ -245,23 +305,20 @@ export function openDb(path) {
     // --- права на инструменты ---
     getTools,
     setTools(userId, keys) {
-      raw.exec('BEGIN');
-      try {
+      inTransaction(raw, () => {
         q('DELETE FROM permissions WHERE user_id = ?').run(userId);
         const insert = q('INSERT OR IGNORE INTO permissions (user_id, tool) VALUES (?, ?)');
         for (const key of keys) insert.run(userId, key);
-        raw.exec('COMMIT');
-      } catch (err) {
-        raw.exec('ROLLBACK');
-        throw err;
-      }
+      });
     },
 
-    // --- токены приглашения и сброса пароля ---
+    // --- токены приглашения, сброса пароля и тестовые ссылки ---
+    // Сам токен (raw) хранится только у тестовой ссылки — чтобы администратор мог скопировать
+    // её снова (R23); приглашение и сброс — только хешем
     createToken({ userId, kind, expiresAt }) {
       const token = newToken();
-      q('INSERT INTO tokens (token_hash, user_id, kind, expires_at) VALUES (?, ?, ?, ?)')
-        .run(hashToken(token), userId, kind, expiresAt);
+      q('INSERT INTO tokens (token_hash, user_id, kind, expires_at, raw) VALUES (?, ?, ?, ?, ?)')
+        .run(hashToken(token), userId, kind, expiresAt, kind === 'guest' ? token : null);
       return token;
     },
     peekToken(token, kind, now) {
@@ -281,6 +338,12 @@ export function openDb(path) {
       return q("SELECT user_id FROM tokens WHERE token_hash = ? AND kind = 'guest' AND used_at IS NULL AND expires_at > ?")
         .get(hashToken(token), now)?.user_id ?? null;
     },
+    // Действующая тестовая ссылка человека (сам токен) или null — если её нет или она выдана
+    // до R23 и в базе только хеш
+    guestLinkToken(userId, now) {
+      return q(`SELECT raw FROM tokens WHERE user_id = ? AND kind = 'guest' AND used_at IS NULL AND expires_at > ?
+        AND raw IS NOT NULL ORDER BY rowid DESC LIMIT 1`).get(userId, now)?.raw ?? null;
+    },
     // Новый срок живым тестовым ссылкам человека («Продлить»); возвращает сколько продлено
     extendGuestTokens(userId, expiresAt) {
       return Number(q("UPDATE tokens SET expires_at = ? WHERE user_id = ? AND kind = 'guest' AND used_at IS NULL")
@@ -288,9 +351,7 @@ export function openDb(path) {
     },
 
     // Гасит все ещё не использованные ссылки человека (после смены пароля и перед выпуском новой)
-    revokeUserTokens(userId, at) {
-      return Number(q('UPDATE tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL').run(at, userId).changes);
-    },
+    revokeUserTokens: revokeTokens,
 
     // --- сессии (бессрочные на сервере) ---
     createSession(userId, at) {
@@ -314,9 +375,11 @@ export function openDb(path) {
     },
 
     // --- журнал: только ключ инструмента, имена файлов и текст итога ---
+    // Имя человека пишется и в саму запись: она переживёт удаление тестового доступа (R22)
     addJournal({ userId, tool, kind, files, summary, at }) {
-      q('INSERT INTO journal (user_id, tool, kind, files_json, summary, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(userId, tool, kind, JSON.stringify(files), summary, at);
+      q(`INSERT INTO journal (user_id, user_name, tool, kind, files_json, summary, created_at)
+         VALUES (?, (SELECT name FROM users WHERE id = ?), ?, ?, ?, ?, ?)`)
+        .run(userId, userId, tool, kind, JSON.stringify(files), summary, at);
     },
     listJournal({ userId, tool, limit = 100 } = {}) {
       const where = [];
@@ -324,8 +387,8 @@ export function openDb(path) {
       if (userId !== undefined) { where.push('j.user_id = ?'); args.push(userId); }
       if (tool !== undefined) { where.push('j.tool = ?'); args.push(tool); }
       const rows = q(
-        `SELECT j.id, j.user_id, u.name, j.tool, j.kind, j.files_json, j.summary, j.created_at
-         FROM journal j JOIN users u ON u.id = j.user_id
+        `SELECT j.id, j.user_id, COALESCE(u.name, j.user_name) AS name, j.tool, j.kind, j.files_json, j.summary, j.created_at
+         FROM journal j LEFT JOIN users u ON u.id = j.user_id
          ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
          ORDER BY j.created_at DESC, j.id DESC LIMIT ?`,
       ).all(...args, limit);

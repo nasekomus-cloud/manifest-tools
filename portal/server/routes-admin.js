@@ -68,8 +68,22 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
     return clean;
   }
 
+  /**
+   * Человек для ответа администратору: с правами, а тестовый — ещё и с действующей ссылкой
+   * (link), если она есть и в базе лежит сам токен (R23; у ссылок, выданных раньше, его нет).
+   * Ссылка нужна кнопке «Скопировать ссылку» в строке «Пользователей».
+   */
+  function forAdmin(user, tools = db.getTools(user.id)) {
+    const result = { ...user, tools };
+    if (user.guest) {
+      const token = db.guestLinkToken(user.id, now());
+      if (token) result.link = `${publicOrigin.replace(/\/+$/, '')}/guest/${token}`;
+    }
+    return result;
+  }
+
   function userWithTools(id) {
-    return { ...db.getUserById(id), tools: db.getTools(id) };
+    return forAdmin(db.getUserById(id));
   }
 
   function requireUser(id) {
@@ -84,7 +98,7 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
 
   function handleListUsers(req, res) {
     db.disableExpired(now()); // у кого срок вышел — в списке сразу «отключён»
-    sendJson(res, 200, db.listUsers());
+    sendJson(res, 200, db.listUsers().map((user) => forAdmin(user, user.tools)));
   }
 
   // --- тестовый доступ ---------------------------------------------------------
@@ -205,6 +219,16 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
     sendJson(res, 200, { user: userWithTools(user.id) });
   }
 
+  // «Удалить» тестовый доступ: человек уходит целиком (сессии, ссылки, права, запросы),
+  // записи журнала остаются с его именем (R22). Обычных людей и администраторов не удаляют —
+  // их отключают
+  function handleDelete(req, res, id) {
+    const user = requireUser(id);
+    if (!user.guest) throw new HttpError(400, 'Удалять можно только тестовые доступы');
+    db.deleteUser(user.id);
+    sendJson(res, 200, { ok: true });
+  }
+
   // --- запросы доступа -------------------------------------------------------
 
   const toolTitle = (key) => (key === null ? null : catalog.tools.find((t) => t.key === key)?.title ?? null);
@@ -248,6 +272,7 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
 
   const ROUTES = [
     [/^\/api\/admin\/users$/, { GET: handleListUsers, POST: handleCreateUser }],
+    [/^\/api\/admin\/users\/([^/]+)$/, { DELETE: handleDelete }],
     [/^\/api\/admin\/users\/([^/]+)\/tools$/, { PUT: handleSetTools }],
     [/^\/api\/admin\/users\/([^/]+)\/settings$/, { PUT: handleSettings }],
     [/^\/api\/admin\/users\/([^/]+)\/link$/, { POST: handleLink }],

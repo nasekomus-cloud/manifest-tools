@@ -410,3 +410,194 @@ test('миграция: ссылка без человека (осиротевш
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ── Тестовые ссылки: повторное копирование и удаление (R22, R23) ──────────────
+
+test('createToken: сам токен (raw) хранится только у guest, у invite/reset — нет', () => {
+  const db = openDb(':memory:');
+  const u = mkUser(db);
+  const g = db.createUser({ email: 'g@guest.invalid', name: 'Тест', guest: true, expiresAt: 500, status: 'active' });
+  const invite = db.createToken({ userId: u.id, kind: 'invite', expiresAt: 100 });
+  const reset = db.createToken({ userId: u.id, kind: 'reset', expiresAt: 100 });
+  const guest = db.createToken({ userId: g.id, kind: 'guest', expiresAt: 500 });
+  const rawOf = (token) => db.raw.prepare('SELECT raw FROM tokens WHERE token_hash = ?').get(hashToken(token)).raw;
+  assert.equal(rawOf(invite), null);
+  assert.equal(rawOf(reset), null);
+  assert.equal(rawOf(guest), guest);
+});
+
+test('guestLinkToken: действующая guest-ссылка человека; погашенная и просроченная — null, raw стирается', () => {
+  const db = openDb(':memory:');
+  const g = db.createUser({ email: 'g@guest.invalid', name: 'Тест', guest: true, expiresAt: 500, status: 'active' });
+  assert.equal(db.guestLinkToken(g.id, 10), null);
+  const first = db.createToken({ userId: g.id, kind: 'guest', expiresAt: 500 });
+  assert.equal(db.guestLinkToken(g.id, 10), first);
+  assert.equal(db.guestLinkToken(g.id, 500), null); // срок не включительно, как у самой ссылки
+  db.revokeUserTokens(g.id, 20);
+  assert.equal(db.guestLinkToken(g.id, 30), null);
+  // погашенную ссылку в открытом виде не храним
+  assert.equal(db.raw.prepare('SELECT raw FROM tokens WHERE token_hash = ?').get(hashToken(first)).raw, null);
+  const second = db.createToken({ userId: g.id, kind: 'guest', expiresAt: 500 });
+  assert.equal(db.guestLinkToken(g.id, 30), second);
+  db.expireUser(g.id, 40);
+  assert.equal(db.guestLinkToken(g.id, 40), null);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM tokens WHERE raw IS NOT NULL").get().n, 0);
+  // старая ссылка без raw (выдана до R23) — показать нечего
+  const g2 = db.createUser({ email: 'g2@guest.invalid', name: 'Тест 2', guest: true, expiresAt: 500, status: 'active' });
+  db.createToken({ userId: g2.id, kind: 'guest', expiresAt: 500 });
+  db.raw.prepare('UPDATE tokens SET raw = NULL WHERE user_id = ?').run(g2.id);
+  assert.equal(db.guestLinkToken(g2.id, 10), null);
+});
+
+test('deleteUser: человек, сессии, ссылки, права и запросы удаляются; журнал остаётся с именем', () => {
+  const db = openDb(':memory:');
+  const other = mkUser(db, 'other@x.ru');
+  const g = db.createUser({ email: 'g@guest.invalid', name: 'Тест Ромашка', guest: true, expiresAt: 500, status: 'active' });
+  db.setTools(g.id, ['merge']);
+  const session = db.createSession(g.id, 1);
+  const link = db.createToken({ userId: g.id, kind: 'guest', expiresAt: 500 });
+  db.addRequest({ userId: g.id, tool: 'dg-check', at: 2 });
+  db.addJournal({ userId: g.id, tool: 'merge', kind: 'result', files: ['a.xlsx'], summary: '1 файл', at: 3 });
+  db.addJournal({ userId: other.id, tool: 'merge', kind: 'result', files: ['b.xlsx'], summary: '1 файл', at: 4 });
+
+  db.deleteUser(g.id);
+  assert.equal(db.getUserById(g.id), null);
+  assert.equal(db.getSessionUser(session), null);
+  assert.equal(db.peekGuestToken(link, 10), null);
+  for (const table of ['sessions', 'tokens', 'permissions', 'requests']) {
+    assert.equal(db.raw.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE user_id = ?`).get(g.id).n, 0, table);
+  }
+  const records = db.listJournal({});
+  assert.equal(records.length, 2);
+  const kept = records.find((r) => r.files[0] === 'a.xlsx');
+  assert.equal(kept.userName, 'Тест Ромашка');
+  assert.equal(kept.userId, null);
+  assert.equal(records.find((r) => r.files[0] === 'b.xlsx').userName, 'Иван');
+  assert.equal(db.getUserById(other.id).name, 'Иван');
+});
+
+// Схема рабочей базы перед R22/R23 (2026-10-18, после тем): tokens без raw,
+// journal.user_id NOT NULL с ON DELETE CASCADE и без user_name
+const PRE_DELETE_SCHEMA = `
+CREATE TABLE users (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  email         TEXT NOT NULL UNIQUE,
+  name          TEXT NOT NULL,
+  password_hash TEXT,
+  is_admin      INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'invited' CHECK (status IN ('invited', 'active', 'disabled')),
+  created_at    INTEGER NOT NULL,
+  last_login_at INTEGER,
+  show_locked   INTEGER NOT NULL DEFAULT 0,
+  guest         INTEGER NOT NULL DEFAULT 0,
+  expires_at    INTEGER,
+  theme         TEXT NOT NULL DEFAULT 'depth'
+);
+CREATE TABLE permissions (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tool    TEXT NOT NULL,
+  PRIMARY KEY (user_id, tool)
+);
+CREATE TABLE tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind       TEXT NOT NULL CHECK (kind IN ('invite', 'reset', 'guest')),
+  expires_at INTEGER NOT NULL,
+  used_at    INTEGER
+);
+CREATE TABLE sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX sessions_user ON sessions(user_id);
+CREATE TABLE journal (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tool       TEXT NOT NULL,
+  kind       TEXT NOT NULL CHECK (kind IN ('result', 'download')),
+  files_json TEXT NOT NULL,
+  summary    TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX journal_created ON journal(created_at);
+CREATE TABLE requests (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tool        TEXT,
+  status      TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'granted', 'rejected')),
+  created_at  INTEGER NOT NULL,
+  resolved_at INTEGER,
+  resolved_by INTEGER
+);
+`;
+
+test('миграция R22/R23: tokens получает raw, журнал переживает удаление человека, данные на месте', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dir = mkdtempSync(join(tmpdir(), 'portal-db-'));
+  try {
+    const path = join(dir, 'portal.db');
+    const old = new DatabaseSync(path);
+    old.exec(PRE_DELETE_SCHEMA);
+    old.prepare("INSERT INTO users (email, name, status, created_at, guest, expires_at) VALUES ('g@guest.invalid', 'Старый тест', 'active', 1, 1, 5000)").run();
+    old.prepare("INSERT INTO users (email, name, status, created_at) VALUES ('lena@x.ru', 'Лена', 'active', 1)").run();
+    const guestLink = newToken();
+    old.prepare("INSERT INTO tokens (token_hash, user_id, kind, expires_at) VALUES (?, 1, 'guest', 5000)").run(hashToken(guestLink));
+    for (const [userId, at] of [[1, 10], [2, 11], [1, 12]]) {
+      old.prepare("INSERT INTO journal (user_id, tool, kind, files_json, summary, created_at) VALUES (?, 'merge', 'result', '[\"f.xlsx\"]', 'итог', ?)").run(userId, at);
+    }
+    // запись человека, удалённого в обход внешних ключей, не роняет миграцию
+    old.exec('PRAGMA foreign_keys = OFF');
+    old.prepare("INSERT INTO journal (user_id, tool, kind, files_json, summary, created_at) VALUES (999, 'merge', 'result', '[]', 'сирота', 13)").run();
+    old.close();
+
+    const db = openDb(path);
+    const tokenCols = db.raw.prepare('PRAGMA table_info(tokens)').all().map((c) => c.name);
+    assert.ok(tokenCols.includes('raw'));
+    const journalCols = db.raw.prepare('PRAGMA table_info(journal)').all().map((c) => c.name);
+    assert.ok(journalCols.includes('user_name'));
+    assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'journal_new'").get().n, 0);
+    assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'index' AND name = 'journal_created'").get().n, 1);
+    // старая guest-ссылка жива, но показать её нельзя — raw не было
+    assert.equal(db.peekGuestToken(guestLink, 100), 1);
+    assert.equal(db.guestLinkToken(1, 100), null);
+    // журнал на месте, имена заполнены
+    const before = db.listJournal({});
+    assert.deepEqual(before.map((r) => [r.at, r.userName]), [[13, null], [12, 'Старый тест'], [11, 'Лена'], [10, 'Старый тест']]);
+    // удаление человека журнал не трогает
+    db.deleteUser(1);
+    const after = db.listJournal({});
+    assert.equal(after.length, 4);
+    assert.deepEqual(after.filter((r) => r.userName === 'Старый тест').map((r) => r.at), [12, 10]);
+    // новые записи и ссылки после миграции
+    db.addJournal({ userId: 2, tool: 'merge', kind: 'download', files: [], summary: 's', at: 20 });
+    assert.equal(db.listJournal({ userId: 2 })[0].userName, 'Лена');
+    const lena = db.getUserById(2);
+    assert.equal(lena.name, 'Лена');
+    db.close();
+
+    // повторное открытие ничего не меняет
+    const again = openDb(path);
+    assert.equal(again.listJournal({}).length, 5);
+    again.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('миграция с самой старой схемы (без journal) тоже получает raw и user_name', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dir = mkdtempSync(join(tmpdir(), 'portal-db-'));
+  try {
+    const path = join(dir, 'portal.db');
+    const old = new DatabaseSync(path);
+    old.exec(OLD_SCHEMA);
+    old.close();
+    const db = openDb(path);
+    assert.ok(db.raw.prepare('PRAGMA table_info(tokens)').all().some((c) => c.name === 'raw'));
+    assert.ok(db.raw.prepare('PRAGMA table_info(journal)').all().some((c) => c.name === 'user_name'));
+    db.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
