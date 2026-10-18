@@ -332,6 +332,13 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     return send(res, 200, found.type, found.body);
   }
 
+  // Страница «ссылка не действует» из portal/web с кодом 410
+  async function sendGone(res, page) {
+    const gone = await files.serve(webDir, [page]);
+    if (!gone || gone.redirectSlash) return notFound(res);
+    return send(res, 410, gone.type, gone.body);
+  }
+
   async function sendConcat(res, type, ...parts) {
     const chunks = [];
     for (const [dir, segments] of parts) {
@@ -364,13 +371,21 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
 
     // Открытое всем
     if (plain && bare === '/login') return sendFile(res, webDir, ['login.html'], false, path);
+    // Тестовая ссылка: многоразовый вход без пароля до срока; недействующая — 410 с объяснением
+    if (first === 'guest') {
+      if (segments.length !== 2 || trailingSlash) return notFound(res);
+      const session = auth.openGuestLink(segments[1]);
+      if (session) {
+        res.setHeader('Set-Cookie', sessionCookie(session, cookieOptions));
+        return redirect(res, '/');
+      }
+      return sendGone(res, 'guest-gone.html');
+    }
     if (first === 'invite' || first === 'reset') {
       if (segments.length !== 2 || trailingSlash) return notFound(res);
       // Одна страница на оба вида ссылок; режим она берёт из адреса. Недействующая ссылка — 410 с объяснением
       if (auth.isLinkLive(first, segments[1])) return sendFile(res, webDir, ['invite.html'], false, path);
-      const gone = await files.serve(webDir, ['link-gone.html']);
-      if (!gone || gone.redirectSlash) return notFound(res);
-      return send(res, 410, gone.type, gone.body);
+      return sendGone(res, 'link-gone.html');
     }
     // Общие стили, скрипты, картинки и шрифты портала. HTML-страниц отсюда не отдаём:
     // они открываются только по своим адресам (/, /journal, /admin/users …) и после входа
@@ -462,7 +477,13 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     }
 
     const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
-    const user = token && token.length <= 128 ? db.getSessionUser(token) : null;
+    let user = token && token.length <= 128 ? db.getSessionUser(token) : null;
+    // Срок доступа (тестовая ссылка) проверяется на каждом запросе: вышел — человек отключается
+    // сразу (сессии и ссылки гаснут), а запрос идёт как без входа
+    if (user && user.expiresAt !== null && now() >= user.expiresAt) {
+      db.expireUser(user.id, now());
+      user = null;
+    }
     if (user) res.setHeader('Set-Cookie', sessionCookie(token, cookieOptions)); // перевыпуск на 400 дней
 
     const rawPath = (req.url ?? '').split(/[?#]/, 1)[0];

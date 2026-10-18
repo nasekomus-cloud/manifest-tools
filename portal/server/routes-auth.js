@@ -3,6 +3,9 @@
 // Ссылки живут в таблице tokens (kind 'invite' | 'reset'): приглашение — 7 дней,
 // сброс — 24 часа, оба одноразовые. Удачное задание пароля по ссылке гасит токен,
 // гасит все прежние сессии человека и сразу входит им — cookie выдаётся так же, как при входе.
+//
+// Тестовая ссылка (kind 'guest') — другое: она многоразовая до срока тестового человека
+// (users.guest = 1, без пароля и с expires_at) и сразу открывает портал без пароля.
 
 import { normalizeEmail } from './db.js';
 import { hashPassword, verifyPassword } from './passwords.js';
@@ -24,13 +27,19 @@ const RATE_LIMIT_MESSAGE = 'Слишком много попыток. Попро
 
 /**
  * Выпускает ссылку для человека: приглашённому, который ещё не задавал пароль, — приглашение
- * на 7 дней, остальным — сброс пароля на 24 часа. Возвращает полный адрес ссылки.
+ * на 7 дней, тестовому — тестовая ссылка до конца его срока, остальным — сброс пароля
+ * на 24 часа. Возвращает полный адрес ссылки.
  * Прежние неиспользованные ссылки этого человека перестают действовать.
  */
 export function issueLink(db, user, { now, publicOrigin }) {
   // Работает только самая новая ссылка: прежние неиспользованные гасим
   db.revokeUserTokens(user.id, now);
   const origin = publicOrigin.replace(/\/+$/, '');
+  if (user.guest) {
+    // Тестовому — снова тестовая ссылка, на его текущий срок
+    const token = db.createToken({ userId: user.id, kind: 'guest', expiresAt: user.expiresAt });
+    return `${origin}/guest/${token}`;
+  }
   if (user.status === 'invited') {
     const token = db.createToken({ userId: user.id, kind: 'invite', expiresAt: now + INVITE_TTL_MS });
     return `${origin}/invite/${token}`;
@@ -102,6 +111,7 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
   async function handlePassword(req, res, ctx) {
     const body = await readJson(req);
     if (!ctx.user) return sendJson(res, 401, { error: 'Нужно войти' });
+    if (ctx.user.guest) return sendJson(res, 403, { error: 'У тестового доступа нет пароля' });
     const { current, password } = body;
     if (typeof current !== 'string' || current.length > MAX_PASSWORD_LENGTH) {
       throw new HttpError(400, 'Текущий пароль указан неверно');
@@ -150,8 +160,9 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
     forgotLimiter.hit(ipKey);
 
     const user = db.getUserByEmail(normalizeEmail(body.email));
-    // Всем, кроме отключённых: приглашённый с истёкшей ссылкой тоже должен дойти до администратора
-    if (user && user.status !== 'disabled') {
+    // Всем, кроме отключённых: приглашённый с истёкшей ссылкой тоже должен дойти до администратора.
+    // Тестовые (служебная почта, пароля нет) — как неизвестная почта
+    if (user && user.status !== 'disabled' && !user.guest) {
       if (mailer) {
         // Ответ не ждёт SMTP: иначе зависшая почта давала бы 504, а время ответа выдавало бы, что адрес известен
         track(mailLink(user));
@@ -185,9 +196,28 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
     };
   }
 
+  /**
+   * Открывает тестовую ссылку: действующий guest-токен тестового человека, активного и с
+   * неистёкшим сроком, → новая сессия (сырой токен для cookie). Иначе null. Других людей
+   * по этой ссылке не впустить: нужен и вид токена 'guest', и признак guest у человека.
+   * Прежние сессии не гасятся — ссылку можно открыть на нескольких устройствах.
+   */
+  function openGuestLink(token) {
+    if (typeof token !== 'string' || token.length === 0 || token.length > MAX_TOKEN_LENGTH) return null;
+    const at = now();
+    db.disableExpired(at); // истёкший срок записывается сразу, а не при ночной уборке
+    const userId = db.peekGuestToken(token, at);
+    if (userId === null) return null;
+    const user = db.getUserById(userId);
+    if (!user || !user.guest || user.status !== 'active' || user.expiresAt === null || at >= user.expiresAt) return null;
+    db.touchLogin(user.id, at);
+    return db.createSession(user.id, at);
+  }
+
   return {
     /** Маршрут API по пути: объект «метод → обработчик» или null. */
     matchApi: (pathname) => api[pathname] ?? matchLinkApi(pathname),
+    openGuestLink,
     /** Действует ли ссылка вида kind ('invite' | 'reset') — для страницы по ссылке. */
     isLinkLive: (kind, token) => linkUser(kind, token) !== null,
     /** Ждёт, пока завершатся письма, отправляемые в фоне (для тестов). */

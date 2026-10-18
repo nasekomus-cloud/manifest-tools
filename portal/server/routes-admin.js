@@ -3,6 +3,7 @@
 // Все адреса /api/admin/* — только администраторам: без входа 401, коллеге 403.
 // Проверка стоит до чтения тела запроса, чтобы коллега не мог ничего «пощупать».
 
+import { randomBytes } from 'node:crypto';
 import { normalizeEmail } from './db.js';
 import { issueLink } from './routes-auth.js';
 import { HttpError, readJson, sendJson } from './http-utils.js';
@@ -10,6 +11,12 @@ import { sendSafely, inviteMail } from './mail.js';
 
 const MAX_EMAIL_LENGTH = 254;
 const MAX_NAME_LENGTH = 200;
+const HOUR_MS = 60 * 60 * 1000;
+export const GUEST_DEFAULT_HOURS = 24;
+export const GUEST_MAX_HOURS = 720;
+// Служебный домен почты тестовых: .invalid по RFC 2606 не существует, письмо туда не уйдёт
+export const GUEST_EMAIL_DOMAIN = '@guest.invalid';
+const BAD_HOURS = 'Срок — целое число часов от 1 до 720';
 
 const NEED_LOGIN = { error: 'Нужно войти' };
 const NOT_ADMIN = { error: 'Только для администратора' };
@@ -46,6 +53,21 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
     return value;
   }
 
+  /** Срок в часах: нет — 24, иначе целое 1–720. */
+  function parseHours(value) {
+    if (value === undefined) return GUEST_DEFAULT_HOURS;
+    if (!Number.isInteger(value) || value < 1 || value > GUEST_MAX_HOURS) throw new HttpError(400, BAD_HOURS);
+    return value;
+  }
+
+  function parseName(value, emptyMessage) {
+    if (typeof value !== 'string') throw new HttpError(400, emptyMessage);
+    const clean = value.trim();
+    if (clean.length === 0) throw new HttpError(400, emptyMessage);
+    if (clean.length > MAX_NAME_LENGTH) throw new HttpError(400, 'Слишком длинное имя');
+    return clean;
+  }
+
   function userWithTools(id) {
     return { ...db.getUserById(id), tools: db.getTools(id) };
   }
@@ -61,7 +83,48 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
   // --- люди ----------------------------------------------------------------
 
   function handleListUsers(req, res) {
+    db.disableExpired(now()); // у кого срок вышел — в списке сразу «отключён»
     sendJson(res, 200, db.listUsers());
+  }
+
+  // --- тестовый доступ ---------------------------------------------------------
+
+  async function handleCreateGuest(req, res) {
+    const body = await readJson(req);
+    const name = parseName(body.name, 'Укажите название');
+    const tools = body.tools === undefined ? [] : parseTools(body.tools);
+    const showLocked = parseShowLocked(body.showLocked);
+    const hours = parseHours(body.hours);
+    const at = now();
+    const created = db.createUser({
+      email: `guest-${randomBytes(12).toString('hex')}${GUEST_EMAIL_DOMAIN}`,
+      name,
+      isAdmin: false,
+      at,
+      showLocked,
+      guest: true,
+      expiresAt: at + hours * HOUR_MS, // срок — от момента выдачи ссылки
+      status: 'active',
+    });
+    db.setTools(created.id, tools);
+    const guestLink = link(db.getUserById(created.id));
+    sendJson(res, 201, { user: userWithTools(created.id), link: guestLink });
+  }
+
+  // «Продлить»: новый срок от текущего момента, статус «активен». Живые ссылки продлеваются;
+  // если их нет (срок уже истёк или доступ отключали — ссылки погашены), в ответе новая ссылка
+  async function handleExtend(req, res, id) {
+    const body = await readJson(req);
+    const user = requireUser(id);
+    if (!user.guest) throw new HttpError(400, 'Продлить можно только тестовый доступ');
+    const hours = parseHours(body.hours);
+    const expiresAt = now() + hours * HOUR_MS;
+    db.setExpiry(user.id, expiresAt);
+    db.setStatus(user.id, 'active');
+    const extended = db.extendGuestTokens(user.id, expiresAt);
+    const result = { user: userWithTools(user.id) };
+    if (extended === 0) result.link = link(db.getUserById(user.id));
+    sendJson(res, 200, result);
   }
 
   async function handleCreateUser(req, res) {
@@ -72,7 +135,7 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
     const cleanName = name.trim();
     if (cleanName.length === 0) throw new HttpError(400, 'Укажите имя');
     if (cleanName.length > MAX_NAME_LENGTH) throw new HttpError(400, 'Слишком длинное имя');
-    if (!cleanEmail.includes('@') || /\s/.test(cleanEmail) || cleanEmail.length > MAX_EMAIL_LENGTH) {
+    if (!cleanEmail.includes('@') || /\s/.test(cleanEmail) || cleanEmail.length > MAX_EMAIL_LENGTH || cleanEmail.endsWith(GUEST_EMAIL_DOMAIN)) {
       throw new HttpError(400, 'Почта указана неверно');
     }
     const tools = body.tools === undefined ? [] : parseTools(body.tools);
@@ -106,7 +169,9 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
   }
 
   function handleLink(req, res, id) {
+    db.disableExpired(now());
     const user = requireUser(id);
+    if (user.status === 'disabled' && user.guest) throw new HttpError(409, 'Тестовый доступ отключён — сначала продлите его');
     if (user.status === 'disabled') throw new HttpError(409, 'Человек отключён — сначала включите доступ');
     sendJson(res, 200, { link: link(user) });
   }
@@ -128,6 +193,7 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
 
   function handleEnable(req, res, id) {
     const user = requireUser(id);
+    if (user.guest) throw new HttpError(409, 'Тестовый доступ не включают, а продлевают');
     // Без пароля человек так и не принял приглашение — ему по-прежнему нужна ссылка
     db.setStatus(user.id, db.getPasswordHash(user.id) ? 'active' : 'invited');
     sendJson(res, 200, { user: userWithTools(user.id) });
@@ -181,6 +247,8 @@ export function createAdminRoutes({ db, catalog, now, publicOrigin, mailer = nul
     [/^\/api\/admin\/users\/([^/]+)\/link$/, { POST: handleLink }],
     [/^\/api\/admin\/users\/([^/]+)\/disable$/, { POST: handleDisable }],
     [/^\/api\/admin\/users\/([^/]+)\/enable$/, { POST: handleEnable }],
+    [/^\/api\/admin\/users\/([^/]+)\/extend$/, { POST: handleExtend }],
+    [/^\/api\/admin\/guests$/, { POST: handleCreateGuest }],
     [/^\/api\/admin\/requests$/, { GET: handleListRequests }],
     [/^\/api\/admin\/requests\/([^/]+)\/grant$/, { POST: handleGrant }],
     [/^\/api\/admin\/requests\/([^/]+)\/reject$/, { POST: handleReject }],

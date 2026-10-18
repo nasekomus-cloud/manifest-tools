@@ -30,6 +30,9 @@ test('/api/admin/*: без входа — 401, коллеге — 403', async ()
       ['POST', `/api/admin/users/${lena.id}/link`],
       ['POST', `/api/admin/users/${lena.id}/disable`],
       ['POST', `/api/admin/users/${lena.id}/enable`],
+      ['PUT', `/api/admin/users/${lena.id}/settings`],
+      ['POST', `/api/admin/users/${lena.id}/extend`],
+      ['POST', '/api/admin/guests'],
       ['GET', '/api/admin/requests'],
       ['POST', '/api/admin/requests/1/grant'],
       ['POST', '/api/admin/requests/1/reject'],
@@ -43,6 +46,7 @@ test('/api/admin/*: без входа — 401, коллеге — 403', async ()
     }
     // Коллега не смог ничего изменить
     assert.deepEqual(s.db.getTools(lena.id), ['merge']);
+    assert.equal(s.db.listUsers().length, 2);
   } finally { await s.close(); }
 });
 

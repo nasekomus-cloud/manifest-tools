@@ -25,7 +25,6 @@ process.on('warning', (warning) => {
 });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const JOURNAL_KEEP_MS = 365 * DAY_MS;
 
 const env = process.env;
 const dbPath = env.DB_PATH;
@@ -41,17 +40,20 @@ const cookieSecure = env.COOKIE_SECURE !== '0';
 const { openDb } = await import('./db.js');
 const { createApp } = await import('./app.js');
 const { createMailer } = await import('./mail.js');
+const { dailyCleanup } = await import('./cleanup.js');
 
 if (dbPath !== ':memory:') mkdirSync(dirname(resolve(dbPath)), { recursive: true });
 const db = openDb(dbPath);
 
-// Журнал хранится 365 дней: чистим при старте и раз в сутки
-function pruneJournal() {
-  const removed = db.pruneJournal(Date.now() - JOURNAL_KEEP_MS);
-  if (removed > 0) console.log(`Журнал: удалено старых записей — ${removed}`);
+// При старте и раз в сутки: журнал старше 365 дней удаляется, у кого вышел срок
+// доступа (тестовая ссылка) — отключается (см. cleanup.js)
+function cleanup() {
+  const { journalRemoved, usersDisabled } = dailyCleanup(db, Date.now());
+  if (journalRemoved > 0) console.log(`Журнал: удалено старых записей — ${journalRemoved}`);
+  if (usersDisabled > 0) console.log(`Отключено с истёкшим сроком — ${usersDisabled}`);
 }
-pruneJournal();
-setInterval(pruneJournal, DAY_MS).unref();
+cleanup();
+setInterval(cleanup, DAY_MS).unref();
 
 const mailer = await createMailer(env);
 console.log(mailer ? `Почта: SMTP ${env.SMTP_HOST}` : 'Почта не настроена (SMTP_HOST не задан) — ссылки выдаёт администратор');
