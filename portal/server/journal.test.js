@@ -192,3 +192,22 @@ test('отключённый человек не может писать в жу
     assert.equal((await s.fetch('/api/journal', post(lenaCookie, entry()))).status, 401);
   } finally { await s.close(); }
 });
+
+test('POST /api/journal: не больше 60 записей от человека за 10 минут, дальше 429 и ничего не пишется', async () => {
+  const { s, clock, lena, olga, lenaCookie, olgaCookie } = await setup();
+  try {
+    for (let i = 0; i < 60; i++) {
+      assert.equal((await s.fetch('/api/journal', post(lenaCookie, entry('merge', { summary: `итог ${i}` })))).status, 204, `запись ${i + 1}`);
+    }
+    const over = await s.fetch('/api/journal', post(lenaCookie, entry('merge', { summary: 'лишняя' })));
+    assert.equal(over.status, 429);
+    assert.match((await over.json()).error, /Слишком много/);
+    assert.equal(s.db.listJournal({ userId: lena.id, limit: 500 }).length, 60);
+    // счётчик у каждого свой
+    assert.equal((await s.fetch('/api/journal', post(olgaCookie, entry('merge')))).status, 204);
+    assert.equal(s.db.listJournal({ userId: olga.id }).length, 1);
+    // окно скользит
+    clock.t += 10 * 60 * 1000 + 1;
+    assert.equal((await s.fetch('/api/journal', post(lenaCookie, entry('merge')))).status, 204);
+  } finally { await s.close(); }
+});

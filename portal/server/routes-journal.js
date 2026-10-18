@@ -6,12 +6,18 @@
 import { allowedKeys } from './catalog.js';
 import { HttpError, readJson, sendJson } from './http-utils.js';
 import { sendSafely, accessRequestMail } from './mail.js';
+import { createLimiter } from './ratelimit.js';
 
 export const MAX_FILES = 50;
 export const MAX_FILE_NAME = 255;
 export const MAX_SUMMARY = 500;
 export const MAX_LIMIT = 500;
 const DEFAULT_LIMIT = 100;
+// Не больше стольких записей от одного человека за окно: журнал не должен
+// разрастаться от зациклившейся страницы или чужого скрипта в открытой сессии.
+export const JOURNAL_MAX_PER_USER = 60;
+export const JOURNAL_WINDOW_MS = 10 * 60 * 1000;
+const JOURNAL_RATE_MESSAGE = 'Слишком много записей в журнал. Подождите несколько минут.';
 
 const NEED_LOGIN = { error: 'Нужно войти' };
 
@@ -31,6 +37,8 @@ function truncate(text, max) {
  */
 export function createJournalRoutes({ db, catalog, now, mailer = null, publicOrigin = '' }) {
   const knownKeys = new Set(catalog.keys);
+  // Счётчик в памяти, по человеку; при перезапуске обнуляется
+  const journalLimiter = createLimiter({ max: JOURNAL_MAX_PER_USER, windowMs: JOURNAL_WINDOW_MS, now });
   const toolTitle = (key) => catalog.tools.find((t) => t.key === key)?.title ?? key;
 
   function allowedFor(user) {
@@ -49,6 +57,10 @@ export function createJournalRoutes({ db, catalog, now, mailer = null, publicOri
       throw new HttpError(400, `Список файлов — до ${MAX_FILES} имён`);
     }
     if (typeof summary !== 'string') throw new HttpError(400, 'Нет текста итога');
+
+    const limitKey = String(ctx.user.id);
+    if (journalLimiter.blocked(limitKey)) return sendJson(res, 429, { error: JOURNAL_RATE_MESSAGE });
+    journalLimiter.hit(limitKey);
 
     db.addJournal({
       userId: ctx.user.id,

@@ -177,6 +177,20 @@ test('публичное без входа: /login, /portal/*, /assets/fonts.css
   assert.equal((await s.fetch('/assets/fonts/', { headers: { cookie } })).status, 404);
 });
 
+test('/portal/*: отдаются только не-HTML файлы, страницы портала по этому адресу — 404 всем (R13)', async () => {
+  for (const name of ['admin-users.html', 'admin-requests.html', 'index.html', 'journal.html', 'account.html', 'login.html', 'invite.html', 'link-gone.html']) {
+    assert.equal((await s.fetch(`/portal/${name}`)).status, 404, `без входа /portal/${name}`);
+    assert.equal((await s.fetch(`/portal/${name}`, { headers: { cookie } })).status, 404, `со входом /portal/${name}`);
+  }
+  assert.equal((await s.fetch('/portal/HOME.HTML')).status, 404);
+  assert.equal((await s.fetch('/portal/')).status, 404);
+  // картинки, стили и скрипты остаются
+  assert.equal((await s.fetch('/portal/portal.css')).status, 200);
+  assert.equal((await s.fetch('/portal/portal.js')).status, 200);
+  // а сами страницы — по своим адресам
+  assert.equal((await s.fetch('/login')).status, 200);
+});
+
 test('главная и страницы портала: без входа — на вход, остальное — 404, пока страниц нет', async () => {
   const home = await s.fetch('/', { redirect: 'manual' });
   assert.equal(home.status, 302);
@@ -247,6 +261,28 @@ test('POST без правильного Origin — 403', async () => {
   assert.equal((await s.fetch('/login', { headers: { Origin: 'https://evil.example' } })).status, 200);
 });
 
+test('HSTS: при https-адресе портала на каждом ответе, при http (разработка) — нет', async () => {
+  const https = await s.fetch('/login');
+  assert.equal(https.headers.get('strict-transport-security'), 'max-age=31536000');
+  assert.equal((await s.fetch('/nope')).headers.get('strict-transport-security'), 'max-age=31536000');
+  assert.equal((await s.fetch('/api/me')).headers.get('strict-transport-security'), 'max-age=31536000');
+
+  const { createApp } = await import('./app.js');
+  const { openDb } = await import('./db.js');
+  const http = await import('node:http');
+  const db = openDb(':memory:');
+  const server = http.createServer(createApp({ db, siteRoot: REPO_ROOT, publicOrigin: 'http://localhost:8010', cookieSecure: false }));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const r = await fetch(`http://127.0.0.1:${server.address().port}/login`);
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('strict-transport-security'), null);
+  } finally {
+    await new Promise((resolve) => { server.close(resolve); server.closeAllConnections(); });
+    db.close();
+  }
+});
+
 test('10 неудачных попыток — 429, через 15 минут снова можно', async () => {
   let t = 1_700_000_000_000;
   const srv = await startTestServer({ now: () => t });
@@ -288,16 +324,32 @@ test('удачный вход сбрасывает счётчик почты', a
   }
 });
 
-test('счётчик по IP: 10 неудач с одного адреса блокируют любую почту', async () => {
+test('счётчик по IP: 30 неудач с одного адреса блокируют любую почту, 31-я попытка — 429', async () => {
   const srv = await startTestServer();
   try {
     await srv.addUser({ email: 'ip@x.ru', name: 'Ай-пи', password: 'правильный-пароль' });
     const attempt = (email, password, ip) => srv.fetch('/api/login', {
       method: 'POST', body: JSON.stringify({ email, password }), headers: { 'X-Real-IP': ip },
     });
-    for (let i = 0; i < 10; i++) assert.equal((await attempt(`guess${i}@x.ru`, 'нет', '203.0.113.7')).status, 401);
+    for (let i = 0; i < 30; i++) assert.equal((await attempt(`guess${i}@x.ru`, 'нет', '203.0.113.7')).status, 401, `попытка ${i + 1}`);
     assert.equal((await attempt('ip@x.ru', 'правильный-пароль', '203.0.113.7')).status, 429);
     assert.equal((await attempt('ip@x.ru', 'правильный-пароль', '203.0.113.8')).status, 200);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('счётчик по IP шире счётчика по почте: 10 неудач с адреса почту не запирают, а 10 на одну почту — да', async () => {
+  const srv = await startTestServer();
+  try {
+    await srv.addUser({ email: 'office@x.ru', name: 'Офис', password: 'правильный-пароль' });
+    const attempt = (email, password, ip) => srv.fetch('/api/login', {
+      method: 'POST', body: JSON.stringify({ email, password }), headers: { 'X-Real-IP': ip },
+    });
+    for (let i = 0; i < 10; i++) assert.equal((await attempt(`typo${i}@x.ru`, 'нет', '198.51.100.1')).status, 401);
+    assert.equal((await attempt('office@x.ru', 'правильный-пароль', '198.51.100.1')).status, 200);
+    for (let i = 0; i < 10; i++) assert.equal((await attempt('office@x.ru', 'нет', `198.51.100.${10 + i}`)).status, 401);
+    assert.equal((await attempt('office@x.ru', 'правильный-пароль', '198.51.100.99')).status, 429);
   } finally {
     await srv.close();
   }

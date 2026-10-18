@@ -1,6 +1,7 @@
 // HTTP-приложение портала: вход, сессии и отдача файлов сайта по правам.
 //
 // Любой ответ несёт Cache-Control: no-store (в том числе ошибки и перенаправления),
+// при https-адресе портала — ещё и Strict-Transport-Security,
 // любой запрос не GET/HEAD обязан прийти с Origin, равным PUBLIC_ORIGIN.
 // Что кому отдаётся — таблица в handlePage(); всё, чего в таблице нет, — 404.
 
@@ -17,6 +18,13 @@ import {
   HttpError, readJson, send, sendJson, sendText, redirect, parseCookies, sessionCookie, SESSION_COOKIE,
 } from './http-utils.js';
 
+// Пределы неудачных входов за 15 минут. По почте строго: это защита одного пароля.
+// По IP шире: за одним адресом (общий офис, NAT) сидит несколько человек, и опечатки
+// одного не должны запирать вход всем остальным.
+const LOGIN_MAX_PER_EMAIL = 10;
+const LOGIN_MAX_PER_IP = 30;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const HSTS = 'max-age=31536000';
 const RATE_LIMIT_MESSAGE = 'Слишком много попыток. Попробуйте через 15 минут.';
 const NEED_LOGIN = { error: 'Нужно войти' };
 
@@ -179,12 +187,15 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
   const webDir = join(siteRoot, 'portal', 'web');
   const helpDir = join(siteRoot, 'portal', 'help');
   const samplesDir = join(helpDir, 'samples');
-  const limiter = createLimiter({ max: 10, windowMs: 15 * 60 * 1000, now });
+  const emailLimiter = createLimiter({ max: LOGIN_MAX_PER_EMAIL, windowMs: LOGIN_WINDOW_MS, now });
+  const ipLimiter = createLimiter({ max: LOGIN_MAX_PER_IP, windowMs: LOGIN_WINDOW_MS, now });
+  const hsts = origin.startsWith('https://');
 
   // Ложная сверка пароля для неизвестной почты — чтобы по времени ответа
-  // нельзя было отличить «нет такого человека» от «неверный пароль».
-  let dummyHash = null;
-  const getDummyHash = () => (dummyHash ??= hashPassword('нет-такого-человека'));
+  // нельзя было отличить «нет такого человека» от «неверный пароль». Хеш считается
+  // один раз при создании приложения, а не при первой неизвестной почте: иначе
+  // именно этот первый запрос был бы заметно дольше остальных.
+  const dummyHash = hashPassword('нет-такого-человека');
 
   const cookieOptions = { secure: cookieSecure };
 
@@ -212,27 +223,27 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     }
     if (email.length > 254 || password.length > 1024) throw new HttpError(400, 'Слишком длинное значение');
 
-    const emailKey = `email:${normalizeEmail(email)}`;
-    const ipKey = `ip:${clientIp(req)}`;
-    if (limiter.blocked(emailKey) || limiter.blocked(ipKey)) {
+    const emailKey = normalizeEmail(email);
+    const ipKey = clientIp(req);
+    if (emailLimiter.blocked(emailKey) || ipLimiter.blocked(ipKey)) {
       sendJson(res, 429, { error: RATE_LIMIT_MESSAGE });
       return;
     }
     // Попытка записывается до проверки пароля: иначе сто одновременных запросов
     // успели бы пройти до того, как первый из них засчитается. Удачный вход снимает запись.
-    limiter.hit(emailKey);
-    limiter.hit(ipKey);
+    emailLimiter.hit(emailKey);
+    ipLimiter.hit(ipKey);
 
     const user = db.getUserByEmail(email);
     const hash = user && user.status === 'active' ? db.getPasswordHash(user.id) : null;
-    const passwordOk = await verifyPassword(password, hash ?? (await getDummyHash()));
+    const passwordOk = await verifyPassword(password, hash ?? (await dummyHash));
     if (!user || !hash || !passwordOk) {
       sendJson(res, 401, { error: 'Неверная почта или пароль' });
       return;
     }
 
-    limiter.reset(emailKey);
-    limiter.forgive(ipKey);
+    emailLimiter.reset(emailKey);
+    ipLimiter.forgive(ipKey);
     db.touchLogin(user.id, now());
     const token = db.createSession(user.id, now());
     sendJson(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie(token, cookieOptions) });
@@ -337,7 +348,12 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
       if (!gone || gone.redirectSlash) return notFound(res);
       return send(res, 410, gone.type, gone.body);
     }
-    if (first === 'portal' && segments.length >= 2) return sendFile(res, webDir, segments.slice(1), trailingSlash, path);
+    // Общие стили, скрипты, картинки и шрифты портала. HTML-страниц отсюда не отдаём:
+    // они открываются только по своим адресам (/, /journal, /admin/users …) и после входа
+    if (first === 'portal' && segments.length >= 2) {
+      if (!isAsset(segments, trailingSlash)) return notFound(res);
+      return sendFile(res, webDir, segments.slice(1), trailingSlash, path);
+    }
     if (plain && bare === '/assets/fonts.css') return sendFile(res, siteRoot, segments, false, path);
 
     // Страницы портала
@@ -411,6 +427,7 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     // В адресах приглашений есть токены — наружу они в Referer уходить не должны
     res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    if (hsts) res.setHeader('Strict-Transport-Security', HSTS);
 
     const method = req.method ?? 'GET';
     const readOnly = method === 'GET' || method === 'HEAD';
