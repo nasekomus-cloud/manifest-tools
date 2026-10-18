@@ -145,8 +145,24 @@
   if (side) {
     var brand = side.querySelector('.side__brand');
     if (brand) {
-      brand.textContent = 'Tallyman';
-      brand.appendChild(el('span', 'portal-dot', '.'));
+      brand.textContent = '';
+      brand.setAttribute('aria-label', 'Tallyman — на главную');
+      var logo = el('span', 'tm-logo');
+      var craneT = el('img', 'tm-logo__t');
+      craneT.src = '/portal/logo-t.svg';
+      craneT.alt = '';
+      logo.appendChild(craneT);
+      logo.appendChild(el('span', 'tm-logo__rest', 'allyman'));
+      brand.appendChild(logo);
+    }
+
+    // Значок вкладки: на страницах инструментов своего нет — ставим портальный
+    if (!doc.querySelector('link[rel~="icon"]')) {
+      var icon = doc.createElement('link');
+      icon.rel = 'icon';
+      icon.type = 'image/svg+xml';
+      icon.href = '/portal/favicon.svg';
+      doc.head.appendChild(icon);
     }
 
     var menuBtn = side.querySelector('.side__menu-btn');

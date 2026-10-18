@@ -127,6 +127,39 @@
     color: #7fe3f0;
   }
 
+  /* Логотип Tallyman: кран вместо буквы T (portal/web/logo-t.svg), слово стоит
+   * на корпусе контейнеровоза (::after). Разметка — в shell-addon.js (полоса)
+   * и на страницах входа: <span class="tm-logo"><img class="tm-logo__t">
+   * <span class="tm-logo__rest">allyman</span></span> */
+  .tm-logo {
+    position: relative;
+    display: inline-block;
+    padding: 0 0.12em 0.38em 0.04em;
+    color: #ffffff;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .tm-logo__t {
+    width: 0.98em;
+    height: 1.08em;
+    margin-right: -0.06em;
+    vertical-align: -0.04em;
+  }
+
+  .tm-logo::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 0.2em;
+    background: #7fe3f0;
+    clip-path: polygon(0 0, 100% 0, 95% 100%, 5% 100%);
+  }
+
   .side__menu-btn {
     order: 2;
     display: inline-flex;
