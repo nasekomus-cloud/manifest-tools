@@ -6,8 +6,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startTestServer, REPO_ROOT, TEST_ORIGIN } from './test-helpers.js';
 import { createLimiter } from './ratelimit.js';
+import { withTheme } from './themes.js';
 
 const read = (rel) => readFileSync(join(REPO_ROOT, rel), 'utf8');
+// Страница так, как её получает вошедший человек: файл с его темой в <html data-theme>
+const page = (rel, theme = 'depth') => withTheme(read(rel), theme);
 
 let s;
 let cookie; // сессия коллеги с правом только на «merge»; видит закрытые (show_locked)
@@ -84,7 +87,7 @@ test('право есть — файл; права нет — 403 «Нет до�
   const ok = await s.fetch('/merge/index.html', { headers: { cookie } });
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get('content-type'), /^text\/html; charset=utf-8/);
-  assert.equal(await ok.text(), read('merge/index.html'));
+  assert.equal(await ok.text(), page('merge/index.html'));
 
   const no = await s.fetch('/dg-check/index.html', { headers: { cookie } });
   assert.equal(no.status, 403);
@@ -109,7 +112,7 @@ test('каталог инструмента: каталог без слэша и
 
   const idx = await s.fetch('/merge/', { headers: { cookie } });
   assert.equal(idx.status, 200);
-  assert.equal(await idx.text(), read('merge/index.html'));
+  assert.equal(await idx.text(), page('merge/index.html'));
 
   const js = await s.fetch('/merge/app.js?v=202610181200', { headers: { cookie } });
   assert.equal(js.status, 200);
@@ -439,7 +442,7 @@ test('/api/me: пользователь и инструменты с призн�
   assert.equal((await s.fetch('/api/me')).status, 401);
   const me = await (await s.fetch('/api/me', { headers: { cookie } })).json();
   assert.deepEqual(me.user, {
-    id: me.user.id, email: 'ira@x.ru', name: 'Ирина', isAdmin: false, showLocked: true, guest: false, expiresAt: null,
+    id: me.user.id, email: 'ira@x.ru', name: 'Ирина', isAdmin: false, showLocked: true, guest: false, expiresAt: null, theme: 'depth',
   });
   assert.equal(me.tools.length, s.catalog.tools.length);
   assert.ok(me.tools.every((t) => typeof t.key === 'string' && typeof t.allowed === 'boolean' && t.href && t.title));
@@ -500,7 +503,7 @@ test('вход: без COOKIE_SECURE=0 нет Secure только когда с�
 test('HEAD и неподходящие методы', async () => {
   const head = await s.fetch('/merge/index.html', { method: 'HEAD', headers: { cookie } });
   assert.equal(head.status, 200);
-  assert.equal(Number(head.headers.get('content-length')), Buffer.byteLength(read('merge/index.html')));
+  assert.equal(Number(head.headers.get('content-length')), Buffer.byteLength(page('merge/index.html')));
   assert.equal(await head.text(), '');
   assert.equal((await s.fetch('/merge/index.html', { method: 'POST', headers: { cookie } })).status, 405);
   assert.equal((await s.fetch('/api/me', { method: 'POST', headers: { cookie } })).status, 405);

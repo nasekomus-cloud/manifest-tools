@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS users (
   last_login_at INTEGER,
   show_locked   INTEGER NOT NULL DEFAULT 0,
   guest         INTEGER NOT NULL DEFAULT 0,
-  expires_at    INTEGER
+  expires_at    INTEGER,
+  theme         TEXT NOT NULL DEFAULT 'depth'
 );
 CREATE TABLE IF NOT EXISTS permissions (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -76,6 +77,7 @@ function toUser(row) {
     showLocked: row.show_locked === 1,
     guest: row.guest === 1,
     expiresAt: row.expires_at ?? null,
+    theme: row.theme ?? 'depth',
   };
 }
 
@@ -103,6 +105,8 @@ function migrate(raw) {
     ['show_locked', 'INTEGER NOT NULL DEFAULT 0'],
     ['guest', 'INTEGER NOT NULL DEFAULT 0'],
     ['expires_at', 'INTEGER'],
+    // Тема оформления (themes.js); у всех, кто был до тем, — «Глубина»
+    ['theme', "TEXT NOT NULL DEFAULT 'depth'"],
   ];
   for (const [name, type] of added) {
     if (!columns.has(name)) raw.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
@@ -142,7 +146,7 @@ export function openDb(path) {
   migrate(raw);
 
   const q = (sql) => raw.prepare(sql);
-  const USER_COLUMNS = 'id, email, name, is_admin, status, created_at, last_login_at, show_locked, guest, expires_at';
+  const USER_COLUMNS = 'id, email, name, is_admin, status, created_at, last_login_at, show_locked, guest, expires_at, theme';
   const userSelect = `SELECT ${USER_COLUMNS} FROM users`;
 
   function getUserById(id) {
@@ -220,6 +224,10 @@ export function openDb(path) {
     },
     setShowLocked(userId, value) {
       q('UPDATE users SET show_locked = ? WHERE id = ?').run(value ? 1 : 0, userId);
+    },
+    // Тема оформления; что id допустимый, проверяет вызывающий (isTheme в themes.js)
+    setTheme(userId, theme) {
+      q('UPDATE users SET theme = ? WHERE id = ?').run(theme, userId);
     },
     setExpiry(userId, at) {
       q('UPDATE users SET expires_at = ? WHERE id = ?').run(at, userId);

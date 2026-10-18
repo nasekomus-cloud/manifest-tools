@@ -14,6 +14,7 @@ import { parsePath, isTestFile, createFileServer } from './static.js';
 import { createAuthRoutes } from './routes-auth.js';
 import { createAdminRoutes } from './routes-admin.js';
 import { createJournalRoutes } from './routes-journal.js';
+import { THEMES, isTheme, withTheme } from './themes.js';
 import {
   HttpError, readJson, send, sendJson, sendText, redirect, parseCookies, sessionCookie, SESSION_COOKIE,
 } from './http-utils.js';
@@ -282,16 +283,28 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
         showLocked: user.showLocked,
         guest: user.guest,
         expiresAt: user.expiresAt,
+        theme: user.theme,
       },
+      themes: THEMES,
       tools,
       openRequests: user.isAdmin ? db.countOpenRequests() : 0,
     });
+  }
+
+  // Тема оформления — личное дело каждого, в том числе тестового (на время теста)
+  async function handleTheme(req, res, user) {
+    if (!user) return sendJson(res, 401, NEED_LOGIN);
+    const { theme } = await readJson(req);
+    if (!isTheme(theme)) throw new HttpError(400, 'Такой темы нет');
+    db.setTheme(user.id, theme);
+    sendJson(res, 200, { theme });
   }
 
   const API = {
     '/api/login': { POST: (req, res) => handleLogin(req, res) },
     '/api/logout': { POST: (req, res, ctx) => handleLogout(req, res, ctx.token) },
     '/api/me': { GET: (req, res, ctx) => handleMe(res, ctx.user) },
+    '/api/account/theme': { PUT: (req, res, ctx) => handleTheme(req, res, ctx.user) },
   };
 
   async function handleApi(req, res, pathname, ctx) {
@@ -325,18 +338,27 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
   const notFound = (res) => sendText(res, 404, 'Не найдено');
   const toLogin = (res, path) => redirect(res, `/login?next=${encodeURIComponent(path)}`);
 
-  async function sendFile(res, baseDir, segments, trailingSlash, path) {
+  const isHtml = (type) => type.startsWith('text/html');
+
+  // HTML человеку с сессией — с его темой в <html data-theme> (themes.js); остальное как есть.
+  // Без входа (вход, приглашение, «ссылка не действует») — тема по умолчанию из CSS.
+  function sendThemed(res, status, type, body, user) {
+    if (!user || !isHtml(type)) return send(res, status, type, body);
+    return send(res, status, type, withTheme(Buffer.isBuffer(body) ? body.toString('utf8') : body, user.theme));
+  }
+
+  async function sendFile(res, baseDir, segments, trailingSlash, path, user = null) {
     const found = await files.serve(baseDir, segments, trailingSlash);
     if (!found) return notFound(res);
     if (found.redirectSlash) return redirect(res, `${path}/`);
-    return send(res, 200, found.type, found.body);
+    return sendThemed(res, 200, found.type, found.body, user);
   }
 
   // Страница «ссылка не действует» из portal/web с кодом 410
-  async function sendGone(res, page) {
+  async function sendGone(res, page, user = null) {
     const gone = await files.serve(webDir, [page]);
     if (!gone || gone.redirectSlash) return notFound(res);
-    return send(res, 410, gone.type, gone.body);
+    return sendThemed(res, 410, gone.type, gone.body, user);
   }
 
   async function sendConcat(res, type, ...parts) {
@@ -370,26 +392,26 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     const plain = !trailingSlash || segments.length === 0; // страницы с точным адресом
 
     // Открытое всем
-    if (plain && bare === '/login') return sendFile(res, webDir, ['login.html'], false, path);
+    if (plain && bare === '/login') return sendFile(res, webDir, ['login.html'], false, path, user);
     // Тестовая ссылка: многоразовый вход без пароля до срока; недействующая — 410 с объяснением
     if (first === 'guest') {
       if (segments.length !== 2 || trailingSlash) return notFound(res);
       // HEAD шлют программы предпросмотра и предзагрузки ссылок — им только «жива ли», без сессии
       if (req.method === 'HEAD') {
-        return auth.isGuestLinkLive(segments[1]) ? send(res, 200, 'text/html; charset=utf-8', '') : sendGone(res, 'guest-gone.html');
+        return auth.isGuestLinkLive(segments[1]) ? send(res, 200, 'text/html; charset=utf-8', '') : sendGone(res, 'guest-gone.html', user);
       }
       const session = auth.openGuestLink(segments[1]);
       if (session) {
         res.setHeader('Set-Cookie', sessionCookie(session, cookieOptions));
         return redirect(res, '/');
       }
-      return sendGone(res, 'guest-gone.html');
+      return sendGone(res, 'guest-gone.html', user);
     }
     if (first === 'invite' || first === 'reset') {
       if (segments.length !== 2 || trailingSlash) return notFound(res);
       // Одна страница на оба вида ссылок; режим она берёт из адреса. Недействующая ссылка — 410 с объяснением
-      if (auth.isLinkLive(first, segments[1])) return sendFile(res, webDir, ['invite.html'], false, path);
-      return sendGone(res, 'link-gone.html');
+      if (auth.isLinkLive(first, segments[1])) return sendFile(res, webDir, ['invite.html'], false, path, user);
+      return sendGone(res, 'link-gone.html', user);
     }
     // Общие стили, скрипты, картинки и шрифты портала. HTML-страниц отсюда не отдаём:
     // они открываются только по своим адресам (/, /journal, /admin/users …) и после входа
@@ -402,12 +424,12 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
     // Страницы портала
     if (plain && PORTAL_PAGES[bare]) {
       if (!user) return redirect(res, bare === '/' || bare === '/index.html' ? '/login' : `/login?next=${encodeURIComponent(bare)}`);
-      return sendFile(res, webDir, [PORTAL_PAGES[bare]], false, path);
+      return sendFile(res, webDir, [PORTAL_PAGES[bare]], false, path, user);
     }
     if (plain && ADMIN_PAGES[bare]) {
       if (!user) return toLogin(res, bare);
-      if (!user.isAdmin) return send(res, 403, 'text/html; charset=utf-8', noAccessPage(null));
-      return sendFile(res, webDir, [ADMIN_PAGES[bare]], false, path);
+      if (!user.isAdmin) return sendThemed(res, 403, 'text/html; charset=utf-8', noAccessPage(null), user);
+      return sendFile(res, webDir, [ADMIN_PAGES[bare]], false, path, user);
     }
     if (first === 'help') {
       if (!user) return toLogin(res, path);
@@ -419,7 +441,7 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
         if (!fragment || fragment.redirectSlash) return notFound(res);
         const allowed = allowedKeys(user, db.getTools(user.id), catalog).has(key);
         if (!allowed && !seesLocked(user)) return notFound(res); // о закрытом инструменте не рассказываем
-        return send(res, 200, 'text/html; charset=utf-8', helpPage(catalog, key, fragment.body.toString('utf8'), allowed));
+        return sendThemed(res, 200, 'text/html; charset=utf-8', helpPage(catalog, key, fragment.body.toString('utf8'), allowed), user);
       }
       // /help/samples/<файл> — пример файла, только прямо из portal/help/samples (без подкаталогов)
       if (segments.length === 3 && segments[1] === 'samples') {
@@ -457,9 +479,9 @@ export function createApp({ db, siteRoot, publicOrigin, mailer = null, now = Dat
       if (!allowed.has(kind.key) && !(isAsset(segments, trailingSlash) && dependsOnAllowed(kind.key, allowed))) {
         if (!seesLocked(user)) return notFound(res); // как будто такого инструмента нет
         const tool = catalog.tools.find((t) => t.key === kind.key);
-        return send(res, 403, 'text/html; charset=utf-8', noAccessPage(tool));
+        return sendThemed(res, 403, 'text/html; charset=utf-8', noAccessPage(tool), user);
       }
-      return sendFile(res, siteRoot, segments, trailingSlash, path);
+      return sendFile(res, siteRoot, segments, trailingSlash, path, user);
     }
     return notFound(res);
   }
