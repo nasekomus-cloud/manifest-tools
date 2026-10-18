@@ -24,51 +24,85 @@ export function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
-/** Страница «Нет доступа». Если дан инструмент — с кнопкой «Запросить доступ». */
+/**
+ * Страница «Нет доступа» (403). Её видит только вошедший человек, поэтому она собрана
+ * на том же каркасе, что и страницы инструментов (tools.js → assets/shell.js с
+ * добавкой портала): та же полоса сверху и меню «Инструменты».
+ * Дан инструмент — «Инструмент «…» вам пока не выдан» и кнопка «Запросить доступ»
+ * (POST /api/requests); без инструмента (страницы администратора) — без кнопки.
+ * Слова «страница» в тексте нет намеренно: тест проверяет, что содержимое
+ * закрытой страницы администратора сюда не попало.
+ */
 function noAccessPage(tool) {
   const request = tool
-    ? `<p>У вас пока нет доступа к инструменту «${escapeHtml(tool.title)}».</p>
-  <button type="button" id="request-access" data-tool="${escapeHtml(tool.key)}">Запросить доступ</button>
-  <p id="request-status" role="status"></p>`
-    : '<p>У вас нет доступа к этой странице.</p>';
+    ? `<p class="no-access__text">Инструмент «${escapeHtml(tool.title)}» вам пока не выдан.</p>
+    <div class="portal-actions">
+      <button class="btn btn--warn" type="button" id="request-access" data-tool="${escapeHtml(tool.key)}">Запросить доступ</button>
+      <a class="btn btn--secondary" href="/">На главную</a>
+    </div>
+    <p class="portal-msg" id="request-status" role="status" hidden></p>`
+    : `<p class="no-access__text">Этот раздел — только для администратора.</p>
+    <div class="portal-actions">
+      <a class="btn btn--secondary" href="/">На главную</a>
+    </div>`;
   const script = tool
     ? `<script>
 (function () {
   var button = document.getElementById('request-access');
   var status = document.getElementById('request-status');
+  function show(text, ok) {
+    status.textContent = text;
+    status.className = 'portal-msg ' + (ok ? 'portal-msg--ok' : 'portal-msg--error');
+    status.hidden = false;
+  }
   button.addEventListener('click', function () {
     button.disabled = true;
+    status.hidden = true;
     fetch('/api/requests', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ tool: button.getAttribute('data-tool') }),
     }).then(function (r) {
-      if (!r.ok) throw new Error(String(r.status));
-      status.textContent = 'Запрос отправлен. Администратор увидит его и откроет доступ.';
-    }).catch(function () {
+      return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, status: r.status, data: data }; });
+    }, function () {
+      throw new Error('Нет связи с сервером. Попробуйте ещё раз.');
+    }).then(function (r) {
+      if (r.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return; }
+      if (!r.ok) throw new Error(r.data.error || 'Не удалось отправить запрос. Попробуйте ещё раз.');
+      if (r.data.already) { window.location.reload(); return; } // доступ уже выдали
+      button.textContent = 'Запрос отправлен';
+      show('Администратор увидит запрос и откроет доступ.', true);
+    }).catch(function (err) {
       button.disabled = false;
-      status.textContent = 'Не удалось отправить запрос. Попробуйте ещё раз.';
+      show(err.message, false);
     });
   });
 })();
-</script>`
+</script>
+`
     : '';
   return `<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Нет доступа</title>
-<link rel="stylesheet" href="/portal/theme.css">
+<title>Нет доступа — Лоция</title>
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/portal/portal.css">
 </head>
-<body>
-<main>
-  <h1>Нет доступа</h1>
-  ${request}
-  <p><a href="/">На главную</a></p>
+<body class="app portal-page">
+<aside class="app__side" id="app-side"></aside>
+<main class="app__main">
+  <section class="no-access">
+    <h1 class="page__title">Нет доступа</h1>
+    ${request}
+  </section>
 </main>
-${script}
-</body>
+<script src="/tools.js"></script>
+<script src="/assets/shell.js"></script>
+${script}</body>
 </html>
 `;
 }

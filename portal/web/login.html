@@ -3,51 +3,115 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Вход</title>
+<title>Вход — Лоция</title>
+<!-- Без входа /assets/style.css не отдаётся (401): палитра — /portal/theme.css, своё — /portal/portal.css -->
+<link rel="stylesheet" href="/assets/fonts.css">
 <link rel="stylesheet" href="/portal/theme.css">
+<link rel="stylesheet" href="/portal/portal.css">
 </head>
-<body>
-<main>
-  <h1>Вход</h1>
-  <form id="login-form">
-    <label>Почта <input type="email" id="email" autocomplete="username" required></label>
-    <label>Пароль <input type="password" id="password" autocomplete="current-password" required></label>
-    <button type="submit">Войти</button>
-    <p id="login-error" role="alert" hidden></p>
-  </form>
+<body class="portal-public">
+<main class="auth">
+  <p class="auth__brand">Лоция<span class="portal-dot">.</span></p>
+  <section class="auth__card">
+    <h1>Вход</h1>
+    <p class="auth__lead">Инструменты для судовых манифестов</p>
+    <form class="auth__form" id="login-form" novalidate>
+      <label class="field">Почта
+        <input type="email" id="email" autocomplete="username" required>
+      </label>
+      <label class="field">Пароль
+        <input type="password" id="password" autocomplete="current-password" required>
+      </label>
+      <p class="portal-msg portal-msg--error" id="login-error" role="alert" hidden></p>
+      <div>
+        <button class="btn" type="submit" id="login-submit">Войти</button>
+      </div>
+    </form>
+
+    <div class="auth__more">
+      <button class="auth__link" type="button" id="forgot-open" aria-expanded="false" aria-controls="forgot-form">Забыли пароль?</button>
+      <form class="auth__form" id="forgot-form" novalidate hidden>
+        <p class="auth__hint">Укажите почту — пришлём новую ссылку для входа или передадим запрос администратору.</p>
+        <label class="field">Почта
+          <input type="email" id="forgot-email" autocomplete="username" required>
+        </label>
+        <div>
+          <button class="btn btn--secondary" type="submit" id="forgot-submit">Отправить</button>
+        </div>
+        <p class="portal-msg" id="forgot-msg" role="status" hidden></p>
+      </form>
+    </div>
+  </section>
+  <p class="auth__safe">Файлы обрабатываются на вашем компьютере и никуда не отправляются</p>
 </main>
 <script src="/portal/safe-next.js"></script>
-<script>
-// Оформление страницы — в задаче 8; здесь только рабочая форма.
-(function () {
-  // next — только путь внутри сайта (см. safe-next.js)
-  function nextUrl() {
-    return window.safeNext(new URLSearchParams(location.search).get('next'), location.origin);
+<script type="module">
+import { api, showMessage } from '/portal/portal.js';
+
+// next — только путь внутри сайта (см. safe-next.js), иначе на главную
+function nextUrl() {
+  return window.safeNext(new URLSearchParams(location.search).get('next'), location.origin);
+}
+
+const form = document.getElementById('login-form');
+const error = document.getElementById('login-error');
+const submit = document.getElementById('login-submit');
+const email = document.getElementById('email');
+const password = document.getElementById('password');
+
+// Уже вошли (вкладка со старой страницей входа) — сразу дальше
+api('/api/me', { loginOn401: false }).then(() => location.replace(nextUrl())).catch(() => {});
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!email.value.trim() || !password.value) {
+    showMessage(error, 'Введите почту и пароль');
+    return;
   }
-  var form = document.getElementById('login-form');
-  var error = document.getElementById('login-error');
-  form.addEventListener('submit', function (event) {
-    event.preventDefault();
-    error.hidden = true;
-    fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: document.getElementById('email').value,
-        password: document.getElementById('password').value,
-      }),
-    }).then(function (r) {
-      return r.json().then(function (data) { return { ok: r.ok, data: data }; });
-    }).then(function (r) {
-      if (r.ok) { location.href = nextUrl(); return; }
-      error.textContent = r.data.error || 'Не удалось войти';
-      error.hidden = false;
-    }).catch(function () {
-      error.textContent = 'Нет связи с сервером';
-      error.hidden = false;
-    });
-  });
-})();
+  showMessage(error, '');
+  submit.disabled = true;
+  try {
+    await api('/api/login', { method: 'POST', body: { email: email.value, password: password.value }, loginOn401: false });
+    location.href = nextUrl();
+  } catch (err) {
+    submit.disabled = false;
+    showMessage(error, err.message);
+  }
+});
+
+const forgotOpen = document.getElementById('forgot-open');
+const forgotForm = document.getElementById('forgot-form');
+const forgotEmail = document.getElementById('forgot-email');
+const forgotSubmit = document.getElementById('forgot-submit');
+const forgotMsg = document.getElementById('forgot-msg');
+
+forgotOpen.addEventListener('click', () => {
+  const open = forgotForm.hidden;
+  forgotForm.hidden = !open;
+  forgotOpen.setAttribute('aria-expanded', String(open));
+  if (open) {
+    if (!forgotEmail.value) forgotEmail.value = email.value.trim();
+    forgotEmail.focus();
+  }
+});
+
+forgotForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!forgotEmail.value.trim()) {
+    showMessage(forgotMsg, 'Введите почту');
+    return;
+  }
+  showMessage(forgotMsg, '');
+  forgotSubmit.disabled = true;
+  try {
+    const data = await api('/api/forgot', { method: 'POST', body: { email: forgotEmail.value }, loginOn401: false });
+    showMessage(forgotMsg, data && data.message, 'ok');
+  } catch (err) {
+    showMessage(forgotMsg, err.message);
+  } finally {
+    forgotSubmit.disabled = false;
+  }
+});
 </script>
 </body>
 </html>

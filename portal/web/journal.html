@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Журнал — Лоция</title>
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/portal/portal.css">
+</head>
+<body class="app portal-page">
+<aside class="app__side" id="app-side"></aside>
+<main class="app__main">
+  <h1 class="page__title">Журнал</h1>
+  <p class="portal-lead" id="journal-lead">Что и когда вы сделали в инструментах. Сами файлы на сервер не отправляются — здесь только их имена и итог.</p>
+
+  <div class="portal-filters" id="journal-filters" hidden>
+    <label class="field">Человек
+      <select id="filter-user"><option value="">Все люди</option></select>
+    </label>
+    <label class="field">Инструмент
+      <select id="filter-tool"><option value="">Все инструменты</option></select>
+    </label>
+  </div>
+
+  <p class="error-message" id="journal-error" role="alert" hidden></p>
+  <p class="portal-muted" id="journal-empty" hidden>Записей пока нет.</p>
+
+  <div class="table-scroll" id="journal-wrap" hidden>
+    <table class="data-table journal-table portal-stack">
+      <thead>
+        <tr>
+          <th scope="col">Когда</th>
+          <th scope="col" data-admin hidden>Кто</th>
+          <th scope="col">Инструмент</th>
+          <th scope="col">Файлы</th>
+          <th scope="col">Итог</th>
+        </tr>
+      </thead>
+      <tbody id="journal-rows"></tbody>
+    </table>
+  </div>
+  <p class="portal-muted" id="journal-more" hidden></p>
+</main>
+<script src="/tools.js"></script>
+<script src="/assets/shell.js"></script>
+<script type="module" src="/portal/journal.js"></script>
+</body>
+</html>

@@ -1,0 +1,864 @@
+/* Страницы самого портала: главная, журнал, профиль, люди, запросы, вход, приглашение.
+ *
+ * Закрытые страницы (body.app.portal-page) собраны на каркасе инструментов и
+ * подключают /assets/style.css — старая «Лоция» + «Глубина» (theme.css): токены
+ * цветов (--surface, --line, --ink, --muted, --accent, --warn, --pill…) и
+ * .btn/.field/.data-table уже есть, здесь только своё.
+ *
+ * Открытые страницы (body.portal-public: вход, приглашение/сброс, «ссылка не
+ * действует») без входа /assets/style.css не получают (там 401), поэтому
+ * подключают /assets/fonts.css + /portal/theme.css (та же палитра) + этот файл;
+ * геометрию кнопок и полей для них даёт раздел «Открытые страницы» ниже.
+ *
+ * Как и theme.css, всё — внутри @media screen: на печати остаётся старая светлая
+ * «Лоция». Макет главной — .superpowers/brainstorm/41798-1792325312/content/
+ * g-export-import.html, вариант G1. */
+
+.portal-public [hidden] {
+  display: none !important;
+}
+
+@media screen {
+  /* ───────────── Общее для закрытых страниц ───────────── */
+
+  /* Крошки каркаса («Экспорт») на страницах портала ничего не значат */
+  .portal-page .crumbs {
+    display: none;
+  }
+
+  .portal-page .app__main {
+    width: 100%;
+    max-width: 1080px;
+  }
+
+  .portal-lead {
+    margin: 0 0 24px;
+    font-size: 18px;
+    color: var(--muted);
+  }
+
+  .portal-subnav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 20px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .portal-subnav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 0 16px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .portal-subnav a:hover {
+    border-color: var(--accent);
+  }
+
+  .portal-subnav a[aria-current="page"] {
+    background: rgba(127, 227, 240, 0.16);
+    border-color: var(--accent);
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  .portal-count {
+    display: inline-block;
+    min-width: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: var(--warn);
+    color: var(--pill-ink);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 22px;
+    text-align: center;
+  }
+
+  .portal-panel {
+    margin: 0 0 20px;
+    padding: 20px 22px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .portal-panel > :first-child {
+    margin-top: 0;
+  }
+
+  .portal-panel > :last-child {
+    margin-bottom: 0;
+  }
+
+  .portal-muted {
+    color: var(--muted);
+  }
+
+  .portal-msg {
+    margin: 12px 0 0;
+    font-size: 16px;
+  }
+
+  .portal-msg--error {
+    color: var(--error);
+  }
+
+  .portal-msg--ok {
+    color: var(--accent);
+  }
+
+  .portal-form {
+    display: grid;
+    gap: 16px;
+    max-width: 440px;
+  }
+
+  .portal-form .field input {
+    width: 100%;
+  }
+
+  .portal-form > .portal-muted {
+    margin: -8px 0 0;
+    font-size: 15px;
+  }
+
+  .portal-form > .portal-msg {
+    margin: 0;
+  }
+
+  .portal-form__actions,
+  .portal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .account-info {
+    margin: 0;
+  }
+
+  .account-info .field {
+    gap: 2px;
+  }
+
+  .account-info dd {
+    margin: 0;
+    color: #ffffff;
+    font-size: 18px;
+    overflow-wrap: anywhere;
+  }
+
+  .btn--small {
+    min-height: 38px;
+    padding: 0 16px;
+    font-size: 15px;
+  }
+
+  /* Жёлтая контурная — «Запросить доступ» */
+  .btn.btn--warn {
+    background: transparent;
+    border-color: var(--warn);
+    color: var(--warn);
+  }
+
+  .btn.btn--warn:hover:not(:disabled) {
+    background: var(--warn-bg);
+    border-color: var(--warn);
+    color: #ffe2b0;
+  }
+
+  .btn.btn--warn:disabled {
+    background: transparent;
+    border-color: rgba(255, 210, 138, 0.35);
+    color: rgba(255, 210, 138, 0.75);
+    cursor: default;
+  }
+
+  /* ───────────── Главная ───────────── */
+
+  .home-switch {
+    display: inline-flex;
+    flex-wrap: wrap;
+    margin: 0 0 18px;
+    padding: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+
+  .home-switch__tab {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    min-height: 42px;
+    padding: 9px 22px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .home-switch__tab:hover {
+    color: #ffffff;
+  }
+
+  .home-switch__tab[aria-selected="true"] {
+    background: var(--pill);
+    color: var(--pill-ink);
+  }
+
+  .home-switch__tab[aria-selected="true"]:focus-visible {
+    outline-color: #ffffff;
+  }
+
+  .home-switch__count {
+    font-size: 15px;
+    font-weight: 500;
+    opacity: 0.8;
+  }
+
+  .home-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .home-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 18px 20px;
+    background: var(--surface);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: var(--radius);
+  }
+
+  .home-card__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .home-card__num {
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .home-card__fmt {
+    padding: 0 7px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 5px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .home-card__title {
+    margin: 2px 0 0;
+    color: #ffffff;
+    font-size: 19px;
+    font-weight: 650;
+    line-height: 1.3;
+  }
+
+  .home-card__desc {
+    flex: 1;
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  .home-card__action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+  }
+
+  .home-card.is-locked {
+    background: transparent;
+    border-style: dashed;
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+
+  .home-card.is-locked .home-card__title {
+    color: #c9d8e2;
+  }
+
+  .home-card__status {
+    margin: 0;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  .home-empty {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .home-log {
+    margin-top: 32px;
+  }
+
+  .home-log__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 16px;
+    margin: 0 0 8px;
+  }
+
+  .home-log__head h2 {
+    margin: 0;
+    font-size: 19px;
+  }
+
+  .home-log__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: #c4d6e1;
+    font-size: 16px;
+  }
+
+  .home-log__list li {
+    position: relative;
+    padding: 3px 0 3px 18px;
+  }
+
+  .home-log__list li::before {
+    content: "●";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-size: 11px;
+    line-height: 26px;
+  }
+
+  /* ───────────── Журнал ───────────── */
+
+  .portal-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    margin: 0 0 18px;
+  }
+
+  .portal-filters .field {
+    min-width: 220px;
+  }
+
+  .field select {
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 10px;
+    background-color: #0e2b42;
+    color: var(--ink);
+    font: inherit;
+    font-size: 17px;
+  }
+
+  .journal-table td {
+    font-size: 16px;
+  }
+
+  .journal-table__when {
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 14px !important;
+  }
+
+  .journal-table__files {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    color: var(--muted);
+  }
+
+  .journal-kind {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 0 6px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 5px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* ───────────── Ссылка входа ───────────── */
+
+  .link-block {
+    margin: 16px 0 0;
+    padding: 14px 16px;
+    background: rgba(127, 227, 240, 0.08);
+    border: 1px solid rgba(127, 227, 240, 0.4);
+    border-radius: var(--radius);
+  }
+
+  .link-block__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .link-block__url {
+    flex: 1 1 260px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 14px;
+  }
+
+  .link-block__hint {
+    margin: 10px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  /* ───────────── Галочки инструментов ───────────── */
+
+  .tool-checks {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 24px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .tool-checks__group {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+
+  .tool-checks__group legend {
+    margin: 0 0 6px;
+    padding: 0;
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  .tool-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    color: var(--ink);
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .tool-check input {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin: 3px 0 0;
+    accent-color: #4fb6e8;
+  }
+
+  .tool-check__num {
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  /* ───────────── Люди ───────────── */
+
+  .invite-panel {
+    margin-top: 16px;
+  }
+
+  .portal-form--wide {
+    max-width: none;
+  }
+
+  .invite-fields {
+    margin: 0;
+  }
+
+  .invite-again {
+    margin-top: 16px;
+  }
+
+  .users-wrap {
+    margin-top: 20px;
+  }
+
+  .users-table .users-table__name {
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  .users-table__email {
+    white-space: nowrap;
+  }
+
+  .users-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 0 7px;
+    border: 1px solid rgba(127, 227, 240, 0.45);
+    border-radius: 999px;
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .users-state--invited {
+    color: var(--warn);
+  }
+
+  .users-state--disabled {
+    color: var(--muted);
+  }
+
+  .users-table tr.is-disabled td,
+  .users-table tr.is-disabled .users-table__name {
+    color: var(--muted);
+  }
+
+  .users-table td.users-table__panel {
+    padding: 4px 12px 18px;
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .users-table tr.has-panel td {
+    border-bottom-color: transparent;
+  }
+
+  .users-table .portal-actions {
+    margin-top: 8px;
+  }
+
+  /* ───────────── Запросы ───────────── */
+
+  .request-list {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .request-item {
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .request-item__text {
+    margin: 0;
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .request-item__meta {
+    margin: 2px 0 12px;
+    color: var(--muted);
+    font-size: 15px;
+    overflow-wrap: anywhere;
+  }
+
+  .request-item.is-done {
+    background: transparent;
+    border-style: dashed;
+  }
+
+  /* ───────────── «Нет доступа» ───────────── */
+
+  .no-access {
+    max-width: 640px;
+    padding: 28px 28px 24px;
+    background: transparent;
+    border: 1px dashed rgba(255, 255, 255, 0.28);
+    border-radius: var(--radius);
+  }
+
+  .no-access h1 {
+    margin: 0 0 8px;
+  }
+
+  .no-access__text {
+    margin: 0 0 20px;
+    font-size: 18px;
+    color: #c9d8e2;
+  }
+
+  /* ───────────── Открытые страницы: вход, приглашение, сброс ───────────── */
+
+  .portal-public {
+    --font-ui: "Onest", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: 17px;
+    line-height: 1.5;
+  }
+
+  .portal-public *,
+  .portal-public *::before,
+  .portal-public *::after {
+    box-sizing: border-box;
+  }
+
+  .portal-public :focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .auth {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 48px 16px 32px;
+  }
+
+  .auth__brand {
+    margin: 0 0 28px;
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+  }
+
+  .auth__card {
+    width: 100%;
+    max-width: 420px;
+    padding: 28px 28px 24px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .auth__card h1 {
+    margin: 0 0 6px;
+    color: #ffffff;
+    font-size: 26px;
+    line-height: 1.2;
+  }
+
+  .auth__lead {
+    margin: 0 0 20px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+
+  .auth__form {
+    display: grid;
+    gap: 14px;
+  }
+
+  .auth__form + .auth__form,
+  .auth__more {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .auth__more .auth__form {
+    margin-top: 14px;
+  }
+
+  .auth__safe {
+    max-width: 420px;
+    margin: 20px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+    text-align: center;
+  }
+
+  .portal-public .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 16px;
+  }
+
+  .portal-public .field input {
+    width: 100%;
+    min-height: 46px;
+    padding: 8px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--ink);
+    font: inherit;
+    font-size: 17px;
+  }
+
+  .portal-public .field input:focus-visible {
+    outline-offset: 1px;
+  }
+
+  .portal-public .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 0 24px;
+    font-family: inherit;
+    font-size: 17px;
+    line-height: 1.2;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .portal-public .btn:disabled {
+    cursor: not-allowed;
+  }
+
+  .auth__link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-size: 16px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .auth__link:hover {
+    color: #ffffff;
+  }
+
+  .auth__hint {
+    margin: -6px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  /* ───────────── Узкий экран ───────────── */
+
+  @media (max-width: 699.98px) {
+    .home-grid,
+    .tool-checks {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .home-switch {
+      display: flex;
+    }
+
+    .home-switch__tab {
+      flex: 1 1 0;
+      justify-content: center;
+      padding: 9px 12px;
+    }
+
+    .home-card {
+      padding: 16px;
+    }
+
+    .portal-panel {
+      padding: 16px;
+    }
+
+    .portal-filters .field {
+      flex: 1 1 100%;
+      min-width: 0;
+    }
+
+    /* Таблицы людей и журнала — карточками: строка = блок, подпись колонки — перед значением */
+    .portal-stack thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+    }
+
+    .portal-stack,
+    .portal-stack tbody,
+    .portal-stack tr,
+    .portal-stack td {
+      display: block;
+      width: 100%;
+    }
+
+    .portal-stack tr {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .portal-stack tr:last-child {
+      border-bottom: 0;
+    }
+
+    .portal-stack td,
+    .portal-stack tr.has-panel td {
+      padding: 3px 14px;
+      border-bottom: 0;
+    }
+
+    .portal-stack td[data-label]::before {
+      content: attr(data-label) ": ";
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .portal-stack .journal-table__when,
+    .portal-stack .users-table__email {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .users-table tr.has-panel {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .users-table td.users-table__panel {
+      padding: 4px 14px 16px;
+    }
+
+    .auth {
+      padding-top: 28px;
+    }
+
+    .auth__card {
+      padding: 22px 18px 20px;
+    }
+  }
+}

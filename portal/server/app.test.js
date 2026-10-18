@@ -94,6 +94,12 @@ test('право есть — файл; права нет — 403 «Нет до�
   assert.ok(html.includes('Запросить доступ'));
   const title = s.catalog.tools.find((t) => t.key === 'dg-check').title;
   assert.ok(html.includes(title), 'название инструмента');
+  assert.ok(html.includes(`Инструмент «${title}» вам пока не выдан`));
+  assert.ok(html.includes('data-tool="dg-check"'));
+  assert.ok(html.includes('href="/">На главную'));
+  // тот же каркас, что у инструментов: полоса сверху и меню рисует shell.js
+  assert.ok(html.includes('<aside class="app__side" id="app-side"></aside>'));
+  assert.ok(html.indexOf('src="/tools.js"') < html.indexOf('src="/assets/shell.js"'));
 });
 
 test('каталог инструмента: каталог без слэша и без файла, query, JS и вложенные страницы', async () => {

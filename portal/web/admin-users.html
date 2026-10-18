@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пользователи — Лоция</title>
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/portal/portal.css">
+</head>
+<body class="app portal-page">
+<aside class="app__side" id="app-side"></aside>
+<main class="app__main">
+  <h1 class="page__title">Пользователи</h1>
+  <ul class="portal-subnav" aria-label="Администрирование">
+    <li><a href="/admin/users" aria-current="page">Пользователи</a></li>
+    <li><a href="/admin/requests" id="subnav-requests">Запросы</a></li>
+    <li><a href="/journal">Журнал всех</a></li>
+  </ul>
+
+  <div class="portal-actions">
+    <button class="btn" type="button" id="invite-open" aria-expanded="false" aria-controls="invite-panel">Пригласить</button>
+  </div>
+
+  <section class="portal-panel invite-panel" id="invite-panel" hidden>
+    <h2>Пригласить</h2>
+    <form class="portal-form portal-form--wide" id="invite-form" novalidate>
+      <div class="field-grid invite-fields">
+        <label class="field">Почта
+          <input type="email" id="invite-email" autocomplete="off" required>
+        </label>
+        <label class="field">Имя
+          <input type="text" id="invite-name" autocomplete="off" required>
+        </label>
+      </div>
+      <div id="invite-tools"></div>
+      <div class="portal-form__actions">
+        <button class="btn" type="submit" id="invite-submit">Отправить приглашение</button>
+        <button class="btn btn--secondary" type="button" id="invite-cancel">Отмена</button>
+      </div>
+      <p class="portal-msg" id="invite-msg" role="alert" hidden></p>
+    </form>
+    <div id="invite-result" hidden>
+      <p id="invite-done"></p>
+      <div id="invite-link"></div>
+      <div class="portal-actions invite-again">
+        <button class="btn btn--secondary" type="button" id="invite-again">Пригласить ещё</button>
+      </div>
+    </div>
+  </section>
+
+  <p class="error-message" id="users-error" role="alert" hidden></p>
+
+  <div class="table-scroll users-wrap">
+    <table class="data-table users-table portal-stack">
+      <thead>
+        <tr>
+          <th scope="col">Имя</th>
+          <th scope="col">Почта</th>
+          <th scope="col">Состояние</th>
+          <th scope="col">Последний вход</th>
+          <th scope="col"><span class="visually-hidden">Действия</span></th>
+        </tr>
+      </thead>
+      <tbody id="users-rows"></tbody>
+    </table>
+  </div>
+</main>
+<script src="/tools.js"></script>
+<script src="/assets/shell.js"></script>
+<script type="module" src="/portal/admin-users.js"></script>
+</body>
+</html>

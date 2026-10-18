@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мой профиль — Лоция</title>
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/portal/portal.css">
+</head>
+<body class="app portal-page">
+<aside class="app__side" id="app-side"></aside>
+<main class="app__main">
+  <h1 class="page__title">Мой профиль</h1>
+
+  <section class="portal-panel">
+    <dl class="portal-form account-info" id="account-info">
+      <div class="field"><dt>Имя</dt><dd id="account-name">—</dd></div>
+      <div class="field"><dt>Почта</dt><dd id="account-email">—</dd></div>
+    </dl>
+  </section>
+
+  <section class="portal-panel">
+    <h2>Сменить пароль</h2>
+    <form class="portal-form" id="password-form" novalidate>
+      <label class="field">Текущий пароль
+        <input type="password" id="current" autocomplete="current-password" required>
+      </label>
+      <label class="field">Новый пароль
+        <input type="password" id="password" autocomplete="new-password" minlength="8" required>
+      </label>
+      <label class="field">Ещё раз
+        <input type="password" id="password2" autocomplete="new-password" minlength="8" required>
+      </label>
+      <p class="portal-muted">Не короче 8 символов.</p>
+      <div class="portal-form__actions">
+        <button class="btn" type="submit" id="password-submit">Сменить пароль</button>
+      </div>
+      <p class="portal-msg" id="password-msg" role="status" hidden></p>
+    </form>
+  </section>
+</main>
+<script src="/tools.js"></script>
+<script src="/assets/shell.js"></script>
+<script type="module">
+// Мой профиль: имя и почта (из /api/me) и смена пароля (POST /api/password).
+import { api, showMessage } from '/portal/portal.js';
+
+const msg = document.getElementById('password-msg');
+const form = document.getElementById('password-form');
+const submit = document.getElementById('password-submit');
+
+api('/api/me').then((me) => {
+  document.getElementById('account-name').textContent = me.user.name || '—';
+  document.getElementById('account-email').textContent = me.user.email || '—';
+}).catch((err) => showMessage(msg, err.message));
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const current = document.getElementById('current');
+  const password = document.getElementById('password');
+  const password2 = document.getElementById('password2');
+  if (!current.value) return showMessage(msg, 'Введите текущий пароль');
+  if (password.value.length < 8) return showMessage(msg, 'Пароль — не короче 8 символов');
+  if (password.value !== password2.value) return showMessage(msg, 'Пароли не совпадают');
+  showMessage(msg, '');
+  submit.disabled = true;
+  try {
+    // 400 «Текущий пароль указан неверно» — ответ по существу, а не потеря сессии
+    await api('/api/password', { method: 'POST', body: { current: current.value, password: password.value } });
+    form.reset();
+    showMessage(msg, 'Пароль изменён. На других устройствах нужно будет войти заново.', 'ok');
+  } catch (err) {
+    showMessage(msg, err.message);
+  } finally {
+    submit.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

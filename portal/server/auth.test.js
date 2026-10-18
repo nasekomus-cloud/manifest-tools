@@ -65,6 +65,8 @@ test('приглашение действует 7 дней и одноразов
     assert.match(cookie, /^lt_session=/);
     assert.match(cookie, /HttpOnly/);
     assert.equal(s.db.getUserByEmail('ivan@x.ru').status, 'active');
+    // вход по ссылке — тоже вход: в «Пользователях» не «ещё не входил»
+    assert.equal(s.db.getUserByEmail('ivan@x.ru').lastLoginAt, clock.t);
     // сессия рабочая
     assert.equal((await s.fetch('/api/me', { headers: { Cookie: cookie.split(';')[0] } })).status, 200);
     // и с этим паролем можно войти заново

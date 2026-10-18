@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Запросы — Лоция</title>
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/portal/portal.css">
+</head>
+<body class="app portal-page">
+<aside class="app__side" id="app-side"></aside>
+<main class="app__main">
+  <h1 class="page__title">Запросы</h1>
+  <ul class="portal-subnav" aria-label="Администрирование">
+    <li><a href="/admin/users">Пользователи</a></li>
+    <li><a href="/admin/requests" id="subnav-requests" aria-current="page">Запросы</a></li>
+    <li><a href="/journal">Журнал всех</a></li>
+  </ul>
+
+  <p class="error-message" id="requests-error" role="alert" hidden></p>
+  <p class="portal-muted" id="requests-empty" hidden>Открытых запросов нет.</p>
+  <ul class="request-list" id="requests-list"></ul>
+</main>
+<script src="/tools.js"></script>
+<script src="/assets/shell.js"></script>
+<script type="module" src="/portal/admin-requests.js"></script>
+</body>
+</html>

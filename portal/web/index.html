@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Лоция — инструменты для манифестов</title>
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/portal/portal.css">
+</head>
+<body class="app portal-page">
+<aside class="app__side" id="app-side"></aside>
+<main class="app__main">
+  <h1 class="page__title" id="greeting">Добрый день</h1>
+  <p class="portal-lead">Файлы обрабатываются на вашем компьютере и никуда не отправляются</p>
+
+  <div class="home-switch" id="home-switch" role="tablist" aria-label="Вкладки инструментов"></div>
+
+  <!-- Какой блок виден, решает переключатель вкладок каркаса (assets/shell.js) по data-tab-panel;
+       переключатель-пилюля выше нажимает те же вкладки каркаса, поэтому они не спорят -->
+  <section data-tab-panel="export" id="home-panel-export" role="tabpanel" aria-label="Экспорт">
+    <ul class="home-grid" id="home-grid-export"></ul>
+  </section>
+  <section data-tab-panel="import" id="home-panel-import" role="tabpanel" aria-label="Импорт" hidden>
+    <ul class="home-grid" id="home-grid-import"></ul>
+  </section>
+
+  <p class="error-message" id="home-error" role="alert" hidden></p>
+
+  <section class="home-log" id="home-log" hidden>
+    <div class="home-log__head">
+      <h2>Последние действия</h2>
+      <a href="/journal">Весь журнал</a>
+    </div>
+    <ul class="home-log__list" id="home-log-list"></ul>
+  </section>
+</main>
+<script src="/tools.js"></script>
+<script src="/assets/shell.js"></script>
+<script type="module" src="/portal/home.js"></script>
+</body>
+</html>

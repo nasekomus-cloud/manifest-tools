@@ -93,6 +93,9 @@ export function createAuthRoutes({ db, now, mailer, publicOrigin, cookieOptions,
     if (userId === null) return sendJson(res, 410, GONE);
     db.setPassword(userId, hash);
     db.revokeUserTokens(userId, now()); // остальные ссылки этого человека больше не нужны
+    // Вход по ссылке — тоже вход: иначе в «Пользователях» у принявшего приглашение
+    // стояло бы «ещё не входил», пока он не войдёт паролем
+    db.touchLogin(userId, now());
     return startFreshSession(res, userId);
   }
 
