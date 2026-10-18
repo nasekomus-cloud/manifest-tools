@@ -22,6 +22,14 @@
     </dl>
   </section>
 
+  <!-- Плитки тем — после /api/me (список тем отдаёт сервер); щелчок сразу применяет и сохраняет -->
+  <section class="portal-panel" id="theme-panel" hidden>
+    <h2 id="theme-title">Тема оформления</h2>
+    <p class="portal-muted">Видна только вам — на всех устройствах, где вы входите. Печать всегда светлая.</p>
+    <div class="theme-grid" id="theme-list" role="radiogroup" aria-labelledby="theme-title"></div>
+    <p class="portal-msg" id="theme-msg" role="status" hidden></p>
+  </section>
+
   <!-- Показывается после /api/me, если это не тестовый доступ -->
   <section class="portal-panel" id="password-panel" hidden>
     <h2>Сменить пароль</h2>
@@ -46,10 +54,89 @@
 <script src="/tools.js"></script>
 <script src="/assets/shell.js"></script>
 <script type="module">
-// Мой профиль: имя и почта (из /api/me) и смена пароля (POST /api/password).
-// Тестовому (вход по ссылке без пароля) — только название и срок «Доступ до …»: почта у него
-// служебная, пароля нет.
-import { api, showMessage, formatDateTime } from '/portal/portal.js';
+// Мой профиль: имя и почта (из /api/me), тема оформления (PUT /api/account/theme) и смена
+// пароля (POST /api/password). Тестовому (вход по ссылке без пароля) — название, срок
+// «Доступ до …» и тема: почта у него служебная, пароля нет.
+import {
+  api, showMessage, formatDateTime, el, applyTheme, themeKindLabel, themeStepIndex,
+} from '/portal/portal.js';
+
+// ── Тема оформления ─────────────────────────────────────────────────────────
+// Плитки — радиокнопки (role="radio"): щелчок, пробел или стрелки выбирают тему, она
+// сразу применяется к странице, а на сервер уходит последняя выбранная (несколько
+// нажатий стрелки подряд — один запрос). Не сохранилось — возвращаем прежнюю.
+const themeList = document.getElementById('theme-list');
+const themeMsg = document.getElementById('theme-msg');
+let savedTheme = null; // то, что точно лежит на сервере
+let saveTimer = null;
+
+function themeTile(theme) {
+  const tile = el('button', 'theme-tile');
+  tile.type = 'button';
+  tile.setAttribute('role', 'radio');
+  tile.dataset.id = theme.id;
+  // Образец рисуется цветами своей темы: у .tm-swatch[data-theme] своя палитра (theme.css)
+  const swatch = el('span', 'tm-swatch');
+  swatch.dataset.theme = theme.id;
+  swatch.setAttribute('aria-hidden', 'true');
+  const card = el('span', 'tm-swatch__card');
+  card.append(el('span', 'tm-swatch__line'), el('span', 'tm-swatch__line tm-swatch__line--muted'), el('span', 'tm-swatch__btn'), el('span', 'tm-swatch__dot'));
+  swatch.append(card);
+  tile.append(swatch, el('span', 'theme-tile__name', theme.name), el('span', 'theme-tile__kind', themeKindLabel(theme.kind)));
+  return tile;
+}
+
+function markTheme(id) {
+  for (const tile of themeList.querySelectorAll('.theme-tile')) {
+    const on = tile.dataset.id === id;
+    tile.setAttribute('aria-checked', on ? 'true' : 'false');
+    tile.tabIndex = on ? 0 : -1; // в группу радиокнопок Tab попадает на выбранную
+  }
+}
+
+function chooseTheme(id) {
+  markTheme(id);
+  applyTheme(id);
+  showMessage(themeMsg, '');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await api('/api/account/theme', { method: 'PUT', body: { theme: id } });
+      savedTheme = id;
+    } catch (err) {
+      if (savedTheme) {
+        markTheme(savedTheme);
+        applyTheme(savedTheme);
+      }
+      showMessage(themeMsg, `Тему не удалось сохранить: ${err.message}`);
+    }
+  }, 300);
+}
+
+function showThemes(themes, current) {
+  savedTheme = current;
+  themeList.replaceChildren(...themes.map(themeTile));
+  markTheme(current);
+  document.getElementById('theme-panel').hidden = false;
+}
+
+themeList.addEventListener('click', (event) => {
+  const tile = event.target.closest('.theme-tile');
+  if (tile && tile.getAttribute('aria-checked') !== 'true') chooseTheme(tile.dataset.id);
+});
+
+themeList.addEventListener('keydown', (event) => {
+  const tiles = [...themeList.querySelectorAll('.theme-tile')];
+  const index = tiles.indexOf(event.target.closest('.theme-tile'));
+  if (index < 0) return;
+  const next = themeStepIndex(index, event.key, tiles.length);
+  if (next === null) return;
+  event.preventDefault();
+  tiles[next].focus();
+  chooseTheme(tiles[next].dataset.id);
+});
+
+// ── Пароль ──────────────────────────────────────────────────────────────────
 
 const msg = document.getElementById('password-msg');
 const form = document.getElementById('password-form');
@@ -57,6 +144,7 @@ const submit = document.getElementById('password-submit');
 
 api('/api/me').then((me) => {
   document.getElementById('account-name').textContent = me.user.name || '—';
+  if (Array.isArray(me.themes) && me.themes.length > 0) showThemes(me.themes, me.user.theme);
   if (me.user.guest) {
     document.getElementById('account-email-row').hidden = true;
     document.getElementById('account-until').textContent = me.user.expiresAt ? formatDateTime(me.user.expiresAt) : '—';

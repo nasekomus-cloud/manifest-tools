@@ -87,6 +87,9 @@
     --tm-table-bg: rgba(var(--tm-over-rgb), 0.05);
     --tm-block-bg: rgba(var(--tm-over-rgb), 0.04);
     --tm-step-bg: rgba(var(--tm-over-rgb), 0.07);
+    --tm-track-bg: rgba(var(--tm-over-rgb), 0.08);   /* дорожка переключателей вкладок */
+    --tm-drop-bg: rgba(var(--tm-accent-rgb), 0.05);   /* зона для файлов */
+    --tm-count-opacity: 0.8;                   /* счётчик «7 из 7» на вкладке — приглушён */
     --tm-shadow-menu: 0 18px 48px rgba(0, 0, 0, 0.5);
     --tm-shadow-bar: 0 10px 30px rgba(0, 0, 0, 0.35);
   }
@@ -144,6 +147,7 @@
     --tm-panel-bg: color-mix(in srgb, var(--tm-surface) 97%, transparent);
     --tm-action-bg: color-mix(in srgb, var(--tm-bg) 90%, transparent);
     --tm-select-bg: var(--tm-surface);
+    --tm-count-opacity: 1;
   }
 
   /* derived:light */
@@ -154,7 +158,9 @@
     --tm-over-rgb: var(--tm-ink-rgb);          /* тонкие рамки и подложки — цветом текста */
     --tm-strong: var(--tm-ink);
     --tm-ink-soft: color-mix(in srgb, var(--tm-ink) 70%, var(--tm-muted));
-    --tm-accent-text: var(--tm-accent);
+    /* Акцент текстом — темнее самого акцента: на светлом фоне и на подсветке акцентом
+     * (номер страницы, пройденный шаг) чистый акцент светлых палитр не даёт 4,5:1 */
+    --tm-accent-text: color-mix(in srgb, var(--tm-accent) 75%, #000000);
     --tm-accent-h: color-mix(in srgb, var(--tm-accent-text) 80%, #000000);
     --tm-pill: var(--tm-primary);
     --tm-pill-h: color-mix(in srgb, var(--tm-pill) 85%, #000000);
@@ -172,15 +178,18 @@
     --tm-table-bg: var(--tm-surface);
     --tm-block-bg: var(--tm-surface);
     --tm-step-bg: var(--tm-surface);
+    --tm-track-bg: var(--tm-surface);
+    --tm-drop-bg: var(--tm-surface);
+    --tm-count-opacity: 1;
     --tm-shadow-menu: 0 18px 48px rgba(var(--tm-ink-rgb), 0.18);
     --tm-shadow-bar: 0 10px 30px rgba(var(--tm-ink-rgb), 0.1);
   }
 
   /* ───────────── Палитры остальных тем (значения — из брифа, как есть) ─────────────
    * Ошибка: в тёмных темах светло-красная, в светлых — тёмно-красная на розовом,
-   * как у старого сайта. Где акцент или главная кнопка с белым текстом не дотягивают
-   * до 4,5:1 к своему фону, текст/кнопка — тем же цветом, чуть темнее
-   * (--tm-accent-text, --tm-pill); сама палитра не меняется. */
+   * как у старого сайта. Акцент текстом в светлых темах — темнее (см. derived:light),
+   * а где главная кнопка с белым текстом не дотягивает до 4,5:1, кнопка того же цвета,
+   * чуть темнее (--tm-pill); сама палитра не меняется. */
 
   /* palette:emerald */
   :root[data-theme="emerald"],
@@ -249,8 +258,7 @@
     --tm-error: #b42318;
     --tm-error-rgb: 180, 35, 24;
     --tm-error-bg: #fdecea;
-    /* #1f8a5b текстом на фоне — 3,9:1, белым по кнопке — 4,3:1: чуть темнее */
-    --tm-accent-text: color-mix(in srgb, var(--tm-accent) 85%, #000000);
+    /* белым по кнопке #1f8a5b — 4,3:1: кнопка чуть темнее */
     --tm-pill: color-mix(in srgb, var(--tm-primary) 90%, #000000);
   }
 
@@ -299,8 +307,6 @@
     --tm-error: #b42318;
     --tm-error-rgb: 180, 35, 24;
     --tm-error-bg: #fdecea;
-    /* #c4532f текстом на фоне — 4,0:1: чуть темнее */
-    --tm-accent-text: color-mix(in srgb, var(--tm-accent) 85%, #000000);
     /* кнопка тёмная — при наведении светлеет, а не темнеет */
     --tm-pill-h: color-mix(in srgb, var(--tm-primary) 85%, #ffffff);
   }
@@ -349,8 +355,7 @@
     --tm-error: #b42318;
     --tm-error-rgb: 180, 35, 24;
     --tm-error-bg: #fdecea;
-    /* #0f8f9a текстом на фоне — 3,5:1, белым по кнопке — 3,9:1: чуть темнее */
-    --tm-accent-text: color-mix(in srgb, var(--tm-accent) 85%, #000000);
+    /* белым по кнопке #0f8f9a — 3,9:1: кнопка чуть темнее */
     --tm-pill: color-mix(in srgb, var(--tm-primary) 88%, #000000);
   }
 
@@ -677,7 +682,7 @@
 
   .side__tabs {
     padding: 3px;
-    background: rgba(var(--tm-over-rgb), 0.08);
+    background: var(--tm-track-bg);
     border: 1px solid var(--line);
     border-radius: 999px;
   }
@@ -883,7 +888,7 @@
 
   .dropzone {
     border-width: 1.5px;
-    background: rgba(var(--tm-accent-rgb), 0.05);
+    background: var(--tm-drop-bg);
     color: var(--tm-ink-soft);
   }
 

@@ -5,6 +5,7 @@ import {
   greeting, formatWhen, formatDateTime, tabCounts, checkboxGroups, linkHint, LINK_HINTS,
   statusLabel, requestText, journalLine, toolNumber, loginUrl,
   formatUntil, guestLabel, guestLinkHint, tabCountText, contactText,
+  themeKindLabel, themeStepIndex, THEME_KEY,
 } from './portal.js';
 
 test('greeting: до 12 — утро, с 18 — вечер, между — день', () => {
@@ -105,4 +106,26 @@ test('tabCountText: «N из M» с недоступными, просто «N»
 test('contactText: у тестового вместо служебной почты — «тестовая ссылка»', () => {
   assert.equal(contactText({ email: 'ira@x.ru', guest: false }), 'ira@x.ru');
   assert.equal(contactText({ email: 'guest-ab@guest.invalid', guest: true }), 'тестовая ссылка');
+});
+
+test('themeKindLabel: светлая / тёмная', () => {
+  assert.equal(themeKindLabel('light'), 'светлая');
+  assert.equal(themeKindLabel('dark'), 'тёмная');
+  assert.equal(themeKindLabel('other'), '');
+});
+
+test('themeStepIndex: стрелки по кругу, Home/End, остальные клавиши — null', () => {
+  assert.equal(themeStepIndex(0, 'ArrowRight', 10), 1);
+  assert.equal(themeStepIndex(0, 'ArrowDown', 10), 1);
+  assert.equal(themeStepIndex(9, 'ArrowRight', 10), 0);
+  assert.equal(themeStepIndex(0, 'ArrowLeft', 10), 9);
+  assert.equal(themeStepIndex(5, 'ArrowUp', 10), 4);
+  assert.equal(themeStepIndex(5, 'Home', 10), 0);
+  assert.equal(themeStepIndex(5, 'End', 10), 9);
+  assert.equal(themeStepIndex(5, 'Enter', 10), null);
+  assert.equal(themeStepIndex(5, 'a', 10), null);
+});
+
+test('THEME_KEY — тот же ключ, что у страниц без входа и shell-addon.js', () => {
+  assert.equal(THEME_KEY, 'manifest-tools:theme');
 });

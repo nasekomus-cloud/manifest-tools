@@ -37,3 +37,44 @@ test('theme.css: блок палитры на каждую тему, тип св
     assert.deepEqual(ids, expected, kind);
   }
 });
+
+// Печать в любой теме — старая светлая «Лоция»: вне @media screen в theme.css нет ничего,
+// в portal.css — только правило [hidden] открытых страниц (цвета там нет)
+function outsideScreen(text) {
+  const src = text.replace(/\/\*[\s\S]*?\*\//g, '');
+  let outside = '';
+  let i = 0;
+  while (i < src.length) {
+    const at = src.indexOf('@media screen', i);
+    if (at < 0) {
+      outside += src.slice(i);
+      break;
+    }
+    outside += src.slice(i, at);
+    let j = src.indexOf('{', at);
+    let depth = 1;
+    while (depth > 0) {
+      j += 1;
+      if (src[j] === '{') depth += 1;
+      else if (src[j] === '}') depth -= 1;
+    }
+    i = j + 1;
+  }
+  return outside.trim();
+}
+
+test('печать светлая: цвета тем — только внутри @media screen', () => {
+  assert.equal(outsideScreen(css), '');
+  const portal = readFileSync(new URL('./portal.css', import.meta.url), 'utf8');
+  assert.equal(outsideScreen(portal).replace(/\s+/g, ' '), '.portal-public [hidden] { display: none !important; }');
+});
+
+test('portal.css и theme.css: цвета — только через переменные', () => {
+  const portal = readFileSync(new URL('./portal.css', import.meta.url), 'utf8');
+  // правила (без комментариев и без объявлений самих переменных) не содержат чисел цвета
+  for (const [name, text] of [['portal.css', portal], ['theme.css', css]]) {
+    const rules = text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((line) => !/^\s*--/.test(line)).join('\n');
+    assert.doesNotMatch(rules, /#[0-9a-f]{3,8}\b/i, name);
+    assert.doesNotMatch(rules, /rgba?\(\s*\d/i, name);
+  }
+});

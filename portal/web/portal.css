@@ -160,6 +160,114 @@
     overflow-wrap: anywhere;
   }
 
+  /* ───────────── Профиль: плитки тем ─────────────
+   * Образец .tm-swatch[data-theme="<id>"] получает палитру своей темы из theme.css
+   * (bg, surface, line, ink, muted, primary, accent) — цветов плиток здесь нет. */
+
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+    margin: 14px 0 0;
+  }
+
+  .theme-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 8px 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .theme-tile:hover {
+    border-color: var(--tm-accent);
+  }
+
+  /* Выбранная — рамкой и галочкой, без заливки: светлый акцент (лайм «Стали»)
+   * под второстепенным текстом съел бы контраст */
+  .theme-tile[aria-checked="true"] {
+    border-color: var(--tm-accent);
+    box-shadow: inset 0 0 0 1px var(--tm-accent);
+  }
+
+  .theme-tile__name {
+    margin-top: 6px;
+    color: var(--tm-strong);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .theme-tile[aria-checked="true"] .theme-tile__name::before {
+    content: "✓ ";
+    color: var(--accent);
+  }
+
+  .theme-tile__kind {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .tm-swatch {
+    display: block;
+    height: 76px;
+    padding: 10px;
+    border: 1px solid var(--tm-line);
+    border-radius: 8px;
+    background: var(--tm-bg);
+  }
+
+  .tm-swatch__card {
+    position: relative;
+    display: block;
+    height: 100%;
+    padding: 8px;
+    border: 1px solid var(--tm-line);
+    border-radius: 6px;
+    background: var(--tm-surface);
+  }
+
+  .tm-swatch__line {
+    display: block;
+    width: 70%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--tm-ink);
+  }
+
+  .tm-swatch__line--muted {
+    width: 48%;
+    margin-top: 5px;
+    background: var(--tm-muted);
+  }
+
+  .tm-swatch__btn {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    width: 38px;
+    height: 13px;
+    border-radius: 999px;
+    background: var(--tm-primary);
+  }
+
+  .tm-swatch__dot {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--tm-accent);
+  }
+
   .btn--small {
     min-height: 38px;
     padding: 0 16px;
@@ -193,7 +301,7 @@
     flex-wrap: wrap;
     margin: 0 0 18px;
     padding: 3px;
-    background: rgba(var(--tm-over-rgb), 0.08);
+    background: var(--tm-track-bg);
     border: 1px solid var(--line);
     border-radius: 999px;
   }
@@ -230,7 +338,7 @@
   .home-switch__count {
     font-size: 15px;
     font-weight: 500;
-    opacity: 0.8;
+    opacity: var(--tm-count-opacity);
   }
 
   .home-grid {

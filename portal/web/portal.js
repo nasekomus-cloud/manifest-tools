@@ -14,6 +14,8 @@
 const NBSP = ' ';
 
 export const TAB_KEY = 'manifest-tools:tab'; // тот же ключ, что у старого каркаса
+// Последняя тема браузера — для страниц без входа (тот же ключ в login.html и shell-addon.js)
+export const THEME_KEY = 'manifest-tools:theme';
 export const CATEGORIES = ['export', 'import'];
 export const TAB_LABELS = { export: 'Экспорт', import: 'Импорт' };
 
@@ -139,6 +141,23 @@ export function tabCountText(count, showLocked) {
 /** Почта человека для показа; у тестового почта служебная — её не показываем. */
 export function contactText(person) {
   return person.guest ? 'тестовая ссылка' : person.email;
+}
+
+/** Пометка на плитке темы: «светлая» / «тёмная». */
+export function themeKindLabel(kind) {
+  return { light: 'светлая', dark: 'тёмная' }[kind] ?? '';
+}
+
+/**
+ * Плитки тем — группа радиокнопок: стрелки переходят к соседней (по кругу),
+ * Home/End — к первой/последней. → индекс новой плитки или null (клавиша не наша).
+ */
+export function themeStepIndex(index, key, count) {
+  if (key === 'ArrowRight' || key === 'ArrowDown') return (index + 1) % count;
+  if (key === 'ArrowLeft' || key === 'ArrowUp') return (index - 1 + count) % count;
+  if (key === 'Home') return 0;
+  if (key === 'End') return count - 1;
+  return null;
 }
 
 /** «№ 5» — как Shell.toolNumber (неразрывный пробел). */
@@ -287,6 +306,19 @@ export function setRequestCount(count) {
       bar.parentElement?.removeAttribute('aria-label');
       bar.remove();
     }
+  }
+}
+
+/**
+ * Тема на этой странице сразу, без перезагрузки (сервер ставит её только при отдаче
+ * страницы), и в памяти браузера — для страниц без входа.
+ */
+export function applyTheme(id) {
+  document.documentElement.setAttribute('data-theme', id);
+  try {
+    window.localStorage.setItem(THEME_KEY, id);
+  } catch {
+    // без хранилища — просто без памяти
   }
 }
 
