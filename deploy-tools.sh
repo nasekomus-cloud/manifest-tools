@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Обновить портал tools.nasekomuspro.ru на VPS: код в /opt/manifest-portal,
+# Обновить портал tallyman.nasekomuspro.ru на VPS: код в /opt/manifest-portal,
 # сервис manifest-portal (systemd) за nginx.
 # Доступ по SSH-ключу (~/.ssh/id_ed25519) — пароль не спрашивается.
 # Разовая установка сервера (пользователь, юниты, nginx, certbot) — один раз руками,
@@ -11,7 +11,7 @@ set -euo pipefail
 
 HOST="root@130.49.213.189"
 TARGET_DIR="/opt/manifest-portal"
-URL="https://tools.nasekomuspro.ru/login"
+URL="https://tallyman.nasekomuspro.ru/login"
 
 cd "$(dirname "$0")"
 
@@ -72,4 +72,4 @@ if [ "$CODE" != "200" ]; then
   exit 1
 fi
 
-echo "Готово — https://tools.nasekomuspro.ru обновлён."
+echo "Готово — https://tallyman.nasekomuspro.ru обновлён."

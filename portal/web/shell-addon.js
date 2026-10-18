@@ -1,4 +1,4 @@
-// Дополнение к assets/shell.js для портала (tools.nasekomuspro.ru).
+// Дополнение к assets/shell.js для портала (tallyman.nasekomuspro.ru).
 //
 // Сервер отдаёт /assets/shell.js как assets/shell.js + этот файл, так что код
 // выполняется сразу после того, как старый каркас нарисовал панель и выставил

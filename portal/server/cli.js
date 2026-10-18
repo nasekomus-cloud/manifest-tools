@@ -7,7 +7,7 @@
 // (приглашение или сброс — по статусу человека).
 //
 //   DB_PATH        файл базы SQLite (обязательно)
-//   PUBLIC_ORIGIN  https://tools.nasekomuspro.ru (обязательно)
+//   PUBLIC_ORIGIN  https://tallyman.nasekomuspro.ru (обязательно)
 
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

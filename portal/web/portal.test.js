@@ -53,7 +53,7 @@ test('checkboxGroups: одна галочка на ключ, bl-split — в в�
 test('linkHint: приглашение — 7 дней, сброс — 24 часа', () => {
   assert.equal(linkHint('http://localhost:8010/invite/abc'), LINK_HINTS.invite);
   assert.match(LINK_HINTS.invite, /7 дней\.$/);
-  assert.equal(linkHint('https://tools.nasekomuspro.ru/reset/abc'), LINK_HINTS.reset);
+  assert.equal(linkHint('https://tallyman.nasekomuspro.ru/reset/abc'), LINK_HINTS.reset);
   assert.match(LINK_HINTS.reset, /24 часа\.$/);
 });
 

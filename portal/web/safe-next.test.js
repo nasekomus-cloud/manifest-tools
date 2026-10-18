@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const sandbox = { window: {}, URL };
 vm.runInNewContext(readFileSync(fileURLToPath(new URL('./safe-next.js', import.meta.url)), 'utf8'), sandbox);
 const safeNext = sandbox.window.safeNext;
-const ORIGIN = 'https://tools.nasekomuspro.ru';
+const ORIGIN = 'https://tallyman.nasekomuspro.ru';
 
 test('safeNext: чужие и подозрительные адреса — на главную', () => {
   for (const bad of ['/\t/evil.com', '/\n/evil.com', '/\r/evil.com', '//evil.com', '/\\evil.com', '/\\/evil.com',

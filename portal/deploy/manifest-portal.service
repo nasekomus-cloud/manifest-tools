@@ -1,5 +1,5 @@
 [Unit]
-Description=Портал инструментов для манифестов (tools.nasekomuspro.ru)
+Description=Портал инструментов для манифестов (tallyman.nasekomuspro.ru)
 After=network.target
 
 [Service]
