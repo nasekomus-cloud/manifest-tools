@@ -843,6 +843,15 @@ function matchRow(row, ctx, notLoaded) {
 const CYRILLIC = /[А-Яа-яЁё]/;
 // Запись «ничего нет» в графах температуры и опасного груза.
 const NONE_MARK = /^(-+|—|нет|no|none|n\/a|not\s+imo|non[\s-]*imo|non[\s-]*dg|not\s+dg)$/i;
+// Порожняя отправка (решение пользователя 2026-10-20): в AD «ПОРОЖНИЙ» заказчик
+// пишет «1»; в поручении у порожнего вес груза 0 и наименование «Порожний
+// контейнер / Empty Container». У порожнего нет пломб, PLACE OF DELIVERY пусто,
+// 1 место «unit».
+const EMPTY_MARK = /^(1|да|yes|y|true|порожн\S*|empty)$/i;
+const EMPTY_GOODS = /порожн|empty/i;
+const EMPTY_PACKAGE = 'unit';
+const orderSaysEmpty = (container) => container.cargoWeight === 0 && container.goodsNames.length > 0
+  && container.goodsNames.every((name) => EMPTY_GOODS.test(name));
 const NOTIFY_SAME = /^(the\s+same|same\s+as\s+consignee)$/i;
 
 function checkDataRows(model, ctx) {
@@ -906,6 +915,9 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
   }));
   const setFix = (key, value) => { if (!KEEP_AS_IS_KEYS.has(key)) ctx.fixes.set(`row:${row.row}:${key}`, value); };
   const asText = (num) => (num.asText ? ', и записано текстом' : '');
+  // Порожний ли контейнер — решает поручение, если строка с ним сопоставлена, иначе отметка в AD.
+  const markedEmpty = EMPTY_MARK.test(textOfKey('empty'));
+  const isEmpty = match.container ? orderSaysEmpty(match.container) : markedEmpty;
   const weightCheck = (key, expected) => {
     const num = readNumber(valueOf(key));
     if (expected !== null && expected !== undefined) {
@@ -986,7 +998,9 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
       case 'seals': {
         const text = textOfKey('seals');
         const template = sealSet(text);
-        if (match.container) {
+        if (isEmpty && !trimmedOf(match.container ? match.container.sealNumber : '')) {
+          if (text) error('seals', 'customer', `в шаблоне «${text}», а порожний контейнер идёт без пломбы — графу оставляют пустой`);
+        } else if (match.container) {
           const expected = sealSet(match.container.sealNumber);
           if (expected.size === 0) {
             error('seals', 'customer', text ? `в шаблоне «${text}», а в поручении пломбы нет` : 'не заполнено, в поручении пломбы тоже нет');
@@ -999,15 +1013,23 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
       }
       case 'packageType': {
         const text = textOfKey('packageType');
-        if (!text) error('packageType', 'customer', 'не заполнено');
-        else if (!/^[A-Z0-9]{2}$/.test(text)) warn('packageType', `«${text}» не похоже на код упаковки из двух знаков (PX, CS…), проверьте`);
+        if (!text) error('packageType', 'customer', isEmpty ? `не заполнено, у порожнего контейнера — «${EMPTY_PACKAGE}»` : 'не заполнено');
+        else if (isEmpty) {
+          if (text.toLowerCase() !== EMPTY_PACKAGE) error('packageType', 'customer', `в шаблоне «${text}», у порожнего контейнера — «${EMPTY_PACKAGE}»`);
+        } else if (!/^[A-Z0-9]{2}$/.test(text)) warn('packageType', `«${text}» не похоже на код упаковки из двух знаков (PX, CS…), проверьте`);
         break;
       }
       case 'places': {
         const num = readNumber(valueOf('places'));
         const expected = match.container ? match.container.places : null;
         const goods = match.container ? match.container.goodsCount : 0;
-        if (!num.ok) {
+        if (isEmpty) {
+          // Место у порожнего — сам контейнер (в поручении 0); «1» текстом система принимает.
+          if (!num.ok || num.number !== 1) {
+            const shown = num.ok ? `в шаблоне ${formatNumber(num.number)}` : (num.empty ? 'не заполнено' : `«${textOfKey('places')}» не читается как число`);
+            error('places', 'customer', `${shown}, у порожнего контейнера — 1 место`);
+          }
+        } else if (!num.ok) {
           error('places', 'customer', num.empty ? 'не заполнено' : `«${textOfKey('places')}» не читается как число`);
         } else if (expected !== null && Math.abs(num.number - expected) > TOLERANCE) {
           if (goods > 1) {
@@ -1130,8 +1152,23 @@ function checkRow(model, ctx, row, match, rowsByContainer) {
         }
         break;
       }
-      // A, D, G, I, J, K, L, W, Y, AA, AD: с поручением не сравниваются (spec
-      // «Вне рамок») — проверяется только, что обязательное поле заполнено.
+      case 'placeOfDelivery': {
+        if (!isEmpty) { requireFilled('placeOfDelivery'); break; }
+        const text = textOfKey('placeOfDelivery');
+        if (text) warn('placeOfDelivery', `«${text}» — у порожнего контейнера PLACE OF DELIVERY обычно не заполняют, проверьте`);
+        break;
+      }
+      case 'empty': {
+        if (!match.container) break;
+        if (isEmpty && !markedEmpty) {
+          warn('empty', 'по поручению контейнер порожний, а в графе ПОРОЖНИЙ он не отмечен («1») — проверьте');
+        } else if (!isEmpty && markedEmpty) {
+          error('empty', 'customer', `контейнер отмечен как порожний, а по поручению в нём груз (вес груза ${formatNumber(match.container.cargoWeight)})`);
+        }
+        break;
+      }
+      // A, D, G, I, J, K, W, Y, AA: с поручением не сравниваются (spec «Вне
+      // рамок») — проверяется только, что обязательное поле заполнено.
       default:
         if (def.required) requireFilled(def.key);
         break;
@@ -1360,6 +1397,57 @@ function reportLine(f) {
   return head ? `${head}: ${body}` : body;
 }
 
+// Одинаковые находки — одной строкой (просьба пользователя 2026-10-20: на заявке
+// из 111 порожних контейнеров 555 одинаковых строк скрывали общую картину).
+// Одинаковые — тот же уровень, способ исправления, лист, поле, текст и замена;
+// порядок групп — по первой встреченной находке.
+export function groupFindings(findings) {
+  const groups = new Map();
+  for (const f of findings) {
+    const key = [f.level, f.fix, f.section, f.sheet, f.field, f.message, f.correction].join('\u0000');
+    if (!groups.has(key)) groups.set(key, { ...f, count: 0, cells: [], containers: [] });
+    const group = groups.get(key);
+    group.count += 1;
+    if (f.cell) group.cells.push(f.cell);
+    if (f.container && !group.containers.includes(f.container)) group.containers.push(f.container);
+  }
+  return [...groups.values()];
+}
+
+// «O10–O120», «O10–O12, O15»: подряд идущие строки одной колонки — диапазоном,
+// после MAX_RANGES диапазонов — «и ещё N».
+const MAX_RANGES = 4;
+export function cellRanges(cells) {
+  const byColumn = new Map();
+  for (const cell of cells) {
+    const m = /^([A-Z]+)(\d+)$/.exec(cell);
+    if (!m) continue;
+    if (!byColumn.has(m[1])) byColumn.set(m[1], []);
+    byColumn.get(m[1]).push(Number(m[2]));
+  }
+  const ranges = [];
+  for (const [column, rows] of byColumn) {
+    rows.sort((a, b) => a - b);
+    let start = rows[0];
+    let prev = rows[0];
+    for (const row of [...rows.slice(1), null]) {
+      if (row === prev + 1) { prev = row; continue; }
+      ranges.push(start === prev ? `${column}${start}` : `${column}${start}–${column}${prev}`);
+      start = row;
+      prev = row;
+    }
+  }
+  if (ranges.length <= MAX_RANGES) return ranges.join(', ');
+  return `${ranges.slice(0, MAX_RANGES).join(', ')} и ещё ${ranges.length - MAX_RANGES}`;
+}
+
+function groupLine(group) {
+  if (group.count === 1) return reportLine(group);
+  const where = group.cells.length ? ` (${cellRanges(group.cells)})` : '';
+  const body = `${group.message}${group.correction ? ` → ${group.correction}` : ''}`;
+  return `${group.field}, ${group.count} ${plural(group.count, 'строка', 'строки', 'строк')}${where}: ${body}`;
+}
+
 function buildReportText({ model, ctx, findings, summary, fileNames, templateFileName, checkedAt, parsed }) {
   const headerValue = (key) => {
     const label = model.labels.get(key);
@@ -1386,12 +1474,12 @@ function buildReportText({ model, ctx, findings, summary, fileNames, templateFil
     if (items.length === 0) return;
     lines.push('', title, ...items.map((text, index) => `${index + 1}. ${sentence(text)}`));
   };
-  const errorsWith = (fix) => findings.filter((f) => f.level === 'error' && f.fix === fix).map(reportLine);
+  const errorsWith = (fix) => groupFindings(findings.filter((f) => f.level === 'error' && f.fix === fix)).map(groupLine);
   section(`УТОЧНИТЬ У ЗАКАЗЧИКА — ${summary.needsCustomer}`, errorsWith('customer'));
   section(`МОЖЕТ БЫТЬ ЗАМЕНЕНО АВТОМАТИЧЕСКИ — ${summary.autoFixable} (уже внесено в «${fileNames.corrected}»)`, errorsWith('auto'));
   // Предупреждения «вверху» — первыми: они про весь файл, а не про ячейку.
   section(`ПРЕДУПРЕЖДЕНИЯ — ПРОВЕРЬТЕ САМИ — ${summary.warnings}`,
-    [...ctx.topWarnings, ...findings.filter((f) => f.level === 'warning').map(reportLine)]);
+    [...ctx.topWarnings, ...groupFindings(findings.filter((f) => f.level === 'warning')).map(groupLine)]);
   lines.push('');
   return lines.join('\r\n');
 }

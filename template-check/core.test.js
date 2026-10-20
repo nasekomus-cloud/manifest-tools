@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
-import { detectFileKind, checkTemplate } from './core.js';
+import { detectFileKind, checkTemplate, groupFindings, cellRanges } from './core.js';
 
 // Синтетические книги по устройству настоящих (reference.md: «Форма шаблона»,
 // «Поручение»). Все значения выдуманные — данных заказчиков в репозитории нет.
@@ -477,6 +477,55 @@ test('Q: мест не столько — у одного товара ошиб�
   assert.match(many.message, /по 2 товарам 12 мест, в шаблоне 10/);
 });
 
+// Порожняя отправка (просьба пользователя 2026-10-20, реальная пара файлов на 111
+// порожних 20GP): в поручении «Порожний контейнер / Empty Container», вес груза 0,
+// мест 0, пломбы нет; в шаблоне AD «ПОРОЖНИЙ» = «1», пломб нет, PLACE OF DELIVERY
+// пусто, «1» место «unit» (единица записана текстом — так её приняла система).
+const EMPTY_ORDER = buildOrder({ containers: [
+  { number: 'TEST1234567', owner: '-', iso: '22G1', seal: '', tare: 2200,
+    goods: [{ name: 'Порожний контейнер / Empty Container', places: 0, gross: 0 }] },
+  { number: 'TEST7654321', owner: '-', iso: '22G1', seal: '', tare: 2100,
+    goods: [{ name: 'Порожний контейнер / Empty Container', places: 0, gross: 0 }] },
+] });
+const EMPTY_ROW1 = {
+  ...ROW1, F: '22G1', H: 'Empty container', I: 'Порожний контейнер', J: null, K: null, L: null,
+  O: null, P: 'unit', Q: '1', R: 0, S: 2200, T: null, U: 2200, AB: null, AC: null, AD: '1',
+};
+const EMPTY_ROW2 = { ...EMPTY_ROW1, E: 'TEST7654321', S: 2100, U: 2100 };
+
+test('порожние: без пломб, PLACE OF DELIVERY пусто, 1 место «unit» (текстом) — находок нет', () => {
+  const result = check(buildTemplate({ rows: [EMPTY_ROW1, EMPTY_ROW2] }), orders(EMPTY_ORDER));
+  assert.deepEqual(result.findings, []);
+  // Порожний узнаётся и по одному поручению, без отметки в AD, — но отметку просим поставить.
+  const unmarked = check(buildTemplate({ rows: [{ ...EMPTY_ROW1, AD: null }, EMPTY_ROW2] }), orders(EMPTY_ORDER));
+  assert.deepEqual(unmarked.findings.map(brief), [['AD10', 'ПОРОЖНИЙ', 'warning', null]]);
+});
+
+test('порожние: пломба, мест не 1, упаковка не «unit», пустая упаковка — ошибки «уточнить у заказчика»', () => {
+  const result = check(buildTemplate({ rows: [
+    { ...EMPTY_ROW1, O: 'AB0012', P: 'PX', Q: 0 },
+    { ...EMPTY_ROW2, P: null, Q: null },
+  ] }), orders(EMPTY_ORDER));
+  assert.deepEqual(result.findings.filter((f) => f.section === 'data' && f.level === 'error' && !/коносамент/.test(f.message))
+    .map(brief), [
+    ['O10', 'НОМЕРА ПЛОМБ', 'error', 'customer'], ['P10', 'ТИП УПАКОВКИ', 'error', 'customer'],
+    ['Q10', 'КОЛИЧЕСТВО МЕСТ', 'error', 'customer'],
+    ['P11', 'ТИП УПАКОВКИ', 'error', 'customer'], ['Q11', 'КОЛИЧЕСТВО МЕСТ', 'error', 'customer'],
+  ]);
+  // PLACE OF DELIVERY у порожнего не заполняют — заполненная графа — предупреждение.
+  const delivery = check(buildTemplate({ rows: [{ ...EMPTY_ROW1, L: 'Port Said' }, { ...EMPTY_ROW2, L: 'Port Said' }] }),
+    orders(EMPTY_ORDER));
+  assert.deepEqual(delivery.findings.map(brief), [['L10', 'PLACE OF DELIVERY', 'warning', null],
+    ['L11', 'PLACE OF DELIVERY', 'warning', null]]);
+});
+
+test('порожние: отмечен в AD, а по поручению в контейнере груз — ошибка, строка проверяется как гружёная', () => {
+  const result = check(buildTemplate({ rows: [{ ...ROW1, AD: '1' }, ROW2] }));
+  const f = only(result, () => true);
+  assert.deepEqual(brief(f), ['AD10', 'ПОРОЖНИЙ', 'error', 'customer']);
+  assert.match(f.message, /28\s?120/);
+});
+
 test('R, S: вес груза и тары — «исправлю сам» из поручения', () => {
   const result = check(buildTemplate({ rows: [{ ...ROW1, R: 28000, S: 3600 }, ROW2] }));
   assert.deepEqual(result.findings.map(brief), [['R10', 'ВЕС ГРУЗА', 'error', 'auto'], ['S10', 'ВЕС ТАРЫ', 'error', 'auto']]);
@@ -831,4 +880,20 @@ test('отчёт: предупреждение «вверху» — первым
     corrected: 'НОВЫЙ шаблон эл_поручения export (исправлен).xlsx',
     report: 'НОВЫЙ шаблон эл_поручения export (отчёт).txt',
   });
+});
+
+test('группировка: одинаковые находки — одна строка с числом строк и диапазоном ячеек; разные — отдельно', () => {
+  assert.equal(cellRanges(['O10', 'O11', 'O12', 'O15', 'P3']), 'O10–O12, O15, P3');
+  assert.equal(cellRanges(['A1', 'A3', 'A5', 'A7', 'A9', 'A11']), 'A1, A3, A5, A7 и ещё 2');
+  // Порожние строки с пломбой и без «unit» — две одинаковые находки на каждую графу.
+  const result = check(buildTemplate({ rows: [{ ...EMPTY_ROW1, O: 'X1', P: 'PX' }, { ...EMPTY_ROW2, O: 'X1', P: 'PX' }] }),
+    orders(EMPTY_ORDER));
+  const groups = groupFindings(result.findings);
+  assert.deepEqual(groups.map((g) => [g.field, g.count, cellRanges(g.cells), g.containers.length]), [
+    ['НОМЕРА ПЛОМБ', 2, 'O10–O11', 2], ['ТИП УПАКОВКИ', 2, 'P10–P11', 2],
+  ]);
+  const lines = result.reportText.split('\r\n');
+  assert.ok(lines.includes('1. НОМЕРА ПЛОМБ, 2 строки (O10–O11): в шаблоне «X1», а порожний контейнер идёт без пломбы — графу оставляют пустой.'),
+    result.reportText);
+  assert.ok(lines.includes('2. ТИП УПАКОВКИ, 2 строки (P10–P11): в шаблоне «PX», у порожнего контейнера — «unit».'), result.reportText);
 });

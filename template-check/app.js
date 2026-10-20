@@ -10,7 +10,7 @@
 // самой проверки файлы читаются заново из исходных байтов (spec §6) — объект,
 // прочитанный при распознавании, для этого не переиспользуется.
 
-import { detectFileKind, checkTemplate } from './core.js?v=202610181430';
+import { detectFileKind, checkTemplate, groupFindings, cellRanges } from './core.js?v=202610201917';
 
 const Shell = window.Shell;
 
@@ -316,13 +316,29 @@ function renderFindings(findings, summary) {
   }
   if (!findings.length) return;
 
+  // Одинаковые находки — одной строкой: иначе сотня одинаковых строк скрывает
+  // общую картину. Каждая ячейка по-прежнему помечена в книге с пометками.
+  const groups = groupFindings(findings);
+  if (groups.length < findings.length) {
+    const p = document.createElement('p');
+    p.textContent = `Одинаковые находки собраны в одну строку: ${findings.length} — это ${groups.length} `
+      + `${Shell.plural(groups.length, 'вид', 'вида', 'видов')}. Каждая ячейка помечена в «шаблоне с пометками».`;
+    findingsBox.appendChild(p);
+  }
+
   const scroll = document.createElement('div');
   scroll.className = 'table-scroll';
   const table = document.createElement('table');
   table.className = 'data-table';
   appendRow(table, ['Ячейка', 'Поле', 'Контейнер', 'Что не так', 'Как поступить'], { header: true });
-  findings.forEach((f) => {
-    appendRow(table, [f.cell || '—', f.field, f.container || '—', f.message, actionLabel(f)]);
+  groups.forEach((g) => {
+    if (g.count === 1) {
+      appendRow(table, [g.cell || '—', g.field, g.container || '—', g.message, actionLabel(g)]);
+      return;
+    }
+    const containers = g.containers.length > 1 ? containersText(g.containers.length) : (g.containers[0] || '—');
+    const rows = `${g.count} ${Shell.plural(g.count, 'строка', 'строки', 'строк')}`;
+    appendRow(table, [g.cells.length ? cellRanges(g.cells) : '—', `${g.field} — ${rows}`, containers, g.message, actionLabel(g)]);
   });
   scroll.appendChild(table);
   findingsBox.appendChild(scroll);
