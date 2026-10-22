@@ -6,6 +6,8 @@
 //   SMTP_PORT  порт, по умолчанию 587; 465 — TLS сразу при подключении
 //   SMTP_USER, SMTP_PASS  логин и пароль (без SMTP_USER — без авторизации)
 //   SMTP_FROM  адрес отправителя, например «MukhLine <no-reply@example.ru>»
+//   SMTP_TLS_SERVERNAME  имя сервера для проверки TLS-сертификата, когда SMTP_HOST — адрес
+//              пересылки (IP в NetBird), а сертификат выписан на настоящий хост (smtp.mail.ru)
 
 // nodemailer подгружается только когда SMTP_HOST задан (динамический import внутри
 // createMailer): без почты пакет не нужен и на сервере его может не быть вовсе.
@@ -33,6 +35,7 @@ export async function createMailer(env, { createTransport } = {}) {
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
   };
+  if (env.SMTP_TLS_SERVERNAME) options.tls = { servername: env.SMTP_TLS_SERVERNAME };
   if (env.SMTP_USER) options.auth = { user: env.SMTP_USER, pass: env.SMTP_PASS ?? '' };
   const transport = createTransport(options);
   const from = env.SMTP_FROM;

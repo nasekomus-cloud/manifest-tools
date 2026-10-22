@@ -79,6 +79,17 @@ test('createMailer: порт по умолчанию 587 без TLS-обёртк
   });
 });
 
+test('createMailer: SMTP_TLS_SERVERNAME задаёт имя для проверки сертификата (пересылка по IP)', async () => {
+  let options;
+  await createMailer(
+    { SMTP_HOST: '100.118.163.149', SMTP_PORT: '465', SMTP_TLS_SERVERNAME: 'smtp.mail.ru', SMTP_FROM: 'a@b.ru' },
+    { createTransport: (o) => { options = o; return {}; } },
+  );
+  assert.equal(options.host, '100.118.163.149');
+  assert.equal(options.secure, true);
+  assert.deepEqual(options.tls, { servername: 'smtp.mail.ru' });
+});
+
 test('mail.js не подключает nodemailer при загрузке модуля (R12): только динамический import', async () => {
   const { readFile } = await import('node:fs/promises');
   const source = await readFile(new URL('./mail.js', import.meta.url), 'utf8');
