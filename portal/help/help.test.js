@@ -21,6 +21,7 @@ import { detectFileKind, checkTemplate } from '../../template-check/core.js';
 import { readSourceManifest, crossCheckSource } from '../../source-check/core.js';
 import { auditSourceFile, containerCheckDigitOk } from '../../source-audit/core.js';
 import { readSource, validateOptions, buildArmFiles } from '../../arm-upload/core.js';
+import { compareVersions } from '../../version-compare/core.js';
 
 const HELP_DIR = join(REPO_ROOT, 'portal', 'help');
 const SAMPLES_DIR = join(HELP_DIR, 'samples');
@@ -244,6 +245,17 @@ test('исходный файл линии: разбор, проверка, фа
   assert.equal(check.summary.mismatchRows, 1);
   assert.equal(check.summary.notInSource, 0);
   assert.deepEqual(check.summary.missingInSystem, []);
+});
+
+test('версии манифеста: примеры различаются тремя ячейками, новая выбирается по дате книги', async () => {
+  const result = compareVersions(
+    { fileName: 'manifest-versiya-staraya.xlsx', workbook: await fresh('manifest-versiya-staraya.xlsx') },
+    { fileName: 'manifest-versiya-novaya.xlsx', workbook: await fresh('manifest-versiya-novaya.xlsx') },
+  );
+  assert.equal(result.ok, true, result.error);
+  assert.equal(result.summary.newerFile, 'manifest-versiya-novaya.xlsx');
+  assert.equal(result.summary.changedCells, 3);
+  assert.deepEqual(result.changes.map((change) => change.cell), ['P6', 'H7', 'J7']);
 });
 
 /* ——— Маршруты ——— */

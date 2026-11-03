@@ -438,6 +438,22 @@ export function buildSamples() {
     title: `Список на выгрузку т/х ${IMPORT.vessel}`, voyage: IMPORT.voyage, headers: MANIFEST_HEADERS_IMPORT,
     rows: IMPORT_ROWS.map(importManifestRow),
   }));
+  const oldVersion = buildManifest({
+    title: `Список на выгрузку т/х ${IMPORT.vessel}`, voyage: IMPORT.voyage, headers: MANIFEST_HEADERS_IMPORT,
+    rows: IMPORT_ROWS.map(importManifestRow),
+  });
+  oldVersion.modified = new Date(Date.UTC(2026, 9, 30, 11, 48, 1));
+  const newVersion = buildManifest({
+    title: `Список на выгрузку т/х ${IMPORT.vessel}`, voyage: IMPORT.voyage, headers: MANIFEST_HEADERS_IMPORT,
+    rows: IMPORT_ROWS.map(importManifestRow),
+  });
+  newVersion.modified = new Date(Date.UTC(2026, 10, 3, 6, 8, 28));
+  const newSheet = newVersion.getWorksheet('Manifest');
+  newSheet.getCell('P6').value = 'BHNEW0001';
+  newSheet.getCell('H7').value = round3(newSheet.getCell('H7').value + 100);
+  newSheet.getCell('J7').value = round3(newSheet.getCell('J7').value + 100);
+  samples.set('manifest-versiya-staraya.xlsx', oldVersion);
+  samples.set('manifest-versiya-novaya.xlsx', newVersion);
   samples.set('dg-manifest.xlsx', buildDgManifest());
   return samples;
 }

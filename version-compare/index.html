@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Сравнить две версии манифеста</title>
+  <link rel="stylesheet" href="../assets/fonts.css?v=202609121900" />
+  <link rel="stylesheet" href="../assets/style.css?v=202610181200" />
+</head>
+<body class="app">
+  <aside class="app__side" id="app-side"></aside>
+
+  <main class="app__main">
+    <h1 class="page__title">Сравнить две версии манифеста</h1>
+    <p class="page__subtitle">
+      Загрузите старую и новую версии одного файла — в более поздней книге изменённые
+      ячейки будут выделены жёлтым, а в примечаниях появится, что было и что стало.
+    </p>
+
+    <ol class="steps" id="steps">
+      <li>Два файла</li>
+      <li>Сравнение</li>
+      <li>Результат</li>
+    </ol>
+
+    <ul id="file-list" class="file-list" aria-label="Выбранные версии файла"></ul>
+
+    <div id="dropzone" class="dropzone">
+      <p class="dropzone__text">Перетащите два файла сюда или</p>
+      <button type="button" id="pick-files-btn" class="btn btn--secondary">Выбрать файлы</button>
+      <p class="dropzone__hint">.xlsx, ровно два файла; порядок загрузки не важен</p>
+      <input type="file" id="file-input" accept=".xlsx" multiple hidden />
+    </div>
+
+    <p class="hint">
+      Новая версия определяется по дате изменения внутри книги Excel. Если её нет,
+      используется дата изменения файла. Сравниваются значения ячеек на одноимённых листах.
+    </p>
+
+    <div class="action-bar" id="action-bar">
+      <p class="action-bar__info" id="action-info">Файлы не выбраны</p>
+      <span class="action-bar__hint" id="action-hint">Добавьте две версии одного файла</span>
+      <button type="button" id="compare-btn" class="btn" disabled>Сравнить версии</button>
+    </div>
+
+    <div id="error-box" class="error-message" role="alert" hidden></div>
+
+    <section id="summary-box" class="result" aria-label="Результат сравнения" hidden>
+      <div class="result__head">
+        <div class="result__stats" id="result-stats"></div>
+        <div class="result__actions">
+          <button type="button" id="download-btn" class="btn">Скачать файл с изменениями</button>
+        </div>
+      </div>
+      <div id="warnings-box" class="warning-message" hidden></div>
+      <div id="versions-box"></div>
+      <div id="changes-box"></div>
+    </section>
+  </main>
+
+  <script src="../tools.js?v=202611031000"></script>
+  <script src="../assets/shell.js?v=202610181200"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <script type="module" src="app.js?v=202611031000"></script>
+</body>
+</html>

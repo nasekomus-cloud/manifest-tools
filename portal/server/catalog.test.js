@@ -10,12 +10,12 @@ const catalog = loadCatalog(repoRoot);
 const ALL_KEYS = [
   'arm-upload', 'bl-registry', 'bl-split', 'dashboard', 'dashboard-departure',
   'dg-check', 'grand-total', 'grand-total-import', 'merge', 'order-check',
-  'source-audit', 'source-check', 'template-check',
+  'source-audit', 'source-check', 'template-check', 'version-compare',
 ];
 
-test('loadCatalog: 14 записей, 13 уникальных ключей', () => {
-  assert.equal(catalog.tools.length, 14);
-  assert.equal(catalog.keys.length, 13);
+test('loadCatalog: 15 записей, 14 уникальных ключей', () => {
+  assert.equal(catalog.tools.length, 15);
+  assert.equal(catalog.keys.length, 14);
   assert.deepEqual([...catalog.keys].sort(), ALL_KEYS);
 });
 
@@ -58,7 +58,7 @@ test('allowedKeys: администратору все ключи каталог
   const admin = { isAdmin: true };
   const allowed = allowedKeys(admin, [], catalog);
   assert.ok(allowed instanceof Set);
-  assert.equal(allowed.size, 13);
+  assert.equal(allowed.size, 14);
   assert.deepEqual([...allowed].sort(), ALL_KEYS);
 });
 
