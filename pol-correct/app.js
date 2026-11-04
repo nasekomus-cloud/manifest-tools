@@ -8,6 +8,7 @@
 // Любое изменение файлов прячет устаревший результат.
 
 import { correctPol, inspectPolFile } from './core.js?v=202611042245';
+import { ensureWorkbookTheme } from '../lib/xlsx-safe-write.js?v=202611042229';
 
 const Shell = window.Shell;
 
@@ -384,6 +385,7 @@ downloadBtn.addEventListener('click', async () => {
   if (!state.resultWorkbook) return;
   clearError();
   try {
+    ensureWorkbookTheme(state.resultWorkbook);
     const buffer = await state.resultWorkbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
