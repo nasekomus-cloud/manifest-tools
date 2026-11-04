@@ -3,8 +3,8 @@
 // Принцип восстановлен по образцам пользователя («for ARM uploading OVP ZENITH
 // 2602W_RUPLP_CNNSHA/EGEDK/TRIST.xlsx», 2026-10-14, все 455 строк исходного
 // сошлись с образцами по значениям):
-//   — исходный файл делится на файлы по порту погрузки (PlaceOfReceipt), строки
-//     внутри файла — в порядке исходного;
+//   — исходный файл делится на файлы по паре портов погрузки и доставки
+//     (PlaceOfReceipt + PlaceOfDelivery), строки внутри файла — в порядке исходного;
 //   — лист IMPORT_MANIFEST, шапка рейса D1:E5 (Судно, Рейс, Дата прихода,
 //     Терминал погрузки, Терминал выгрузки), заголовки в 7-й строке, данные с 8-й;
 //   — колонки те же A:Z, что у исходного, кроме:
@@ -18,7 +18,7 @@
 //       X TAREWEIGHT    — 0 во второй и следующих строках того же контейнера
 //                         (контейнер под несколькими коносаментами — тара один раз),
 //       Y ISEMPTY       — как есть,
-//       Z дата коносамента — вводится вручную, одна на порт погрузки (в исходном её нет).
+//       Z дата коносамента — вводится вручную, одна на пару портов (в исходном её нет).
 //
 // Чистый модуль: ExcelJS не импортирует — книгу для результата даёт вызывающий
 // (options.createWorkbook), как в template-check/core.js.
@@ -188,7 +188,8 @@ function code(text) {
  * Разбирает исходный файл линии.
  * @returns {{ok:true, rows: object[], vessel: string, voyage: string, voyages: string[],
  *   loadingPorts: Array<{code, rows, containers, known, pol, terminal, fileCode}>,
- *   unknownDischarge: string[]} | {ok:false, error:string}}
+ *   groups: Array<{key, code, deliveryCode, rows, containers, known, pol, terminal, fileCode,
+ *     dischargeTerminal, dischargeCode}>, unknownDischarge: string[]} | {ok:false, error:string}}
  */
 export function readSource(workbook) {
   for (const sheet of workbook.worksheets) {
@@ -205,6 +206,7 @@ export function readSource(workbook) {
       const data = { row: r };
       for (const spec of SOURCE_COLUMNS) data[spec.key] = columns[spec.key] ? cellValue(row.getCell(columns[spec.key])) : null;
       data.portCode = code(data.placeOfReceipt);
+      data.deliveryCode = code(data.placeOfDelivery);
       rows.push(data);
     }
     if (!rows.length) return { ok: false, error: 'В исходном файле не найдено ни одной строки с номером контейнера' };
@@ -233,6 +235,27 @@ export function readSource(workbook) {
       };
     });
 
+    const groups = [];
+    for (const port of loadingPorts) {
+      const deliveries = new Map();
+      for (const data of rows) {
+        if (data.portCode !== port.code) continue;
+        if (!deliveries.has(data.deliveryCode)) deliveries.set(data.deliveryCode, []);
+        deliveries.get(data.deliveryCode).push(data);
+      }
+      for (const [deliveryCode, deliveryRows] of deliveries) {
+        groups.push({
+          ...port,
+          key: `${port.code}|${deliveryCode}`,
+          deliveryCode,
+          rows: deliveryRows.length,
+          containers: new Set(deliveryRows.map((d) => code(d.container))).size,
+          dischargeTerminal: deliveryCode === DEFAULT_DISCHARGE_CODE ? DEFAULT_DISCHARGE_TERMINAL : '',
+          dischargeCode: deliveryCode,
+        });
+      }
+    }
+
     const unknownDischarge = [...new Set(rows.map((d) => code(d.placeOfDelivery)))].filter(
       (c) => c && !DISCHARGE_PORTS[c] && !/\([A-Z]{5}\)\s*$/.test(c),
     );
@@ -246,6 +269,7 @@ export function readSource(workbook) {
       voyage: header.voyage[header.voyage.length - 1] ?? '',
       voyages: header.voyage,
       loadingPorts,
+      groups,
       unknownDischarge,
     };
   }
@@ -402,35 +426,37 @@ function buildWorkbook(workbook, rows, { vessel, voyage, arrivalDate, loadingTer
 }
 
 /**
- * Собирает по файлу для АРМ на каждый порт погрузки.
+ * Собирает по файлу для АРМ на каждую пару портов погрузки и доставки.
  *
  * @param {object} source — результат readSource (ok:true)
- * @param {{vessel, voyage, arrivalDate: 'YYYY-MM-DD', dischargeTerminal, dischargeCode,
- *   ports: Object<string, {pol, terminal, fileCode, billDate: 'YYYY-MM-DD'}>,
+ * @param {{vessel, voyage, arrivalDate: 'YYYY-MM-DD',
+ *   groups: Object<string, {pol, terminal, fileCode, billDate: 'YYYY-MM-DD', dischargeTerminal, dischargeCode}>,
  *   createWorkbook: () => import('exceljs').Workbook}} options
- * @returns {Array<{portCode, fileName, rows, containers, workbook}>}
+ * @returns {Array<{portCode, deliveryCode, fileName, rows, containers, workbook}>}
  */
 export function buildArmFiles(source, options) {
-  const { vessel, voyage, arrivalDate, dischargeTerminal, dischargeCode, ports, createWorkbook } = options;
-  return source.loadingPorts.map((port) => {
-    const settings = ports[port.code] ?? {};
-    const rows = source.rows.filter((d) => d.portCode === port.code);
+  const { vessel, voyage, arrivalDate, groups, createWorkbook } = options;
+  return source.groups.map((group) => {
+    const settings = groups[group.key] ?? {};
+    const rows = source.rows.filter((d) => d.portCode === group.code && d.deliveryCode === group.deliveryCode);
     const workbook = createWorkbook();
     buildWorkbook(workbook, rows, {
       vessel,
       voyage,
       arrivalDate,
-      loadingTerminal: settings.terminal ?? port.terminal,
-      dischargeTerminal,
-      pol: settings.pol ?? port.pol,
+      loadingTerminal: settings.terminal ?? group.terminal,
+      dischargeTerminal: settings.dischargeTerminal ?? group.dischargeTerminal,
+      pol: settings.pol ?? group.pol,
       billDate: settings.billDate,
     });
-    const fileCode = (settings.fileCode ?? port.fileCode) || port.code || 'PORT';
+    const fileCode = (settings.fileCode ?? group.fileCode) || group.code || 'PORT';
+    const dischargeCode = (settings.dischargeCode ?? group.dischargeCode) || 'DELIVERY';
     return {
-      portCode: port.code,
+      portCode: group.code,
+      deliveryCode: group.deliveryCode,
       fileName: safeFileName(`for ARM uploading ${vessel} ${voyage}_${dischargeCode}_${fileCode}.xlsx`),
       rows: rows.length,
-      containers: port.containers,
+      containers: group.containers,
       workbook,
     };
   });
@@ -448,14 +474,14 @@ export function validateOptions(source, options) {
   if (!String(options.vessel ?? '').trim()) problems.push('судно');
   if (!String(options.voyage ?? '').trim()) problems.push('рейс');
   if (!utcDate(options.arrivalDate)) problems.push('дата прихода');
-  if (!String(options.dischargeTerminal ?? '').trim()) problems.push('терминал выгрузки');
-  if (!String(options.dischargeCode ?? '').trim()) problems.push('код порта выгрузки для имени файла');
-  for (const port of source.loadingPorts) {
-    const settings = options.ports[port.code] ?? {};
-    const name = port.code || 'без кода';
+  for (const group of source.groups) {
+    const settings = options.groups[group.key] ?? {};
+    const name = `${group.code || 'без кода'} → ${group.deliveryCode || 'без кода'}`;
     if (!utcDate(settings.billDate)) problems.push(`дата коносамента (${name})`);
     if (!String(settings.terminal ?? '').trim()) problems.push(`терминал погрузки (${name})`);
     if (!String(settings.pol ?? '').trim()) problems.push(`POL (${name})`);
+    if (!String(settings.dischargeTerminal ?? '').trim()) problems.push(`терминал выгрузки (${name})`);
+    if (!String(settings.dischargeCode ?? '').trim()) problems.push(`код порта выгрузки для имени файла (${name})`);
   }
   return problems;
 }

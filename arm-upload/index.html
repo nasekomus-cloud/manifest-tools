@@ -13,8 +13,8 @@
   <main class="app__main">
     <h1 class="page__title">Файлы для загрузки в АРМ</h1>
     <p class="page__subtitle">
-      Загрузите исходный файл от линии — он разделится по портам погрузки на файлы
-      «for ARM uploading …» в формате для АРМ. Всё считается в браузере, файл никуда не отправляется.
+      Загрузите исходный файл от линии — он разделится по парам портов погрузки и доставки
+      на файлы «for ARM uploading …» в формате для АРМ. Всё считается в браузере, файл никуда не отправляется.
     </p>
 
     <ol class="steps" id="steps">
@@ -53,20 +53,12 @@
           <span>Дата прихода</span>
           <input type="date" id="arrival-input" />
         </label>
-        <label class="field">
-          <span>Терминал выгрузки</span>
-          <input type="text" id="discharge-terminal-input" value="Timber Port" />
-        </label>
-        <label class="field">
-          <span>Порт выгрузки в имени файла</span>
-          <input type="text" id="discharge-code-input" value="RUPLP" />
-        </label>
       </div>
     </section>
 
     <section class="options" aria-labelledby="ports-heading" id="ports-section" hidden>
-      <h2 id="ports-heading">Порты погрузки</h2>
-      <p class="hint">По файлу на каждый порт (PlaceOfReceipt). Дата коносамента ставится всем строкам файла.</p>
+      <h2 id="ports-heading">Порты погрузки и доставки</h2>
+      <p class="hint">По файлу на каждую пару PlaceOfReceipt → PlaceOfDelivery. Дата коносамента и терминал выгрузки задаются отдельно для каждого файла.</p>
       <div id="ports-box"></div>
     </section>
 
@@ -89,10 +81,10 @@
     </section>
   </main>
 
-  <script src="../tools.js?v=202611031000"></script>
+  <script src="../tools.js?v=202611041200"></script>
   <script src="../assets/shell.js?v=202610181200"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script type="module" src="app.js?v=202610150010"></script>
+  <script type="module" src="app.js?v=202611041200"></script>
 </body>
 </html>

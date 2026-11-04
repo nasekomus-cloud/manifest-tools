@@ -45,12 +45,21 @@ function buildSource(rows) {
 }
 
 function options(source, overrides = {}) {
-  const ports = Object.fromEntries(source.loadingPorts.map((p) => [p.code, {
-    pol: p.pol, terminal: p.terminal || 'Some Terminal', fileCode: p.fileCode, billDate: '2026-08-22',
+  const groups = Object.fromEntries(source.groups.map((g) => [g.key, {
+    pol: g.pol,
+    terminal: g.terminal || 'Some Terminal',
+    fileCode: g.fileCode,
+    billDate: '2026-08-22',
+    dischargeTerminal: 'Timber Port',
+    dischargeCode: g.dischargeCode,
   }]));
   return {
-    vessel: source.vessel, voyage: source.voyage, arrivalDate: '2026-10-24', dischargeTerminal: 'Timber Port',
-    dischargeCode: 'RUPLP', ports, createWorkbook: () => new ExcelJS.Workbook(), ...overrides,
+    vessel: source.vessel,
+    voyage: source.voyage,
+    arrivalDate: '2026-10-24',
+    groups,
+    createWorkbook: () => new ExcelJS.Workbook(),
+    ...overrides,
   };
 }
 
@@ -86,6 +95,37 @@ test('файл на каждый порт погрузки, порядок ст�
   assert.equal(sheet.getCell('B8').value, 'TRHU2061616');
   assert.equal(sheet.getCell('B9').value, 'FOUU4503750');
   assert.equal(sheet.getCell('B10').value, null);
+});
+
+test('один порт погрузки делится по портам доставки', () => {
+  const source = readSource(buildSource([
+    row(),
+    row({ container: 'AAMU2606490', delivery: 'RUKGD' }),
+    row({ container: 'FOUU4503750' }),
+    row({ container: 'CBHU5839519', receipt: 'EGEDK', pol: 'EL DEKHEILA', delivery: 'RUKGD' }),
+  ]));
+  assert.deepEqual(source.groups.map((g) => [g.code, g.deliveryCode, g.rows]), [
+    ['CNNSA', 'RUPLP', 2],
+    ['CNNSA', 'RUKGD', 1],
+    ['EGEDK', 'RUKGD', 1],
+  ]);
+  const opts = options(source);
+  opts.groups['CNNSA|RUKGD'].dischargeTerminal = 'Kaliningrad Terminal';
+  const files = buildArmFiles(source, opts);
+  assert.deepEqual(files.map((f) => f.fileName), [
+    'for ARM uploading OVP ZENITH 2602W_RUPLP_CNNSHA.xlsx',
+    'for ARM uploading OVP ZENITH 2602W_RUKGD_CNNSHA.xlsx',
+    'for ARM uploading OVP ZENITH 2602W_RUKGD_EGEDK.xlsx',
+  ]);
+  const first = files[0].workbook.getWorksheet(SHEET_NAME);
+  assert.equal(first.getCell('B8').value, 'TRHU2061616');
+  assert.equal(first.getCell('B9').value, 'FOUU4503750');
+  assert.equal(first.getCell('B10').value, null);
+  const second = files[1].workbook.getWorksheet(SHEET_NAME);
+  assert.equal(second.getCell('B8').value, 'AAMU2606490');
+  assert.equal(second.getCell('B9').value, null);
+  assert.equal(second.getCell('E5').value, 'Kaliningrad Terminal');
+  assert.equal(second.getCell('O8').value, 'KALININGRAD (RUKGD)');
 });
 
 test('преобразования колонок — как в образцах', () => {
@@ -134,9 +174,18 @@ test('неизвестный порт погрузки: POL из исходно�
   assert.equal(port.pol, 'SHANGHAI (CNSHA)');
   assert.equal(port.terminal, '');
   const problems = validateOptions(source, options(source, {
-    arrivalDate: '', ports: { CNSHA: { pol: port.pol, terminal: '', billDate: '' } },
+    arrivalDate: '',
+    groups: {
+      'CNSHA|RUPLP': {
+        pol: port.pol,
+        terminal: '',
+        billDate: '',
+        dischargeTerminal: 'Timber Port',
+        dischargeCode: 'RUPLP',
+      },
+    },
   }));
-  assert.deepEqual(problems, ['дата прихода', 'дата коносамента (CNSHA)', 'терминал погрузки (CNSHA)']);
+  assert.deepEqual(problems, ['дата прихода', 'дата коносамента (CNSHA → RUPLP)', 'терминал погрузки (CNSHA → RUPLP)']);
 });
 
 test('результат записывается и читается обратно', async () => {

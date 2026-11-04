@@ -232,13 +232,18 @@ test('исходный файл линии: разбор, проверка, фа
     vessel: arm.vessel,
     voyage: arm.voyage,
     arrivalDate: '2026-11-20',
-    dischargeTerminal: 'Timber Port',
-    dischargeCode: 'RUPLP',
-    ports: Object.fromEntries(arm.loadingPorts.map((p) => [p.code, { pol: p.pol, terminal: p.terminal, fileCode: p.fileCode, billDate: '2026-10-25' }])),
+    groups: Object.fromEntries(arm.groups.map((g) => [g.key, {
+      pol: g.pol,
+      terminal: g.terminal,
+      fileCode: g.fileCode,
+      billDate: '2026-10-25',
+      dischargeTerminal: g.dischargeTerminal || `Terminal ${g.deliveryCode}`,
+      dischargeCode: g.dischargeCode,
+    }])),
     createWorkbook: () => new ExcelJS.Workbook(),
   };
   assert.deepEqual(validateOptions(arm, options), []);
-  assert.equal(buildArmFiles(arm, options).length, arm.loadingPorts.length);
+  assert.equal(buildArmFiles(arm, options).length, arm.groups.length);
 
   const check = crossCheckSource(await fresh('ishodnyj-fajl-linii.xlsx'), await fresh('manifest-import.xlsx'));
   assert.equal(check.ok, true, check.error);

@@ -1,20 +1,19 @@
 // Состояние страницы «Файлы для загрузки в АРМ»: исходный файл линии, поля
-// рейса и по полю на каждый порт погрузки (POL, терминал, дата коносамента,
-// код в имени файла), сборка файлов через core.js и скачивание — по одному или
-// архивом (JSZip, как в order-check). Вся логика — в core.js; панель, шаги и
-// полоса действия — общий каркас assets/shell.js (window.Shell). Разметка
-// списка файлов и зоны — по образцу source-check/app.js.
+// рейса и настройки каждой пары портов погрузки и доставки, сборка файлов через
+// core.js и скачивание — по одному или архивом (JSZip, как в order-check). Вся
+// логика — в core.js; панель, шаги и полоса действия — общий каркас
+// assets/shell.js (window.Shell). Разметка списка файлов и зоны — по образцу
+// source-check/app.js.
 //
 // Шаг 1 — пока нет файла, 2 — пока нет результата, 3 — файлы собраны; смена
 // файла или любого поля прячет собранные файлы, чтобы не скачать устаревшие.
 //
 // Введённое запоминается в localStorage этого браузера (с одним судном работают
 // много раз подряд): даты прихода и коносаментов — по паре «судно + рейс»
-// (другой рейс — пустые даты, чтобы не подставить чужие), терминал выгрузки,
-// код в имени файла и поля портов погрузки (терминал, POL, код) — последние
-// введённые, общие для всех рейсов.
+// (другой рейс — пустые даты, чтобы не подставить чужие), настройки портов —
+// последние введённые, общие для всех рейсов.
 
-import { readSource, buildArmFiles, validateOptions } from './core.js?v=202610142330';
+import { readSource, buildArmFiles, validateOptions } from './core.js?v=202611041200';
 
 const Shell = window.Shell;
 
@@ -30,8 +29,6 @@ const sourceFileList = document.getElementById('source-file-list');
 const vesselInput = document.getElementById('vessel-input');
 const voyageInput = document.getElementById('voyage-input');
 const arrivalInput = document.getElementById('arrival-input');
-const dischargeTerminalInput = document.getElementById('discharge-terminal-input');
-const dischargeCodeInput = document.getElementById('discharge-code-input');
 const portsSection = document.getElementById('ports-section');
 const portsBox = document.getElementById('ports-box');
 
@@ -47,18 +44,19 @@ const state = {
   file: null,
   /** результат readSource: undefined — читается, null — не читается */
   source: null,
-  /** @type {{code: string, inputs: Object<string, HTMLInputElement>}[]} */
-  portInputs: [],
-  /** @type {Array<{portCode, fileName, rows, containers, workbook}>|null} */
+  /** @type {{key: string, code: string, deliveryCode: string, inputs: Object<string, HTMLInputElement>}[]} */
+  groupInputs: [],
+  /** @type {Array<{portCode, deliveryCode, fileName, rows, containers, workbook}>|null} */
   files: null,
 };
 let busy = false;
 let setVersion = 0; // растёт при каждой смене файла — результат старого файла не показываем
 
 /* ——— Запоминание введённого ———
-   { last: {vessel, voyage}, dischargeTerminal, dischargeCode,
-     voyages: { "судно|рейс": {arrivalDate, billDates: {код порта: дата}, savedAt} },
-     ports: { код порта: {terminal, pol, fileCode} } }
+   { last: {vessel, voyage},
+     voyages: { "судно|рейс": {arrivalDate, billDates: {ключ пары портов: дата}, savedAt} },
+     ports: { код порта: {terminal, pol, fileCode} }, // прежний формат, для миграции
+     groups: { ключ пары портов: {terminal, pol, fileCode, dischargeTerminal, dischargeCode} } }
    Хранилище может быть недоступно (приватное окно, запрет сайта) — тогда всё
    работает как раньше, просто без памяти. */
 
@@ -94,21 +92,19 @@ function savedVoyage(store = loadStore()) {
 
 function saveCurrent() {
   const store = loadStore();
-  store.dischargeTerminal = dischargeTerminalInput.value.trim();
-  store.dischargeCode = dischargeCodeInput.value.trim();
   store.last = { vessel: vesselInput.value.trim(), voyage: voyageInput.value.trim() };
-  // Поля порта запоминаются, только если отличаются от справочника core.js:
-  // иначе поправка справочника в коде не дошла бы до того, кто уже работал.
-  store.ports ??= {};
-  for (const { code, inputs } of state.portInputs) {
-    const defaults = state.source?.ok ? state.source.loadingPorts.find((p) => p.code === code) : null;
+  // Поля запоминаются, только если отличаются от справочника core.js: иначе
+  // поправка справочника в коде не дошла бы до того, кто уже работал.
+  store.groups ??= {};
+  for (const { key, inputs } of state.groupInputs) {
+    const defaults = state.source?.ok ? state.source.groups.find((g) => g.key === key) : null;
     const entry = {};
-    for (const field of ['terminal', 'pol', 'fileCode']) {
+    for (const field of ['terminal', 'pol', 'fileCode', 'dischargeTerminal', 'dischargeCode']) {
       const value = inputs[field].value.trim();
       if (!defaults || value !== defaults[field]) entry[field] = value;
     }
-    if (Object.keys(entry).length) store.ports[code] = entry;
-    else delete store.ports[code];
+    if (Object.keys(entry).length) store.groups[key] = entry;
+    else delete store.groups[key];
   }
   const key = voyageKey(vesselInput.value, voyageInput.value);
   if (key) {
@@ -116,7 +112,7 @@ function saveCurrent() {
     const record = store.voyages[key] ?? { billDates: {} };
     record.arrivalDate = arrivalInput.value;
     record.billDates ??= {};
-    for (const { code, inputs } of state.portInputs) record.billDates[code] = inputs.billDate.value;
+    for (const group of state.groupInputs) record.billDates[group.key] = group.inputs.billDate.value;
     record.savedAt = Date.now();
     store.voyages[key] = record;
     // Старые рейсы вытесняются — хранилище не растёт без конца.
@@ -130,13 +126,13 @@ function saveCurrent() {
 function applySavedVoyage() {
   const record = savedVoyage();
   arrivalInput.value = record?.arrivalDate ?? '';
-  for (const { code, inputs } of state.portInputs) inputs.billDate.value = record?.billDates?.[code] ?? '';
+  for (const { key, code, inputs } of state.groupInputs) {
+    inputs.billDate.value = record?.billDates?.[key] ?? record?.billDates?.[code] ?? '';
+  }
 }
 
 function restoreOnStart() {
   const store = loadStore();
-  if (store.dischargeTerminal) dischargeTerminalInput.value = store.dischargeTerminal;
-  if (store.dischargeCode) dischargeCodeInput.value = store.dischargeCode;
   if (store.last) {
     vesselInput.value = store.last.vessel ?? '';
     voyageInput.value = store.last.voyage ?? '';
@@ -145,22 +141,22 @@ function restoreOnStart() {
 }
 
 function currentOptions() {
-  const ports = {};
-  for (const { code, inputs } of state.portInputs) {
-    ports[code] = {
+  const groups = {};
+  for (const { key, inputs } of state.groupInputs) {
+    groups[key] = {
       pol: inputs.pol.value.trim(),
       terminal: inputs.terminal.value.trim(),
       fileCode: inputs.fileCode.value.trim(),
       billDate: inputs.billDate.value,
+      dischargeTerminal: inputs.dischargeTerminal.value.trim(),
+      dischargeCode: inputs.dischargeCode.value.trim(),
     };
   }
   return {
     vessel: vesselInput.value.trim(),
     voyage: voyageInput.value.trim(),
     arrivalDate: arrivalInput.value,
-    dischargeTerminal: dischargeTerminalInput.value.trim(),
-    dischargeCode: dischargeCodeInput.value.trim(),
-    ports,
+    groups,
   };
 }
 
@@ -173,8 +169,8 @@ function actionInfoText() {
   if (!state.file) return 'Файл не выбран';
   if (state.source === undefined) return `${state.file.name} · читаю…`;
   if (!state.source || !state.source.ok) return state.file.name;
-  const ports = state.source.loadingPorts.length;
-  return `${state.file.name} · ${rowsLabel(state.source.rows.length)} · ${ports} ${Shell.plural(ports, 'порт', 'порта', 'портов')} погрузки`;
+  const groups = state.source.groups.length;
+  return `${state.file.name} · ${rowsLabel(state.source.rows.length)} · ${groups} ${Shell.plural(groups, 'файл', 'файла', 'файлов')}`;
 }
 
 function actionHintText() {
@@ -247,43 +243,47 @@ function textInput(value, placeholder = '') {
   return input;
 }
 
-// Поля портов погрузки строятся по файлу заново: терминал, POL и код — из
-// запомненного (иначе из справочника core.js), дата коносамента — из
-// запомненного рейса.
+// Поля каждой пары портов строятся по файлу заново: настройки — из памяти или
+// справочников core.js, дата коносамента — из запомненного рейса.
 function renderPorts() {
   const store = loadStore();
   const record = savedVoyage(store);
   portsBox.innerHTML = '';
-  state.portInputs = [];
+  state.groupInputs = [];
   if (!state.source || !state.source.ok) {
     portsSection.hidden = true;
     return;
   }
-  for (const port of state.source.loadingPorts) {
-    const saved = store.ports?.[port.code];
+  for (const group of state.source.groups) {
+    const saved = store.ports?.[group.code];
+    const savedGroup = store.groups?.[group.key];
     const heading = document.createElement('h3');
-    const containers = `${port.containers} ${Shell.plural(port.containers, 'контейнер', 'контейнера', 'контейнеров')}`;
-    heading.textContent = `${port.code || 'без кода'} — ${rowsLabel(port.rows)}, ${containers}${port.known ? '' : ' (порта нет в справочнике — впишите POL и терминал)'}`;
+    const containers = `${group.containers} ${Shell.plural(group.containers, 'контейнер', 'контейнера', 'контейнеров')}`;
+    heading.textContent = `${group.code || 'без кода'} → ${group.deliveryCode || 'без кода'} — ${rowsLabel(group.rows)}, ${containers}${group.known ? '' : ' (порта погрузки нет в справочнике — впишите POL и терминал)'}`;
     portsBox.appendChild(heading);
 
     const billDate = document.createElement('input');
     billDate.type = 'date';
-    billDate.value = record?.billDates?.[port.code] ?? '';
+    billDate.value = record?.billDates?.[group.key] ?? record?.billDates?.[group.code] ?? '';
     billDate.addEventListener('input', onFieldChange);
     const inputs = {
       billDate,
-      terminal: textInput(saved?.terminal || port.terminal, 'Терминал погрузки'),
-      pol: textInput(saved?.pol || port.pol),
-      fileCode: textInput(saved?.fileCode || port.fileCode),
+      terminal: textInput(savedGroup?.terminal ?? saved?.terminal ?? group.terminal, 'Терминал погрузки'),
+      pol: textInput(savedGroup?.pol ?? saved?.pol ?? group.pol),
+      fileCode: textInput(savedGroup?.fileCode ?? saved?.fileCode ?? group.fileCode),
+      dischargeTerminal: textInput(savedGroup?.dischargeTerminal ?? group.dischargeTerminal, 'Терминал выгрузки'),
+      dischargeCode: textInput(savedGroup?.dischargeCode ?? group.dischargeCode),
     };
     const grid = document.createElement('div');
     grid.className = 'field-grid';
     grid.appendChild(field('Дата коносамента', inputs.billDate));
     grid.appendChild(field('Терминал погрузки', inputs.terminal));
     grid.appendChild(field('POL', inputs.pol));
-    grid.appendChild(field('Код в имени файла', inputs.fileCode));
+    grid.appendChild(field('Код погрузки в имени файла', inputs.fileCode));
+    grid.appendChild(field('Терминал выгрузки', inputs.dischargeTerminal));
+    grid.appendChild(field('Код выгрузки в имени файла', inputs.dischargeCode));
     portsBox.appendChild(grid);
-    state.portInputs.push({ code: port.code, inputs });
+    state.groupInputs.push({ key: group.key, code: group.code, deliveryCode: group.deliveryCode, inputs });
   }
   portsSection.hidden = false;
 }
@@ -294,9 +294,7 @@ function onFieldChange() {
   updateUi();
 }
 
-[arrivalInput, dischargeTerminalInput, dischargeCodeInput].forEach((input) => {
-  input.addEventListener('input', onFieldChange);
-});
+arrivalInput.addEventListener('input', onFieldChange);
 
 // Сменили судно или рейс — подставляем даты этого рейса из памяти (или пустые),
 // а не сохраняем даты прошлого рейса под новым именем.
