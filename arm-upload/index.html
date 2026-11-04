@@ -54,6 +54,12 @@
           <input type="date" id="arrival-input" />
         </label>
       </div>
+      <label class="switch">
+        <input type="checkbox" class="switch__input" id="allow-incomplete-checkbox" role="switch" />
+        <span class="switch__track" aria-hidden="true"></span>
+        Формировать файлы с незаполненными данными
+      </label>
+      <p class="hint">Если режим включён, неизвестные данные останутся пустыми, а соответствующие ячейки в Excel будут выделены жёлтым.</p>
     </section>
 
     <section class="options" aria-labelledby="ports-heading" id="ports-section" hidden>
@@ -85,6 +91,6 @@
   <script src="../assets/shell.js?v=202610181200"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script type="module" src="app.js?v=202611041200"></script>
+  <script type="module" src="app.js?v=202611041500"></script>
 </body>
 </html>

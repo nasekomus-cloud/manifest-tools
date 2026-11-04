@@ -13,7 +13,7 @@
 // (другой рейс — пустые даты, чтобы не подставить чужие), настройки портов —
 // последние введённые, общие для всех рейсов.
 
-import { readSource, buildArmFiles, validateOptions } from './core.js?v=202611041200';
+import { readSource, buildArmFiles, validateOptions } from './core.js?v=202611041500';
 
 const Shell = window.Shell;
 
@@ -29,6 +29,7 @@ const sourceFileList = document.getElementById('source-file-list');
 const vesselInput = document.getElementById('vessel-input');
 const voyageInput = document.getElementById('voyage-input');
 const arrivalInput = document.getElementById('arrival-input');
+const allowIncompleteInput = document.getElementById('allow-incomplete-checkbox');
 const portsSection = document.getElementById('ports-section');
 const portsBox = document.getElementById('ports-box');
 
@@ -53,7 +54,7 @@ let busy = false;
 let setVersion = 0; // растёт при каждой смене файла — результат старого файла не показываем
 
 /* ——— Запоминание введённого ———
-   { last: {vessel, voyage},
+   { last: {vessel, voyage}, allowIncomplete,
      voyages: { "судно|рейс": {arrivalDate, billDates: {ключ пары портов: дата}, savedAt} },
      ports: { код порта: {terminal, pol, fileCode} }, // прежний формат, для миграции
      groups: { ключ пары портов: {terminal, pol, fileCode, dischargeTerminal, dischargeCode} } }
@@ -92,6 +93,7 @@ function savedVoyage(store = loadStore()) {
 
 function saveCurrent() {
   const store = loadStore();
+  store.allowIncomplete = allowIncompleteInput.checked;
   store.last = { vessel: vesselInput.value.trim(), voyage: voyageInput.value.trim() };
   // Поля запоминаются, только если отличаются от справочника core.js: иначе
   // поправка справочника в коде не дошла бы до того, кто уже работал.
@@ -133,6 +135,7 @@ function applySavedVoyage() {
 
 function restoreOnStart() {
   const store = loadStore();
+  allowIncompleteInput.checked = Boolean(store.allowIncomplete);
   if (store.last) {
     vesselInput.value = store.last.vessel ?? '';
     voyageInput.value = store.last.voyage ?? '';
@@ -156,6 +159,7 @@ function currentOptions() {
     vessel: vesselInput.value.trim(),
     voyage: voyageInput.value.trim(),
     arrivalDate: arrivalInput.value,
+    allowIncomplete: allowIncompleteInput.checked,
     groups,
   };
 }
@@ -177,7 +181,8 @@ function actionHintText() {
   if (!state.file) return 'Добавьте исходный файл';
   if (!state.source || !state.source.ok) return null;
   const missing = missingFields();
-  return missing.length ? `Заполните: ${missing.join(', ')}` : null;
+  if (missing.length) return `Заполните: ${missing.join(', ')}`;
+  return allowIncompleteInput.checked ? 'Пустые ячейки неизвестных данных будут выделены жёлтым' : null;
 }
 
 function updateUi() {
@@ -295,6 +300,7 @@ function onFieldChange() {
 }
 
 arrivalInput.addEventListener('input', onFieldChange);
+allowIncompleteInput.addEventListener('change', onFieldChange);
 
 // Сменили судно или рейс — подставляем даты этого рейса из памяти (или пустые),
 // а не сохраняем даты прошлого рейса под новым именем.

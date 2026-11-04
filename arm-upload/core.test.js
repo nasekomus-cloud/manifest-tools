@@ -179,6 +179,7 @@ test('неизвестный порт погрузки: POL из исходно�
       'CNSHA|RUPLP': {
         pol: port.pol,
         terminal: '',
+        fileCode: port.fileCode,
         billDate: '',
         dischargeTerminal: 'Timber Port',
         dischargeCode: 'RUPLP',
@@ -186,6 +187,31 @@ test('неизвестный порт погрузки: POL из исходно�
     },
   }));
   assert.deepEqual(problems, ['дата прихода', 'дата коносамента (CNSHA → RUPLP)', 'терминал погрузки (CNSHA → RUPLP)']);
+});
+
+test('можно оставить неизвестные данные пустыми — ячейки выделяются жёлтым', async () => {
+  const source = readSource(buildSource([row()]));
+  const opts = options(source, { vessel: '', arrivalDate: '', allowIncomplete: true });
+  const settings = opts.groups['CNNSA|RUPLP'];
+  Object.assign(settings, { pol: '', terminal: '', billDate: '', dischargeTerminal: '' });
+  assert.deepEqual(validateOptions(source, opts), []);
+  settings.fileCode = '';
+  assert.deepEqual(validateOptions(source, opts), ['код порта погрузки для имени файла (CNNSA → RUPLP)']);
+  settings.fileCode = source.groups[0].fileCode;
+
+  const [file] = buildArmFiles(source, opts);
+  const back = new ExcelJS.Workbook();
+  await back.xlsx.load(await file.workbook.xlsx.writeBuffer());
+  const sheet = back.getWorksheet(SHEET_NAME);
+  for (const address of ['E1', 'E3', 'E4', 'E5', 'D8', 'E8', 'Z8']) {
+    assert.equal(sheet.getCell(address).value, null, address);
+    assert.equal(sheet.getCell(address).fill.fgColor.argb, 'FFFFFF00', address);
+  }
+  assert.equal(sheet.getCell('E2').value, '2602W');
+  assert.notEqual(sheet.getCell('E2').fill?.fgColor?.argb, 'FFFFFF00');
+  assert.notEqual(sheet.getCell('A8').fill?.fgColor?.argb, 'FFFFFF00');
+  assert.equal(sheet.getCell('K8').value, null);
+  assert.notEqual(sheet.getCell('K8').fill?.fgColor?.argb, 'FFFFFF00');
 });
 
 test('результат записывается и читается обратно', async () => {

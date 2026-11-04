@@ -313,6 +313,7 @@ function deliveryName(value) {
 /* ——— Сборка книги ——— */
 
 const FONT = { name: 'Calibri', family: 2, charset: 204, scheme: 'minor', size: 11, color: { argb: 'FF000000' } };
+const MISSING_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
 const THIN = { style: 'thin' };
 const MEDIUM = { style: 'medium' };
 const DATE_NUMFMT = 'mm-dd-yy'; // встроенный формат 14 — короткая дата по настройкам Excel
@@ -356,6 +357,7 @@ function buildWorkbook(workbook, rows, { vessel, voyage, arrivalDate, loadingTer
       valueCell.numFmt = DATE_NUMFMT;
       valueCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
     }
+    if (valueCell.value === null) valueCell.fill = MISSING_FILL;
   });
   for (let r = 1; r <= 6; r++) sheet.getRow(r).height = 16.35;
 
@@ -385,7 +387,7 @@ function buildWorkbook(workbook, rows, { vessel, voyage, arrivalDate, loadingTer
       data.billOfLading,
       data.container,
       data.type,
-      pol || data.pol,
+      pol || null,
       loadingTerminal || null,
       data.cargoName,
       data.cargoNameRus,
@@ -417,6 +419,7 @@ function buildWorkbook(workbook, rows, { vessel, voyage, arrivalDate, loadingTer
       cell.alignment = { vertical: 'middle' };
       cell.border = { left: THIN, right: THIN, top: THIN, bottom: THIN };
       if (value instanceof Date) cell.numFmt = DATE_NUMFMT;
+      if ([3, 4, 25].includes(c) && cell.value === null) cell.fill = MISSING_FILL;
     });
   });
 
@@ -471,16 +474,18 @@ function safeFileName(name) {
  */
 export function validateOptions(source, options) {
   const problems = [];
-  if (!String(options.vessel ?? '').trim()) problems.push('судно');
-  if (!String(options.voyage ?? '').trim()) problems.push('рейс');
-  if (!utcDate(options.arrivalDate)) problems.push('дата прихода');
+  const allowIncomplete = Boolean(options.allowIncomplete);
+  if (!allowIncomplete && !String(options.vessel ?? '').trim()) problems.push('судно');
+  if (!allowIncomplete && !String(options.voyage ?? '').trim()) problems.push('рейс');
+  if (!allowIncomplete && !utcDate(options.arrivalDate)) problems.push('дата прихода');
   for (const group of source.groups) {
     const settings = options.groups[group.key] ?? {};
     const name = `${group.code || 'без кода'} → ${group.deliveryCode || 'без кода'}`;
-    if (!utcDate(settings.billDate)) problems.push(`дата коносамента (${name})`);
-    if (!String(settings.terminal ?? '').trim()) problems.push(`терминал погрузки (${name})`);
-    if (!String(settings.pol ?? '').trim()) problems.push(`POL (${name})`);
-    if (!String(settings.dischargeTerminal ?? '').trim()) problems.push(`терминал выгрузки (${name})`);
+    if (!allowIncomplete && !utcDate(settings.billDate)) problems.push(`дата коносамента (${name})`);
+    if (!allowIncomplete && !String(settings.terminal ?? '').trim()) problems.push(`терминал погрузки (${name})`);
+    if (!allowIncomplete && !String(settings.pol ?? '').trim()) problems.push(`POL (${name})`);
+    if (!allowIncomplete && !String(settings.dischargeTerminal ?? '').trim()) problems.push(`терминал выгрузки (${name})`);
+    if (!String(settings.fileCode ?? '').trim()) problems.push(`код порта погрузки для имени файла (${name})`);
     if (!String(settings.dischargeCode ?? '').trim()) problems.push(`код порта выгрузки для имени файла (${name})`);
   }
   return problems;
