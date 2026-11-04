@@ -356,7 +356,7 @@ const SOURCE_HEADERS = [
 ];
 const SOURCE_HEADER_ROW = 10;
 
-function buildSourceFile() {
+function buildSourceFile({ rows = IMPORT_ROWS, polFor = (r) => LOAD_PORTS[r.port].pol } = {}) {
   const wb = newWorkbook();
   const sheet = wb.addWorksheet('Sheet1');
   const head = {
@@ -366,10 +366,10 @@ function buildSourceFile() {
   for (const [address, value] of Object.entries(head)) sheet.getCell(address).value = value;
   setRow(sheet, SOURCE_HEADER_ROW, 1, SOURCE_HEADERS);
   boldRow(sheet, SOURCE_HEADER_ROW);
-  IMPORT_ROWS.forEach((r, i) => {
+  rows.forEach((r, i) => {
     const p = PARTIES[r.parties];
     setRow(sheet, SOURCE_HEADER_ROW + 1 + i, 1, [
-      r.bl, r.container, r.type, LOAD_PORTS[r.port].pol, DELIVERY, r.cargo, r.cargoRus, r.seal, r.places, '', r.pack,
+      r.bl, r.container, r.type, polFor(r), DELIVERY, r.cargo, r.cargoRus, r.seal, r.places, '', r.pack,
       r.cargoWeight, r.measurement, r.port, DELIVERY, p.shipper, p.shipperAddress, p.consignee, p.consigneeAddress,
       p.consignee, p.consigneeAddress, r.temperature, r.imo, r.un, r.tare, 'N',
     ]);
@@ -377,6 +377,46 @@ function buildSourceFile() {
   for (const [letter, width] of Object.entries({ A: 17, B: 15, F: 30, G: 30, P: 36, Q: 34, R: 26, S: 44, T: 26, U: 44 })) {
     sheet.getColumn(letter).width = width;
   }
+  return wb;
+}
+
+/* ——— Корректировка POL: исходный файл линии + выгрузка Stowage Edit ——— */
+
+// В исходном файле POL — название порта, набранное как получилось («NANSHA»,
+// «NANSHA,CHINA»), а в стоведже — код порта. У одного контейнера порт в файле
+// линии указан неверно (погрузили в Taicang, CNTAG), у одного POL уже верный.
+const POL_SAMPLE = [
+  { row: IMPORT_ROWS[0], sourcePol: 'NANSHA,CHINA', stowagePol: 'CNNSA' },
+  { row: IMPORT_ROWS[1], sourcePol: 'NANSHA', stowagePol: 'CNNSA' },
+  { row: IMPORT_ROWS[3], sourcePol: 'NANSHA', stowagePol: 'CNTAG' },
+  { row: IMPORT_ROWS[5], sourcePol: 'ISTANBUL', stowagePol: 'TRIST' },
+  { row: IMPORT_ROWS[6], sourcePol: 'ISTANBUL, TURKIYE', stowagePol: 'TRIST' },
+  { row: IMPORT_ROWS[7], sourcePol: 'TRIST', stowagePol: 'TRIST' },
+];
+
+const STOWAGE_HEADERS = [
+  'PrevCell', 'Cell', 'Cntr No', 'OPR', 'POL', 'POL-Voyage', 'POD', 'POD-Voyage', 'DEST', 'SzTp', 'Size', 'HC',
+  'WGT', 'VGM', 'FE', 'HI', 'IMDG', 'UNNO', 'PKG', 'DG Count', 'Sub Risk', 'SGG1', 'MP', 'FP', 'CGT', 'OOG Type',
+  'OvDh', 'OvDF', 'OvDA', 'OvDP', 'OvDS', 'RZ', 'RZ Permit Codes', 'X-Commodity', 'Book No', 'Special Remark',
+  'BBK DL', 'BBK DW', 'BBK DH',
+];
+
+function buildStowageFile(sample) {
+  const wb = newWorkbook();
+  const sheet = wb.addWorksheet('Stowage Edit');
+  sheet.mergeCells('A1:AM1');
+  sheet.getCell('A1').value = 'Stowage Edit';
+  setRow(sheet, 2, 1, STOWAGE_HEADERS);
+  boldRow(sheet, 2);
+  sample.forEach((entry, i) => {
+    const r = entry.row;
+    setRow(sheet, 3 + i, 1, [
+      null, 200108 + i, r.container, 'OVP', entry.stowagePol, IMPORT.voyage, DELIVERY, IMPORT.voyage, DELIVERY,
+      r.type, r.type.slice(0, 2), r.type === '20GP' ? 'N' : 'H', round3(r.cargoWeight + r.tare), '',
+    ]);
+  });
+  sheet.getColumn('C').width = 14;
+  sheet.getColumn('E').width = 8;
   return wb;
 }
 
@@ -434,6 +474,12 @@ export function buildSamples() {
   for (const order of ORDERS) samples.set(order.file, buildOrder(order));
   samples.set('shablon-poruchenija.xlsx', buildTemplate(ORDERS[0]));
   samples.set('ishodnyj-fajl-linii.xlsx', buildSourceFile());
+  const polOf = new Map(POL_SAMPLE.map((entry) => [entry.row, entry.sourcePol]));
+  samples.set('pol-istochnik.xlsx', buildSourceFile({
+    rows: POL_SAMPLE.map((entry) => entry.row),
+    polFor: (row) => polOf.get(row),
+  }));
+  samples.set('pol-stowage.xlsx', buildStowageFile(POL_SAMPLE));
   samples.set('manifest-import.xlsx', buildManifest({
     title: `Список на выгрузку т/х ${IMPORT.vessel}`, voyage: IMPORT.voyage, headers: MANIFEST_HEADERS_IMPORT,
     rows: IMPORT_ROWS.map(importManifestRow),

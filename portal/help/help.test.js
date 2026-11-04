@@ -22,6 +22,7 @@ import { readSourceManifest, crossCheckSource } from '../../source-check/core.js
 import { auditSourceFile, containerCheckDigitOk } from '../../source-audit/core.js';
 import { readSource, validateOptions, buildArmFiles } from '../../arm-upload/core.js';
 import { compareVersions } from '../../version-compare/core.js';
+import { correctPol } from '../../pol-correct/core.js';
 
 const HELP_DIR = join(REPO_ROOT, 'portal', 'help');
 const SAMPLES_DIR = join(HELP_DIR, 'samples');
@@ -261,6 +262,19 @@ test('версии манифеста: примеры различаются т�
   assert.equal(result.summary.newerFile, 'manifest-versiya-novaya.xlsx');
   assert.equal(result.summary.changedCells, 3);
   assert.deepEqual(result.changes.map((change) => change.cell), ['P6', 'H7', 'J7']);
+});
+
+test('корректировка POL: пять POL заменены по номеру контейнера, один уже верный', async () => {
+  const result = correctPol(
+    { fileName: 'pol-istochnik.xlsx', workbook: await fresh('pol-istochnik.xlsx') },
+    { fileName: 'pol-stowage.xlsx', workbook: await fresh('pol-stowage.xlsx') },
+  );
+  assert.equal(result.ok, true, result.error);
+  assert.deepEqual([result.summary.changed, result.summary.unchanged], [5, 1]);
+  assert.deepEqual(result.summary.notFound, []);
+  assert.deepEqual(result.summary.unused, []);
+  assert.deepEqual(result.changes.map((change) => change.after), ['CNNSA', 'CNNSA', 'CNTAG', 'TRIST', 'TRIST']);
+  assert.equal(result.changes[2].before, 'NANSHA');
 });
 
 /* ——— Маршруты ——— */

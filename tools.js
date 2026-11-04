@@ -52,6 +52,16 @@ window.TOOLS = [
     output: 'xlsx',
   },
   {
+    title: 'Корректировка POL',
+    navTitle: 'Корректировка POL',
+    description:
+      'Заменить POL в манифесте или исходном файле линии на порт погрузки из выгрузки Stowage Edit по номеру контейнера: заменённые ячейки — жёлтым.',
+    num: 15,
+    href: 'pol-correct/index.html',
+    category: 'import',
+    output: 'xlsx',
+  },
+  {
     title: 'Файлы для загрузки в АРМ',
     navTitle: 'Файлы для АРМ',
     description:
