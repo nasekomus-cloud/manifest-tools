@@ -3,8 +3,8 @@
 // Принцип восстановлен по образцам пользователя («for ARM uploading OVP ZENITH
 // 2602W_RUPLP_CNNSHA/EGEDK/TRIST.xlsx», 2026-10-14, все 455 строк исходного
 // сошлись с образцами по значениям):
-//   — исходный файл делится на файлы по паре портов погрузки и доставки
-//     (PlaceOfReceipt + PlaceOfDelivery), строки внутри файла — в порядке исходного;
+//   — исходный файл делится на файлы по паре POL и порта доставки
+//     (POL + PlaceOfDelivery), строки внутри файла — в порядке исходного;
 //   — лист IMPORT_MANIFEST, шапка рейса D1:E5 (Судно, Рейс, Дата прихода,
 //     Терминал погрузки, Терминал выгрузки), заголовки в 7-й строке, данные с 8-й;
 //   — колонки те же A:Z, что у исходного, кроме:
@@ -25,9 +25,9 @@
 
 /* ——— Справочники ——— */
 
-// Порт погрузки (код PlaceOfReceipt) → название для POL, терминал погрузки и
-// код в имени файла. Значения — из образцов пользователя. Неизвестный код
-// не ошибка: поля на странице заполняются вручную.
+// Справочник портов погрузки: название для POL, терминал и код в имени файла.
+// Запись выбирается по совпадению с POL исходного. Неизвестный POL не ошибка:
+// поля на странице заполняются вручную.
 export const LOADING_PORTS = {
   CNNSA: { pol: 'NANSHA,CHINA (CNNSA)', terminal: 'NICT (Guangzhou Nansha Container Terminal)', fileCode: 'CNNSHA' },
   EGEDK: { pol: 'Alexandria', terminal: 'El Dekheila Alexandria Int. Container Terminal', fileCode: 'EGEDK' },
@@ -205,7 +205,7 @@ export function readSource(workbook) {
       if (!cellText(row.getCell(columns.container)).trim()) continue;
       const data = { row: r };
       for (const spec of SOURCE_COLUMNS) data[spec.key] = columns[spec.key] ? cellValue(row.getCell(columns[spec.key])) : null;
-      data.portCode = code(data.placeOfReceipt);
+      data.portCode = code(data.pol);
       data.deliveryCode = code(data.placeOfDelivery);
       rows.push(data);
     }
@@ -213,23 +213,21 @@ export function readSource(workbook) {
 
     const ports = new Map();
     for (const data of rows) {
-      if (!ports.has(data.portCode)) ports.set(data.portCode, { rows: [], pols: new Map() });
-      const port = ports.get(data.portCode);
-      port.rows.push(data);
-      const pol = String(data.pol ?? '').trim();
-      if (pol) port.pols.set(pol, (port.pols.get(pol) || 0) + 1);
+      if (!ports.has(data.portCode)) ports.set(data.portCode, { rows: [], pol: String(data.pol ?? '').trim() });
+      ports.get(data.portCode).rows.push(data);
     }
     const loadingPorts = [...ports].map(([portCode, port]) => {
-      const known = LOADING_PORTS[portCode];
-      // Неизвестный порт: POL — самое частое название из исходного с кодом в
-      // скобках (как «NANSHA,CHINA (CNNSA)»), терминал — вписать вручную.
-      const commonPol = [...port.pols].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+      // Справочник тоже выбирается по POL: NANSHA → CNNSA/CNNSHA,
+      // EL DEKHEILA → EGEDK, ISTANBUL → TRIST.
+      const known = Object.values(LOADING_PORTS).find((entry) => portCode && (
+        code(entry.pol).includes(portCode) || code(entry.terminal).includes(portCode)
+      ));
       return {
         code: portCode,
         rows: port.rows.length,
         containers: new Set(port.rows.map((d) => code(d.container))).size,
         known: Boolean(known),
-        pol: known ? known.pol : commonPol && portCode ? `${commonPol} (${portCode})` : commonPol,
+        pol: known ? known.pol : port.pol,
         terminal: known ? known.terminal : '',
         fileCode: known ? known.fileCode : portCode,
       };

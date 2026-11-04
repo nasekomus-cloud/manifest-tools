@@ -77,14 +77,14 @@ test('не исходный файл — понятная ошибка', () => {
   assert.equal(readSource(wb).ok, false);
 });
 
-test('файл на каждый порт погрузки, порядок строк исходного, имя как в образце', () => {
+test('файл на каждый POL, порядок строк исходного, имя как в образце', () => {
   const source = readSource(buildSource([
     row(),
     row({ container: 'AAMU2606490', receipt: 'EGEDK', pol: 'EL DEKHEILA' }),
     row({ container: 'FOUU4503750' }),
     row({ container: 'CBHU5839519', receipt: 'TRIST', pol: 'ISTANBUL' }),
   ]));
-  assert.deepEqual(source.loadingPorts.map((p) => [p.code, p.rows]), [['CNNSA', 2], ['EGEDK', 1], ['TRIST', 1]]);
+  assert.deepEqual(source.loadingPorts.map((p) => [p.code, p.rows]), [['NANSHA', 2], ['ELDEKHEILA', 1], ['ISTANBUL', 1]]);
   const files = buildArmFiles(source, options(source));
   assert.deepEqual(files.map((f) => f.fileName), [
     'for ARM uploading OVP ZENITH 2602W_RUPLP_CNNSHA.xlsx',
@@ -97,7 +97,25 @@ test('файл на каждый порт погрузки, порядок ст�
   assert.equal(sheet.getCell('B10').value, null);
 });
 
-test('один порт погрузки делится по портам доставки', () => {
+test('разные POL делятся, даже если PlaceOfReceipt совпадает', () => {
+  const source = readSource(buildSource([
+    row(),
+    row({ container: 'AAMU2606490', pol: 'SHANGHAI' }),
+    row({ container: 'FOUU4503750', pol: ' nansha ', receipt: 'EGEDK' }),
+  ]));
+  assert.deepEqual(source.groups.map((g) => [g.code, g.rows]), [['NANSHA', 2], ['SHANGHAI', 1]]);
+  const files = buildArmFiles(source, options(source));
+  assert.deepEqual(files.map((f) => f.fileName), [
+    'for ARM uploading OVP ZENITH 2602W_RUPLP_CNNSHA.xlsx',
+    'for ARM uploading OVP ZENITH 2602W_RUPLP_SHANGHAI.xlsx',
+  ]);
+  const first = files[0].workbook.getWorksheet(SHEET_NAME);
+  assert.equal(first.getCell('B8').value, 'TRHU2061616');
+  assert.equal(first.getCell('B9').value, 'FOUU4503750');
+  assert.equal(first.getCell('B10').value, null);
+});
+
+test('один POL делится по портам доставки', () => {
   const source = readSource(buildSource([
     row(),
     row({ container: 'AAMU2606490', delivery: 'RUKGD' }),
@@ -105,12 +123,12 @@ test('один порт погрузки делится по портам дос
     row({ container: 'CBHU5839519', receipt: 'EGEDK', pol: 'EL DEKHEILA', delivery: 'RUKGD' }),
   ]));
   assert.deepEqual(source.groups.map((g) => [g.code, g.deliveryCode, g.rows]), [
-    ['CNNSA', 'RUPLP', 2],
-    ['CNNSA', 'RUKGD', 1],
-    ['EGEDK', 'RUKGD', 1],
+    ['NANSHA', 'RUPLP', 2],
+    ['NANSHA', 'RUKGD', 1],
+    ['ELDEKHEILA', 'RUKGD', 1],
   ]);
   const opts = options(source);
-  opts.groups['CNNSA|RUKGD'].dischargeTerminal = 'Kaliningrad Terminal';
+  opts.groups['NANSHA|RUKGD'].dischargeTerminal = 'Kaliningrad Terminal';
   const files = buildArmFiles(source, opts);
   assert.deepEqual(files.map((f) => f.fileName), [
     'for ARM uploading OVP ZENITH 2602W_RUPLP_CNNSHA.xlsx',
@@ -167,16 +185,16 @@ test('контейнер под двумя коносаментами — тар
   assert.equal(file.containers, 1);
 });
 
-test('неизвестный порт погрузки: POL из исходного с кодом, терминал — вручную', () => {
+test('неизвестный POL: название из исходного, терминал — вручную', () => {
   const source = readSource(buildSource([row({ receipt: 'CNSHA', pol: 'SHANGHAI' })]));
   const [port] = source.loadingPorts;
   assert.equal(port.known, false);
-  assert.equal(port.pol, 'SHANGHAI (CNSHA)');
+  assert.equal(port.pol, 'SHANGHAI');
   assert.equal(port.terminal, '');
   const problems = validateOptions(source, options(source, {
     arrivalDate: '',
     groups: {
-      'CNSHA|RUPLP': {
+      'SHANGHAI|RUPLP': {
         pol: port.pol,
         terminal: '',
         fileCode: port.fileCode,
@@ -186,17 +204,17 @@ test('неизвестный порт погрузки: POL из исходно�
       },
     },
   }));
-  assert.deepEqual(problems, ['дата прихода', 'дата коносамента (CNSHA → RUPLP)', 'терминал погрузки (CNSHA → RUPLP)']);
+  assert.deepEqual(problems, ['дата прихода', 'дата коносамента (SHANGHAI → RUPLP)', 'терминал погрузки (SHANGHAI → RUPLP)']);
 });
 
 test('можно оставить неизвестные данные пустыми — ячейки выделяются жёлтым', async () => {
   const source = readSource(buildSource([row()]));
   const opts = options(source, { vessel: '', arrivalDate: '', allowIncomplete: true });
-  const settings = opts.groups['CNNSA|RUPLP'];
+  const settings = opts.groups['NANSHA|RUPLP'];
   Object.assign(settings, { pol: '', terminal: '', billDate: '', dischargeTerminal: '' });
   assert.deepEqual(validateOptions(source, opts), []);
   settings.fileCode = '';
-  assert.deepEqual(validateOptions(source, opts), ['код порта погрузки для имени файла (CNNSA → RUPLP)']);
+  assert.deepEqual(validateOptions(source, opts), ['код порта погрузки для имени файла (NANSHA → RUPLP)']);
   settings.fileCode = source.groups[0].fileCode;
 
   const [file] = buildArmFiles(source, opts);
