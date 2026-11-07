@@ -532,6 +532,17 @@ test('R, S: вес груза и тары — «исправлю сам» из �
   assert.deepEqual(result.findings.map((f) => f.correction), ['28120', '3700']);
 });
 
+test('R: вес паллет с количеством в наименовании не входит в вес груза, но остаётся в ВГМ', () => {
+  const order = buildOrder({ containers: [{
+    ...ORDER_CONTAINERS[0],
+    goods: [{ name: 'Бумага', places: 20, gross: 28120 }, { name: '20 паллет', places: 0, gross: 440 }],
+  }, ORDER_CONTAINERS[1]] });
+  const result = check(buildTemplate({ rows: [{ ...ROW1, R: 28560, U: 32260 }, ROW2] }), orders(order));
+  const f = only(result, () => true);
+  assert.deepEqual(brief(f), ['R10', 'ВЕС ГРУЗА', 'error', 'auto']);
+  assert.equal(f.correction, '28120');
+});
+
 test('T: объём должен быть числом больше нуля', () => {
   assert.deepEqual(brief(only(check(buildTemplate({ rows: [{ ...ROW1, T: 0 }, ROW2] })), () => true)),
     ['T10', 'ОБЪЕМ', 'error', 'customer']);
