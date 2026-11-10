@@ -8,7 +8,8 @@
 // Шаг 1 — пока нет исходного файла, 2 — пока нет результата, 3 — результат
 // показан; любое изменение файлов прячет устаревший результат.
 
-import { crossCheckSource, readSourceManifest, FIELD_LABELS } from './core.js?v=202610141930';
+import { crossCheckSource, readSourceManifest, FIELD_LABELS } from './core.js?v=202611101000';
+import { ensureWorkbookTheme } from '../lib/xlsx-safe-write.js?v=202611101000';
 import { countDataRows, readVoyageHeader } from '../lib/manifest-format.js?v=202609121930';
 
 const Shell = window.Shell;
@@ -327,6 +328,7 @@ checkBtn.addEventListener('click', async () => {
 
 downloadBtn.addEventListener('click', async () => {
   if (!state.resultWorkbook) return;
+  ensureWorkbookTheme(state.resultWorkbook);
   const buffer = await state.resultWorkbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

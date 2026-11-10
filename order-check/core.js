@@ -18,7 +18,7 @@ import {
   LAST_COLUMN,
 } from '../lib/manifest-format.js?v=202609121930';
 import { parseLoadingOrder } from '../lib/loading-order.js?v=202611071429';
-import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202609130013';
+import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202611101000';
 
 const NEW_COLUMN_HEADER = 'Несовпадения';
 const YELLOW_ARGB = 'FFFFFF00';

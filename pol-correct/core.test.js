@@ -200,6 +200,7 @@ test('пустой POL во втором файле не затирает дан
   assert.equal(result.summary.changed, 1);
   assert.deepEqual(result.summary.ambiguous, ['CBHU4113692']);
   assert.deepEqual(result.summary.withoutPol, ['FCIU5004884']);
+  assert.deepEqual(result.summary.notFound, [], 'контейнер с пустым POL в файле 2 — не «не нашлось»');
   assert.ok(result.warnings.some((text) => /разные POL/.test(text)));
   assert.ok(result.warnings.some((text) => /пустой POL/.test(text)));
 });

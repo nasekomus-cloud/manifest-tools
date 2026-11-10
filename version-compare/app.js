@@ -1,4 +1,5 @@
-import { compareVersions, versionDate } from './core.js?v=202611031000';
+import { compareVersions, versionDate } from './core.js?v=202611101000';
+import { ensureWorkbookTheme } from '../lib/xlsx-safe-write.js?v=202611101000';
 
 const Shell = window.Shell;
 const input = document.getElementById('file-input');
@@ -273,6 +274,7 @@ downloadBtn.addEventListener('click', async () => {
   if (!state.resultWorkbook) return;
   clearError();
   try {
+    ensureWorkbookTheme(state.resultWorkbook);
     const buffer = await state.resultWorkbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);

@@ -10,3 +10,5 @@ __pycache__/
 .portal-dev/
 .agents/
 skills-lock.json
+network-infrastructure/
+working files/

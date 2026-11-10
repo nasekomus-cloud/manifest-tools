@@ -242,3 +242,33 @@ test('результат записывается и читается обрат
   assert.equal(sheet.getCell('A8').value, 'OVPB26S000813');
   assert.equal(sheet.views[0].state, 'frozen');
 });
+
+test('POL кодом (после «Корректировки POL») узнаётся по справочнику', () => {
+  const source = readSource(buildSource([
+    row({ pol: 'TRIST' }),
+    row({ container: 'AAMU2606490', pol: 'EGEDK' }),
+    row({ container: 'FOUU4503750', pol: 'ISTANBUL (TRIST)' }),
+  ]));
+  assert.deepEqual(
+    source.loadingPorts.map((p) => [p.code, p.known, p.pol, p.fileCode]),
+    [
+      ['TRIST', true, 'ISTANBUL', 'TRIST'],
+      ['EGEDK', true, 'Alexandria', 'EGEDK'],
+      ['ISTANBUL(TRIST)', true, 'ISTANBUL', 'TRIST'],
+    ],
+  );
+});
+
+test('одинаковые имена файлов не затирают друг друга в архиве', () => {
+  const source = readSource(buildSource([
+    row(),
+    row({ container: 'AAMU2606490', pol: 'NANSHA,CHINA' }),
+    row({ container: 'FOUU4503750', pol: 'CNNSA' }),
+  ]));
+  const files = buildArmFiles(source, options(source));
+  assert.deepEqual(files.map((f) => f.fileName), [
+    'for ARM uploading OVP ZENITH 2602W_RUPLP_CNNSHA.xlsx',
+    'for ARM uploading OVP ZENITH 2602W_RUPLP_CNNSHA (2).xlsx',
+    'for ARM uploading OVP ZENITH 2602W_RUPLP_CNNSHA (3).xlsx',
+  ]);
+});

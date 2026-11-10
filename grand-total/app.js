@@ -6,7 +6,7 @@
 // полоса действия — общий каркас assets/shell.js (window.Shell); список файлов,
 // плитки и полоса повторяют образец merge/app.js.
 
-import { buildGrandTotalData } from './core.js?v=202609122000';
+import { buildGrandTotalData } from './core.js?v=202611101000';
 import { countDataRows } from '../lib/manifest-format.js?v=202609121930';
 
 const Shell = window.Shell;

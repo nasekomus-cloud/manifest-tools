@@ -16,7 +16,7 @@
 // ячейка с ошибкой — оранжевым, с предупреждением — голубым (как в
 // template-check: жёлтый там уже занят).
 
-import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202609130013';
+import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202611101000';
 
 const NOTE_HEADER = 'Ошибки проверки';
 const ERROR_ARGB = 'FFFF9900';

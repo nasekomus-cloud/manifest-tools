@@ -10,7 +10,8 @@
 // самой проверки файлы читаются заново из исходных байтов (spec §6) — объект,
 // прочитанный при распознавании, для этого не переиспользуется.
 
-import { detectFileKind, checkTemplate, groupFindings, cellRanges } from './core.js?v=202611071429';
+import { detectFileKind, checkTemplate, groupFindings, cellRanges } from './core.js?v=202611101000';
+import { ensureWorkbookTheme } from '../lib/xlsx-safe-write.js?v=202611101000';
 
 const Shell = window.Shell;
 
@@ -452,6 +453,7 @@ function triggerDownload(blob, fileName) {
 }
 
 async function downloadWorkbook(workbook, fileName) {
+  ensureWorkbookTheme(workbook);
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -8,7 +8,7 @@
 // 3 — показан результат; любое изменение набора файлов или параметра прячет
 // устаревший результат.
 
-import { mergeManifests } from './core.js?v=202609121930';
+import { mergeManifests } from './core.js?v=202611101000';
 import { countDataRows } from '../lib/manifest-format.js?v=202609121930';
 
 const Shell = window.Shell;

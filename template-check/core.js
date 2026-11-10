@@ -14,7 +14,7 @@ import {
   normalizeHeader,
 } from './template-form.js?v=202609282100';
 import { parseLoadingOrder } from '../lib/loading-order.js?v=202611071429';
-import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202609130013';
+import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202611101000';
 
 // Ошибка — оранжевым, не жёлтым: в новой форме заказчик сам заливает жёлтым
 // все обязательные графы, и жёлтая пометка на них не видна (решение

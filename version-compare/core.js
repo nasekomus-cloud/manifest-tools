@@ -1,4 +1,4 @@
-import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202609130013';
+import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202611101000';
 
 const CHANGED_FILL = 'FFFFFF00';
 const MAX_COMMENT_VALUE_LENGTH = 2000;

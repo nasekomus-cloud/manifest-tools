@@ -7,8 +7,8 @@
 // Шаг 1 — пока нет файла 1, 2 — пока нет результата, 3 — результат показан.
 // Любое изменение файлов прячет устаревший результат.
 
-import { correctPol, inspectPolFile } from './core.js?v=202611042245';
-import { ensureWorkbookTheme } from '../lib/xlsx-safe-write.js?v=202611042229';
+import { correctPol, inspectPolFile } from './core.js?v=202611101000';
+import { ensureWorkbookTheme } from '../lib/xlsx-safe-write.js?v=202611101000';
 
 const Shell = window.Shell;
 

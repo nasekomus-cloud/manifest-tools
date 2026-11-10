@@ -20,7 +20,7 @@
 // глобальный ExcelJS, в тестах — import('exceljs')), поэтому модуль тестируется
 // в Node без браузера.
 
-import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202611042245';
+import { dropUnwritableConditionalFormatting } from '../lib/xlsx-safe-write.js?v=202611101000';
 
 // Заменённые ячейки — жёлтым, как изменённые ячейки в «Сравнить версии».
 const CHANGED_FILL = 'FFFFFF00';
@@ -230,6 +230,8 @@ export function correctPol(target, source) {
       else if (known.pol !== row.pol) conflicts.add(row.key);
     }
   }
+  // POL нашёлся в другой строке того же контейнера — пустая строка не помеха.
+  for (const key of sourcePol.keys()) withoutPol.delete(key);
 
   const changes = [];
   const notFound = [];
@@ -253,6 +255,9 @@ export function correctPol(target, source) {
       }
       const entry = sourcePol.get(row.key);
       if (!entry) {
+        // Контейнер в файле 2 есть, но POL у него пустой — об этом своё
+        // предупреждение, «не нашлось» про него было бы неправдой.
+        if (withoutPol.has(row.key)) continue;
         notFound.push({ row: row.row, container: row.container });
         continue;
       }

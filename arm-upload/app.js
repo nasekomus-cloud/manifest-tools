@@ -13,7 +13,7 @@
 // (другой рейс — пустые даты, чтобы не подставить чужие), настройки портов —
 // последние введённые, общие для всех рейсов.
 
-import { readSource, buildArmFiles, validateOptions } from './core.js?v=202611042300';
+import { readSource, buildArmFiles, validateOptions } from './core.js?v=202611101000';
 
 const Shell = window.Shell;
 

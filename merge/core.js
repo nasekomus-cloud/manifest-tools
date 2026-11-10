@@ -16,7 +16,7 @@ import {
   rowHasData,
   ROW_FIRST_COLUMN as FIRST_COPY_COLUMN,
 } from '../lib/manifest-format.js?v=202609121930';
-import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609111500';
+import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609131530';
 
 const FALLBACK_NUMBER_COLUMN = 1; // A — если заголовок "№п/п" не нашёлся в шапке вообще
 

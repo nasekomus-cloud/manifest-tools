@@ -8,7 +8,8 @@
 // Шаг 1 — пока нет сводного файла, 2 — пока нет результата, 3 — результат
 // показан; любое изменение файлов прячет устаревший результат.
 
-import { crossCheckOrders } from './core.js?v=202611071429';
+import { crossCheckOrders } from './core.js?v=202611101000';
+import { ensureWorkbookTheme } from '../lib/xlsx-safe-write.js?v=202611101000';
 import { countDataRows } from '../lib/manifest-format.js?v=202609121930';
 
 const Shell = window.Shell;
@@ -411,6 +412,7 @@ checkBtn.addEventListener('click', async () => {
 
 downloadBtn.addEventListener('click', async () => {
   if (!state.resultWorkbook) return;
+  ensureWorkbookTheme(state.resultWorkbook);
   const buffer = await state.resultWorkbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

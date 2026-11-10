@@ -4,7 +4,7 @@
 // там, здесь только добавляется судно/рейс из шапки первого файла (тот же
 // файл, что уже играет роль эталонного при проверке структуры).
 
-import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609111500';
+import { buildManifestTotals } from '../lib/port-breakdown.js?v=202609131530';
 import { readVoyageHeader } from '../lib/manifest-format.js?v=202609121930';
 
 /**

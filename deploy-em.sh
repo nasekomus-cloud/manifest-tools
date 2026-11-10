@@ -22,6 +22,8 @@ rsync -avz --delete \
   --exclude '.agents' \
   --exclude '.superpowers' \
   --exclude '.portal-dev' \
+  --exclude '/network-infrastructure' \
+  --exclude '/working files' \
   --exclude 'portal' \
   --exclude 'docs' \
   --exclude 'package.json' \

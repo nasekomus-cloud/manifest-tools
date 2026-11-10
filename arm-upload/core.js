@@ -219,9 +219,12 @@ export function readSource(workbook) {
     const loadingPorts = [...ports].map(([portCode, port]) => {
       // Справочник тоже выбирается по POL: NANSHA → CNNSA/CNNSHA,
       // EL DEKHEILA → EGEDK, ISTANBUL → TRIST.
-      const known = Object.values(LOADING_PORTS).find((entry) => portCode && (
-        code(entry.pol).includes(portCode) || code(entry.terminal).includes(portCode)
-      ));
+      // POL бывает и кодом — после «Корректировки POL» в колонке стоят коды
+      // из Stowage Edit (TRIST, EGEDK), а в названии и терминале кода нет.
+      const known = Object.entries(LOADING_PORTS).find(([key, entry]) => portCode && (
+        portCode === key || portCode === code(entry.fileCode) || portCode.includes(`(${key})`)
+        || code(entry.pol).includes(portCode) || code(entry.terminal).includes(portCode)
+      ))?.[1];
       return {
         code: portCode,
         rows: port.rows.length,
@@ -437,6 +440,17 @@ function buildWorkbook(workbook, rows, { vessel, voyage, arrivalDate, loadingTer
  */
 export function buildArmFiles(source, options) {
   const { vessel, voyage, arrivalDate, groups, createWorkbook } = options;
+  // Две пары могут дать одно имя (POL «NANSHA» и «NANSHA,CHINA» — оба CNNSHA,
+  // или одинаковые коды, вписанные вручную): в архиве второй файл затёр бы
+  // первый, поэтому повтор получает « (2)», « (3)»…
+  const usedNames = new Map();
+  const uniqueName = (name) => {
+    const key = name.toLowerCase();
+    const count = (usedNames.get(key) ?? 0) + 1;
+    usedNames.set(key, count);
+    if (count === 1) return name;
+    return uniqueName(name.replace(/\.xlsx$/i, ` (${count}).xlsx`));
+  };
   return source.groups.map((group) => {
     const settings = groups[group.key] ?? {};
     const rows = source.rows.filter((d) => d.portCode === group.code && d.deliveryCode === group.deliveryCode);
@@ -455,7 +469,7 @@ export function buildArmFiles(source, options) {
     return {
       portCode: group.code,
       deliveryCode: group.deliveryCode,
-      fileName: safeFileName(`for ARM uploading ${vessel} ${voyage}_${dischargeCode}_${fileCode}.xlsx`),
+      fileName: uniqueName(safeFileName(`for ARM uploading ${vessel} ${voyage}_${dischargeCode}_${fileCode}.xlsx`)),
       rows: rows.length,
       containers: group.containers,
       workbook,
