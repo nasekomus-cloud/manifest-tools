@@ -1,4 +1,4 @@
-// Состояние страницы «Дашборд по портам отправления»: выбранные файлы,
+// Состояние страницы «Дашборд по портам погрузки»: выбранные файлы,
 // рендер таблиц на странице и сборка/скачивание Excel-отчёта. Подсчёт
 // разбивки — дело core.js (buildPortDashboard), сюда импортируется как
 // обычный модуль (см. interfaces.md). Идентично dashboard/app.js — тот же
@@ -434,7 +434,7 @@ async function handleDownloadClick() {
 
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'дашборд-по-портам-отправления.xlsx';
+  link.download = 'дашборд-по-портам-погрузки.xlsx';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
