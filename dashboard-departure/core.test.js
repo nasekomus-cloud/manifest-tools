@@ -7,7 +7,7 @@ import { SHEET_NAME, COLUMN_HEADER_ROW, DATA_START_ROW, FIRST_COLUMN } from '../
 // Вся общая логика (дедупликация контейнеров, пропуск СУММ-строки, поиск
 // колонок, нормализация, сортировка, ошибки) протестирована один раз в
 // lib/port-breakdown.test.js — buildPortDashboard здесь лишь вызывает её
-// с фиксированной колонкой «Порт отправления». Эти тесты проверяют только,
+// с фиксированной колонкой «Порт погрузки» (колонка Y реального манифеста). Эти тесты проверяют только,
 // что обёртка передаёт правильный столбец, а не переизобретают общий алгоритм.
 const HEADERS = [
   '№п/п', // C
@@ -18,12 +18,14 @@ const HEADERS = [
   'Вес груза', // H
   'Вес тары', // I
   'Общий вес', // J
+  'Порт погрузки', // K (в реальном манифесте — Y)
 ];
 const CONTAINER_COL = FIRST_COLUMN + 1;
 const TYPE_COL = FIRST_COLUMN + 2;
 const DEPARTURE_COL = FIRST_COLUMN + 3;
 const DESTINATION_COL = FIRST_COLUMN + 4;
 const CARGO_COL = FIRST_COLUMN + 5;
+const LOADING_COL = FIRST_COLUMN + 8;
 
 function buildWorkbook(rows) {
   const workbook = new ExcelJS.Workbook();
@@ -40,24 +42,27 @@ function buildWorkbook(rows) {
     r.getCell(DEPARTURE_COL).value = row.departurePort;
     r.getCell(DESTINATION_COL).value = row.destinationPort;
     r.getCell(CARGO_COL).value = row.cargo;
+    r.getCell(LOADING_COL).value = row.loadingPort;
   });
   return workbook;
 }
 
-test('buildPortDashboard: группирует по «Порт отправления», не по «Порт назначения»', () => {
+test('buildPortDashboard: группирует по «Порт погрузки», не по «Порт отправления» и не по «Порт назначения»', () => {
   const wb = buildWorkbook([
-    { departurePort: 'CNTAO', destinationPort: 'KALININGRAD', type: '40HC', cargo: 10 },
-    { departurePort: 'CNTAO', destinationPort: 'St.Petersburg', type: '40HC', cargo: 20 },
+    { loadingPort: 'NANSHA', departurePort: 'CNNSA', destinationPort: 'KALININGRAD', type: '40HC', cargo: 10 },
+    { loadingPort: 'NANSHA', departurePort: 'CNTAO', destinationPort: 'St.Petersburg', type: '40HC', cargo: 20 },
+    { loadingPort: 'QINGDAO', departurePort: 'CNNSA', destinationPort: 'St.Petersburg', type: '20DC', cargo: 5 },
   ]);
 
   const result = buildPortDashboard([{ fileName: 'a.xlsx', workbook: wb }]);
   assert.equal(result.ok, true);
   assert.deepEqual(
-    result.combined.ports.map((p) => p.port),
-    ['CNTAO'],
+    result.combined.ports.map((p) => p.port).sort(),
+    ['NANSHA', 'QINGDAO'],
   );
-  assert.equal(result.combined.ports[0].totals.count, 2);
-  assert.equal(result.combined.ports[0].totals.cargoWeight, 30);
+  const nansha = result.combined.ports.find((p) => p.port === 'NANSHA');
+  assert.equal(nansha.totals.count, 2);
+  assert.equal(nansha.totals.cargoWeight, 30);
 });
 
 test('buildPortDashboard: без файлов — понятная ошибка, а не падение', () => {

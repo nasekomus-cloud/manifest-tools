@@ -7,7 +7,7 @@
 // каркас assets/shell.js (window.Shell); список файлов, плитки и полоса
 // повторяют образец merge/app.js.
 
-import { buildPortDashboard } from './core.js?v=202609131530';
+import { buildPortDashboard } from './core.js?v=202611151200';
 import { countDataRows } from '../lib/manifest-format.js?v=202609121930';
 
 const Shell = window.Shell;
@@ -23,7 +23,7 @@ const resultStats = document.getElementById('result-stats');
 const resultsBox = document.getElementById('results-box');
 const downloadBtn = document.getElementById('download-btn');
 
-const TABLE_COLUMNS = ['Порт отправления', 'Тип контейнера', 'Кол-во', 'Вес груза', 'Вес тары', 'Общий вес'];
+const TABLE_COLUMNS = ['Порт погрузки', 'Тип контейнера', 'Кол-во', 'Вес груза', 'Вес тары', 'Общий вес'];
 const FIRST_NUMERIC_COLUMN = 2; // «Кол-во» и веса — справа, моноширинным
 
 /**

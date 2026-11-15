@@ -1,6 +1,6 @@
 // Дашборд по портам отправления — тонкая обёртка над общей логикой подсчёта
 // разбивки (lib/port-breakdown.js), которая делит инструмент с dashboard/
-// (та же логика, другая колонка-порт). Подробности — в lib/port-breakdown.js.
+// (та же логика, другая колонка-порт: «Порт погрузки», колонка Y; до 2026-11-15 — «Порт отправления», F). Подробности — в lib/port-breakdown.js.
 
 import { buildPortBreakdownDashboard } from '../lib/port-breakdown.js?v=202609131530';
 
@@ -11,7 +11,7 @@ import { buildPortBreakdownDashboard } from '../lib/port-breakdown.js?v=20260913
  */
 export function buildPortDashboard(workbooks) {
   return buildPortBreakdownDashboard(workbooks, {
-    portKeyword: 'отправления',
-    portLabel: '«Порт отправления»',
+    portKeyword: 'погрузки',
+    portLabel: '«Порт погрузки»',
   });
 }
